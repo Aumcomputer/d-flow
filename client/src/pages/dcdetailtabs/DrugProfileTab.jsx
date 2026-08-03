@@ -61,7 +61,7 @@ export default function DrugProfileTab({ an, isFilterActive }) {
                 <th className="px-3 py-2 text-left">วันที่</th>
                 <th className="px-3 py-2 text-right">จำนวน</th>
                 <th className="px-3 py-2 text-right">มูลค่า</th>
-                <th className="px-3 py-2 text-left">เจ้าหน้าที่</th>
+                <th className="px-3 py-2 text-left">ผู้บันทึก</th>
               </tr>
             </thead>
             <tbody>
@@ -81,7 +81,7 @@ export default function DrugProfileTab({ an, isFilterActive }) {
                   <td className="px-3 py-2">{formatDate(o.rxdate)} {formatTime(o.rxtime)}</td>
                   <td className="px-3 py-2 text-right">{o.item_count}</td>
                   <td className="px-3 py-2 text-right font-medium">{formatMoney(o.amount)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{o.entry_staff}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{o.entry_staff_name || o.entry_staff || '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -114,6 +114,7 @@ export default function DrugProfileTab({ an, isFilterActive }) {
                   <th className="px-3 py-2 text-left">วิธีใช้</th>
                   <th className="px-3 py-2 text-right">ราคา</th>
                   <th className="px-3 py-2 text-right">รวม</th>
+                  <th className="px-3 py-2 text-left">ผู้บันทึก</th>
                 </tr>
               </thead>
               <tbody>
@@ -131,6 +132,9 @@ export default function DrugProfileTab({ an, isFilterActive }) {
 
                     <td className="px-3 py-2 text-right">{formatMoney(d.unitprice)}</td>
                     <td className="px-3 py-2 text-right font-medium">{formatMoney(d.sum_price)}</td>
+                    <td className="px-3 py-2 text-muted-foreground max-w-[120px]">
+                      <div className="truncate" title={d.staff_name}>{d.staff_name || '-'}</div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

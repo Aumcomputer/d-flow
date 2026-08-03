@@ -421,8 +421,9 @@ router.get('/:an/drugs', authMiddleware, async (req, res) => {
 
         const sql = `
             SELECT i.order_type, i.rxdate, i.rxtime, i.order_no,
-                   i.item_count, i.amount, i.entry_staff
+                   i.item_count, i.amount, i.entry_staff, o.name as entry_staff_name
             FROM ipt_order_no i
+            LEFT JOIN opduser o ON i.entry_staff = o.loginname
             WHERE i.an = ?
               AND i.order_type IN ('IRx','EMx','TRx','Hme','ATO','CRx','BCH')
             ORDER BY i.rxdate DESC, i.rxtime DESC
@@ -469,10 +470,12 @@ router.get('/:an/drugs/:orderNo', authMiddleware, async (req, res) => {
             SELECT o.item_no, o.icode, o.income,
                    CONCAT(s.name, ' ', s.strength, ' ', s.units) AS drug_name,
                    o.qty, d.shortlist AS usage_note,
-                   o.unitprice, o.sum_price
+                   o.unitprice, o.sum_price,
+                   u.name as staff_name
             FROM opitemrece o
             LEFT JOIN s_drugitems s ON s.icode = o.icode
             LEFT JOIN drugusage d ON d.drugusage = o.drugusage
+            LEFT JOIN opduser u ON u.loginname = o.staff
             WHERE o.an = ? AND o.order_no = ?
             ORDER BY o.item_no
         `;
