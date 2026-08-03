@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 
-const socket = io(`http://${window.location.hostname}:4000`, {
+const socket = io({
+  path: '/socket.io',
   withCredentials: true,
   autoConnect: true
 });

@@ -14,6 +14,10 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': 'http://10.10.90.53:4000',
+      '/socket.io': {
+        target: 'http://10.10.90.53:4000',
+        ws: true
+      }
     },
   },
 })
