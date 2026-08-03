@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Bed, User, FileCheck, CheckCircle2, XCircle } from 'lucide-react'
+import { Search, Bed, User, FileCheck, CheckCircle2, XCircle, Building2 } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
 
@@ -144,11 +144,16 @@ export default function WardPage() {
       
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-            ระบบหอผู้ป่วย
-          </h1>
-          <p className="text-muted-foreground mt-1">จัดการผู้ป่วยในความดูแลและเตรียมความพร้อมก่อนจำหน่าย</p>
+        <div className="flex items-center gap-3">
+          <div className="bg-teal-50 p-2 rounded-xl border border-teal-100">
+            <Building2 className="w-8 h-8 text-teal-600" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-500 to-emerald-600">
+              หอผู้ป่วย
+            </h1>
+            <p className="text-muted-foreground mt-1">จัดการผู้ป่วยในความดูแลและเตรียมความพร้อมก่อนจำหน่าย</p>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">

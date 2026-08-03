@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, CheckCircle2, CreditCard } from 'lucide-react'
+import { User, CheckCircle2, Wallet } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
 
@@ -69,11 +69,11 @@ export default function FinancePage() {
     <div className="w-full px-4 py-6 space-y-6 animate-in fade-in zoom-in-95 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-3">
-          <div className="bg-amber-100 p-2 rounded-xl">
-            <CreditCard className="w-8 h-8 text-amber-600" />
+          <div className="bg-purple-50 p-2 rounded-xl border border-purple-100">
+            <Wallet className="w-8 h-8 text-purple-600" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-600 to-orange-600">
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-fuchsia-500">
               การเงิน
             </h1>
             <p className="text-muted-foreground mt-1">ผู้ป่วยรอชำระเงิน จำนวน {patients.length} ราย</p>

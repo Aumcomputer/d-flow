@@ -69,11 +69,11 @@ export default function PharmacyPage() {
     <div className="w-full px-4 py-6 space-y-6 animate-in fade-in zoom-in-95 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-100 p-2 rounded-xl">
-            <Pill className="w-8 h-8 text-blue-600" />
+          <div className="bg-green-50 p-2 rounded-xl border border-green-100">
+            <Pill className="w-8 h-8 text-green-600" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-600">
               ห้องยา
             </h1>
             <p className="text-muted-foreground mt-1">ผู้ป่วยที่รอดำเนินการ จำนวน {patients.length} ราย</p>

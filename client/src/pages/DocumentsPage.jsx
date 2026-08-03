@@ -176,10 +176,13 @@ export default function DocumentsPage() {
     <div className="container mx-auto p-6 w-full animate-fade-in">
       {/* Top Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-50 p-2 rounded-xl border border-blue-100">
+            <FileText className="w-8 h-8 text-blue-600" />
+          </div>
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-              ระบบเวชระเบียน
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600">
+              เวชระเบียน
             </h1>
             <p className="text-muted-foreground mt-1">จัดการเอกสารผู้ป่วยและจัดเก็บไฟล์แนบ</p>
           </div>
