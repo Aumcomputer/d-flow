@@ -1,0 +1,24 @@
+{
+  "name": "d-flow-server",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node --watch index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "mariadb": "^3.4.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "sharp": "^0.33.5",
+    "socket.io": "^4.8.3",
+    "uuid": "^10.0.0"
+  },
+  "allowScripts": {
+    "sharp@0.33.5": true
+  }
+}

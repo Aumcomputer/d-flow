@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!-- White Square Frame with light border -->
+  <rect width="400" height="400" rx="48" fill="#ffffff" stroke="#e2e8f0" stroke-width="4" />
+  
+  <!-- Minimalist 'd' & Flow hyphen -->
+  <!-- ขยับตำแหน่งกรอบสัญลักษณ์ d- ไปทางซ้ายบน -->
+  <g transform="translate(80, 140)">
+    <!-- circle of d -->
+    <circle cx="35" cy="0" r="30" fill="none" stroke="#0f172a" stroke-width="14"/>
+    <!-- stem of d -->
+    <line x1="65" y1="-50" x2="65" y2="30" stroke="#0f172a" stroke-width="14" stroke-linecap="round"/>
+    
+    <!-- Flow dash -->
+    <line x1="95" y1="0" x2="140" y2="0" stroke="#3b82f6" stroke-width="14" stroke-linecap="round"/>
+    <line x1="165" y1="0" x2="185" y2="0" stroke="#10b981" stroke-width="14" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Text: 'flow' -->
+  <!-- จัดให้อยู่เยื้องลงมาด้านล่างขวา โดยให้ชิดซ้ายตรงกับจุดเริ่มต้นของเส้น Dash สีฟ้าพอดี (x=175) -->
+  <text x="175" y="225" font-family="'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="56" fill="#0f172a" font-style="italic" text-anchor="start">flow</text>
+</svg>
