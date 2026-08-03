@@ -50,11 +50,17 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
   }
 
   const checklistItems = [
-    { id: 'chk_med', label: 'บันทึกการให้ยาครบถ้วน', icon: Activity },
-    { id: 'chk_nurse', label: 'บันทึกการพยาบาลครบถ้วน', icon: User },
-    { id: 'chk_lab', label: 'ตรวจสอบผลตรวจทางห้องปฏิบัติการ', icon: FileText },
-    { id: 'chk_opnote', label: 'ตรวจสอบ operative note', icon: FileText },
+    { id: 'chk_right', label: 'ตรวจสอบสิทธิ์การรักษาเรียบร้อย*', icon: Shield, required: true },
+    { id: 'chk_nurse', label: 'บันทึกการพยาบาลครบถ้วน*', icon: User, required: true },
+    { id: 'chk_bed', label: 'ลงค่าเตียงเรียบร้อย*', icon: Bed, required: true },
+    { id: 'chk_lab_dup', label: 'ตรวจสอบรายการ Lab ซ้ำซ้อนเรียบร้อย*', icon: FlaskConical, required: true },
+    { id: 'chk_cost_dup', label: 'ตรวจสอบค่าใช้จ่ายซ้ำซ้อนเรียบร้อย*', icon: DollarSign, required: true },
+    { id: 'chk_opnote', label: 'ตรวจสอบ operative note เรียบร้อย', icon: FileText, required: false },
   ]
+
+  const isChecklistComplete = checklistItems
+    .filter(item => item.required)
+    .every(item => details && details[item.id] && details[item.id] !== 'updating...')
 
   const handleToggle = async (field, currentValue) => {
     try {
@@ -242,7 +248,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
                   setWorkflowStatus('pharmacy')
                 } catch(err) { alert('ไม่สามารถส่งห้องยาได้') }
               }}
-              disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
+              disabled={!isChecklistComplete || ['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
               className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Pill className="w-5 h-5" />
@@ -256,7 +262,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
                   setWorkflowStatus('discharge_center')
                 } catch(err) { alert('ไม่สามารถส่งศูนย์จำหน่ายได้') }
               }}
-              disabled={['discharge_center', 'finance', 'completed'].includes(workflowStatus)}
+              disabled={!isChecklistComplete || ['discharge_center', 'finance', 'completed'].includes(workflowStatus)}
               className="flex-1 flex items-center justify-center gap-2 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Building2 className="w-5 h-5" />

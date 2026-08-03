@@ -221,7 +221,7 @@ router.post('/:an/checklist', authMiddleware, async (req, res) => {
         const { field, checked } = req.body; // field e.g. 'chk_med'
         const loginname = req.user.loginname;
         
-        const validFields = ['chk_med', 'chk_nurse', 'chk_lab', 'chk_opnote'];
+        const validFields = ['chk_med', 'chk_nurse', 'chk_lab', 'chk_opnote', 'chk_right', 'chk_bed', 'chk_lab_dup', 'chk_cost_dup'];
         if (!validFields.includes(field)) {
             return res.status(400).json({ error: 'Invalid field' });
         }
