@@ -101,7 +101,7 @@ export default function ExpensesTab({ an }) {
                                 </thead>
                                 <tbody>
                                   {expenseDetails.map((d, idx) => (
-                                    <tr key={idx} className={`border-t border-slate-200 ${d.paidst === '03' ? 'bg-red-50 text-red-800' : ''}`}>
+                                    <tr key={idx} className={`border-t border-slate-200 ${['01', '03'].includes(d.paidst) ? 'bg-red-50 text-red-800' : ''}`}>
                                       <td className="px-2 py-1.5">{formatDate(d.rxdate)}</td>
                                       <td className="px-2 py-1.5">{formatTime(d.rxtime)}</td>
                                       <td className="px-2 py-1.5 font-mono">{d.icode}</td>

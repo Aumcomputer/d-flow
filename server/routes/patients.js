@@ -517,7 +517,7 @@ router.get('/:an/expenses', authMiddleware, async (req, res) => {
         const sql = `
             SELECT o.income AS code, i.name,
                    SUM(o.sum_price) AS total,
-                   SUM(IF(o.paidst = '03', o.sum_price, 0)) AS pending
+                   SUM(IF(o.paidst IN ('01', '03'), o.sum_price, 0)) AS pending
             FROM opitemrece o
             LEFT JOIN income i ON i.income = o.income
             WHERE o.an = ?
