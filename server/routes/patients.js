@@ -124,7 +124,7 @@ const { getDflowConnection } = require('../config/database');
 
 // Get AN details (discharge info, checklist)
 router.get('/:an/detail', authMiddleware, async (req, res) => {
-    let conn;
+    let conn, hisConn;
     try {
         const { an } = req.params;
         conn = await getDflowConnection();
@@ -132,12 +132,39 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
         if (rows.length === 0) {
             return res.json({ an });
         }
-        res.json(rows[0]);
+        
+        let detail = rows[0];
+        const loginnames = [
+            detail.chk_right, detail.chk_nurse, detail.chk_bed, 
+            detail.chk_lab_dup, detail.chk_cost_dup, detail.chk_opnote
+        ].filter(Boolean);
+
+        if (loginnames.length > 0) {
+            hisConn = await getHisConnection();
+            const placeholders = loginnames.map(() => '?').join(',');
+            const users = await hisConn.query(
+                `SELECT loginname, name FROM opduser WHERE loginname IN (${placeholders})`,
+                loginnames
+            );
+            
+            const userMap = {};
+            users.forEach(u => userMap[u.loginname] = u.name);
+
+            detail.chk_right_name = userMap[detail.chk_right] || null;
+            detail.chk_nurse_name = userMap[detail.chk_nurse] || null;
+            detail.chk_bed_name = userMap[detail.chk_bed] || null;
+            detail.chk_lab_dup_name = userMap[detail.chk_lab_dup] || null;
+            detail.chk_cost_dup_name = userMap[detail.chk_cost_dup] || null;
+            detail.chk_opnote_name = userMap[detail.chk_opnote] || null;
+        }
+
+        res.json(detail);
     } catch (error) {
         console.error('Fetch an_detail error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (conn) conn.release();
+        if (hisConn) hisConn.release();
     }
 });
 

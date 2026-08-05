@@ -194,20 +194,28 @@ async function updateWorkflowStatus(req, res, setClause, values, newStatus, acti
 }
 
 router.post('/:an/send-pharmacy', authMiddleware, async (req, res) => {
+    const { phone } = req.body;
+    const phoneUpdate = phone ? ', ward_phone = ?' : '';
+    const values = phone ? [req.user.loginname, phone] : [req.user.loginname];
+    
     await updateWorkflowStatus(
         req, res,
-        'sent_pharmacy_by = ?, sent_pharmacy_date = NOW()',
-        [req.user.loginname],
+        `sent_pharmacy_by = ?, sent_pharmacy_date = NOW()${phoneUpdate}`,
+        values,
         'pharmacy',
         'SEND_PHARMACY'
     );
 });
 
 router.post('/:an/send-dc', authMiddleware, async (req, res) => {
+    const { phone } = req.body;
+    const phoneUpdate = phone ? ', ward_phone = ?' : '';
+    const values = phone ? [req.user.loginname, phone] : [req.user.loginname];
+
     await updateWorkflowStatus(
         req, res,
-        'sent_dc_by = ?, sent_dc_date = NOW()',
-        [req.user.loginname],
+        `sent_dc_by = ?, sent_dc_date = NOW()${phoneUpdate}`,
+        values,
         'discharge_center',
         'SEND_DC'
     );

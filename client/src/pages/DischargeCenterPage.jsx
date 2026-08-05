@@ -127,6 +127,7 @@ export default function DischargeCenterPage() {
                   <th className="px-4 py-3">ชื่อ-สกุล</th>
                   <th className="px-4 py-3">อายุ</th>
                   <th className="px-4 py-3">หอผู้ป่วย</th>
+                  <th className="px-4 py-3">เบอร์โทรศัพท์</th>
                   <th className="px-4 py-3">สิทธิ์การรักษา</th>
                   <th className="px-4 py-3">แพทย์</th>
                   <th className="px-4 py-3 text-right">การจัดการ</th>
@@ -135,13 +136,13 @@ export default function DischargeCenterPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : patients.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       ไม่มีผู้ป่วยที่ศูนย์จำหน่าย
                     </td>
                   </tr>
@@ -162,6 +163,7 @@ export default function DischargeCenterPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.age_y ? p.age_y + ' ปี' : '-'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.ward_name || '-'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.ward_phone || '-'}</td>
                       <td className="px-4 py-3 text-muted-foreground">
                         <div className="line-clamp-1">{p.pttype_name || '-'}</div>
                       </td>
@@ -201,19 +203,20 @@ export default function DischargeCenterPage() {
                   <th className="px-4 py-3">ชื่อ-สกุล</th>
                   <th className="px-4 py-3">อายุ</th>
                   <th className="px-4 py-3">หอผู้ป่วย</th>
+                  <th className="px-4 py-3">เบอร์โทรศัพท์</th>
                   <th className="px-4 py-3">สถานะปัจจุบัน</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : historyPatients.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       ไม่มีประวัติผู้ป่วย
                     </td>
                   </tr>
@@ -240,6 +243,7 @@ export default function DischargeCenterPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.age_y ? p.age_y + ' ปี' : '-'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.ward_name || '-'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.ward_phone || '-'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                           p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :

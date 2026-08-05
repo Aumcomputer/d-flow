@@ -8,6 +8,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
   const [audit, setAudit] = useState(null)
   const [loadingAudit, setLoadingAudit] = useState(true)
   const [workflowStatus, setWorkflowStatus] = useState(details?.workflow_status || null)
+  const [wardPhone, setWardPhone] = useState(details?.ward_phone || '')
   const location = useLocation()
   const fromWard = location.state?.fromWard === true
 
@@ -37,6 +38,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
     try {
       const res = await api.get(`/patients/${an}/detail`)
       setWorkflowStatus(res.data.workflow_status)
+      if (res.data.ward_phone) setWardPhone(res.data.ward_phone)
     } catch (err) { console.error(err) }
   }
 
@@ -181,7 +183,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
           <div className="p-4 space-y-3">
             {checklistItems.map(item => {
               const isChecked = !!(details && details[item.id])
-              const checkedBy = isChecked && details[item.id] !== 'updating...' ? details[item.id] : null
+              const checkedBy = isChecked && details[item.id] !== 'updating...' ? (details[item.id + '_name'] || details[item.id]) : null
               const Icon = item.icon
               return (
                 <div
@@ -239,12 +241,29 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
               </div>
             )}
           </div>
-          <div className="p-5 flex gap-4">
-            <button
+          <div className="p-4 flex flex-col xl:flex-row items-center gap-4 bg-muted/10">
+            <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
+              <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
+                หมายเลขโทรศัพท์หอผู้ป่วย <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={wardPhone}
+                onChange={(e) => setWardPhone(e.target.value)}
+                placeholder="ระบุเบอร์โทรศัพท์..."
+                className="flex-1 sm:w-48 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex gap-4 w-full xl:flex-1">
+              <button
               onClick={async () => {
+                if(!wardPhone.trim()) {
+                  alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย');
+                  return;
+                }
                 if(!confirm('ยืนยันส่งห้องยา?')) return;
                 try {
-                  await api.post(`/workflow/${an}/send-pharmacy`)
+                  await api.post(`/workflow/${an}/send-pharmacy`, { phone: wardPhone })
                   setWorkflowStatus('pharmacy')
                 } catch(err) { alert('ไม่สามารถส่งห้องยาได้') }
               }}
@@ -256,9 +275,13 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
             </button>
             <button
               onClick={async () => {
+                if(!wardPhone.trim()) {
+                  alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย');
+                  return;
+                }
                 if(!confirm('ยืนยันส่งศูนย์จำหน่าย?')) return;
                 try {
-                  await api.post(`/workflow/${an}/send-dc`)
+                  await api.post(`/workflow/${an}/send-dc`, { phone: wardPhone })
                   setWorkflowStatus('discharge_center')
                 } catch(err) { alert('ไม่สามารถส่งศูนย์จำหน่ายได้') }
               }}
@@ -268,6 +291,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
               <Building2 className="w-5 h-5" />
               <span className="font-medium">ส่งศูนย์จำหน่าย</span>
             </button>
+            </div>
           </div>
         </div>
       </div>
