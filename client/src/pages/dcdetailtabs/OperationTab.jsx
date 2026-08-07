@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Scissors, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import api from '../../services/api';
 
-export default function OperationTab({ an }) {
+export default function OperationTab({ an, hn }) {
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,6 +21,20 @@ export default function OperationTab({ an }) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenOpdCardScan = async () => {
+    try {
+      const res = await api.get(`/patients/${hn}/emrscan-url`);
+      if (res.data && res.data.url) {
+        window.open(res.data.url, '_blank');
+      } else {
+        alert('ไม่สามารถสร้างลิงก์สำหรับ OPD Card Scan ได้');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อกับระบบ OPD Card Scan');
     }
   };
 
@@ -90,11 +104,19 @@ export default function OperationTab({ an }) {
           </table>
         </div>
       </div>
-      <div className="mt-4 px-2 py-3 bg-amber-50/50 border border-amber-200/60 rounded-lg flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-        <div className="text-sm text-amber-900 leading-relaxed">
-          <strong>หมายเหตุ:</strong> ถ้าไม่มี Operative Note อาจหมายถึง ไม่ได้พิมพ์ Operative Note ผ่านระบบ Smart OR กรุณาตรวจสอบในระบบ OPD Card Scan
+      <div className="mt-4 px-3 py-3 bg-amber-50/50 border border-amber-200/60 rounded-lg flex items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-900 leading-relaxed">
+            <strong>หมายเหตุ:</strong> ถ้าไม่มี Operative Note อาจหมายถึง ไม่ได้พิมพ์ Operative Note ผ่านระบบ Smart OR กรุณาตรวจสอบในระบบ OPD Card Scan
+          </div>
         </div>
+        <button 
+          onClick={handleOpenOpdCardScan}
+          className="shrink-0 px-4 py-2 bg-white border border-amber-300 rounded-md text-amber-700 font-medium hover:bg-amber-100 transition-colors shadow-sm text-sm"
+        >
+          เปิด OPD Card Scan
+        </button>
       </div>
     </div>
   );

@@ -136,15 +136,18 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
         let detail = rows[0];
         const loginnames = [
             detail.chk_right, detail.chk_nurse, detail.chk_bed, 
-            detail.chk_lab_dup, detail.chk_cost_dup, detail.chk_opnote
+            detail.chk_lab_dup, detail.chk_cost_dup, detail.chk_opnote,
+            detail.discharge_by, detail.sent_pharmacy_by, detail.pharmacy_done_by,
+            detail.sent_dc_by, detail.dc_done_by, detail.sent_finance_by, detail.finance_done_by
         ].filter(Boolean);
 
         if (loginnames.length > 0) {
             hisConn = await getHisConnection();
-            const placeholders = loginnames.map(() => '?').join(',');
+            const uniqueLoginNames = [...new Set(loginnames)];
+            const placeholders = uniqueLoginNames.map(() => '?').join(',');
             const users = await hisConn.query(
                 `SELECT loginname, name FROM opduser WHERE loginname IN (${placeholders})`,
-                loginnames
+                uniqueLoginNames
             );
             
             const userMap = {};
@@ -156,6 +159,14 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
             detail.chk_lab_dup_name = userMap[detail.chk_lab_dup] || null;
             detail.chk_cost_dup_name = userMap[detail.chk_cost_dup] || null;
             detail.chk_opnote_name = userMap[detail.chk_opnote] || null;
+
+            detail.discharge_by_name = userMap[detail.discharge_by] || null;
+            detail.sent_pharmacy_by_name = userMap[detail.sent_pharmacy_by] || null;
+            detail.pharmacy_done_by_name = userMap[detail.pharmacy_done_by] || null;
+            detail.sent_dc_by_name = userMap[detail.sent_dc_by] || null;
+            detail.dc_done_by_name = userMap[detail.dc_done_by] || null;
+            detail.sent_finance_by_name = userMap[detail.sent_finance_by] || null;
+            detail.finance_done_by_name = userMap[detail.finance_done_by] || null;
         }
 
         res.json(detail);
@@ -275,6 +286,52 @@ router.post('/:an/checklist', authMiddleware, async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (conn) conn.release();
+    }
+});
+
+// Get activity logs
+router.get('/:an/activity-logs', authMiddleware, async (req, res) => {
+    let conn, hisConn;
+    try {
+        const { an } = req.params;
+        conn = await getDflowConnection();
+        
+        const logs = await conn.query(
+            `SELECT * FROM activity_logs 
+             WHERE an = ? AND action_type LIKE '%CHECK_CHK_%'
+             ORDER BY created_at DESC`,
+            [an]
+        );
+        
+        if (logs.length === 0) {
+            return res.json([]);
+        }
+
+        hisConn = await getHisConnection();
+        const loginnames = [...new Set(logs.map(l => l.loginname).filter(Boolean))];
+        let userMap = {};
+        
+        if (loginnames.length > 0) {
+            const placeholders = loginnames.map(() => '?').join(',');
+            const users = await hisConn.query(
+                `SELECT loginname, name FROM opduser WHERE loginname IN (${placeholders})`,
+                loginnames
+            );
+            users.forEach(u => userMap[u.loginname] = u.name);
+        }
+
+        const formattedLogs = logs.map(log => ({
+            ...log,
+            fullname: userMap[log.loginname] || log.loginname
+        }));
+
+        res.json(formattedLogs);
+    } catch (error) {
+        console.error('Fetch activity logs error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
+        if (hisConn) hisConn.release();
     }
 });
 // Get operations
@@ -623,6 +680,42 @@ router.get('/:an/labs', authMiddleware, async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (conn) conn.release();
+    }
+});
+
+// ==================== EMR Scan Autologin ====================
+router.get('/:hn/emrscan-url', authMiddleware, async (req, res) => {
+    try {
+        const { hn } = req.params;
+        const loginname = req.user.loginname;
+        const autologinsecret = process.env.AUTOLOGIN_SECRET;
+
+        if (!autologinsecret) {
+            return res.status(500).json({ error: 'AUTOLOGIN_SECRET is not configured on server' });
+        }
+
+        const response = await fetch('http://emrscan.local/getTokenAutologin', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                loginname,
+                hn,
+                autologinsecret
+            })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        res.json(data);
+    } catch (error) {
+        console.error('Fetch EMR Scan URL error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 

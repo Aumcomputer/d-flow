@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2 } from 'lucide-react';
+import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import socket from '../../services/socket';
@@ -9,8 +9,20 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
   const [loadingAudit, setLoadingAudit] = useState(true)
   const [workflowStatus, setWorkflowStatus] = useState(details?.workflow_status || null)
   const [wardPhone, setWardPhone] = useState(details?.ward_phone || '')
+  const [showLogs, setShowLogs] = useState(false)
+  const [logs, setLogs] = useState([])
+  const [loadingLogs, setLoadingLogs] = useState(false)
   const location = useLocation()
   const fromWard = location.state?.fromWard === true
+
+  const fetchLogs = async () => {
+    setLoadingLogs(true)
+    try {
+      const res = await api.get(`/patients/${an}/activity-logs`)
+      setLogs(res.data)
+    } catch (err) { console.error(err) }
+    finally { setLoadingLogs(false) }
+  }
 
   useEffect(() => {
     // initialize from details if available, although we might want to fetch it explicitly
@@ -173,12 +185,21 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
       <div>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
           <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500" />
-          <div className="px-5 py-4 border-b border-border bg-muted/30">
-            <h3 className="font-bold text-base flex items-center gap-2 text-slate-800">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-              รายการตรวจสอบ (Manual)
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">ผู้ใช้งานตรวจสอบและติ๊กเองด้วยตนเอง</p>
+          <div className="px-5 py-4 border-b border-border bg-muted/30 flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-base flex items-center gap-2 text-slate-800">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                รายการตรวจสอบ (Manual)
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">ผู้ใช้งานตรวจสอบและติ๊กเองด้วยตนเอง</p>
+            </div>
+            <button 
+              onClick={() => { setShowLogs(true); fetchLogs(); }}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center gap-2 transition-colors text-xs font-medium"
+            >
+              <History className="w-4 h-4" />
+              Logs
+            </button>
           </div>
           <div className="p-4 space-y-3">
             {checklistItems.map(item => {
@@ -295,6 +316,67 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
           </div>
         </div>
       </div>
+      )}
+
+      {/* Logs Modal */}
+      {showLogs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-5 py-4 border-b border-border flex justify-between items-center bg-muted/30">
+              <h3 className="font-bold text-base flex items-center gap-2 text-slate-800">
+                <History className="w-5 h-5 text-slate-500" />
+                ประวัติการทำรายการ (Logs)
+              </h3>
+              <button 
+                onClick={() => setShowLogs(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 max-h-[60vh] overflow-y-auto">
+              {loadingLogs ? (
+                <div className="text-center text-sm text-muted-foreground py-4">กำลังโหลดข้อมูล...</div>
+              ) : logs.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-4">ไม่มีประวัติการทำรายการ</div>
+              ) : (
+                <div className="space-y-4">
+                  {logs.map(log => {
+                    const isCheck = log.action_type.startsWith('CHECK_')
+                    const fieldId = log.action_type.replace(/^(UN)?CHECK_/, '').toLowerCase()
+                    const item = checklistItems.find(c => c.id === fieldId)
+                    const label = item ? item.label.replace('*', '') : fieldId
+                    
+                    return (
+                      <div key={log.id} className="flex gap-3 text-sm">
+                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${isCheck ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        <div className="flex-1">
+                          <div className="font-medium text-slate-800">
+                            {isCheck ? 'เลือก' : 'ยกเลิก'}{' '}
+                            <span className="text-muted-foreground font-normal">
+                              {label}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center mt-1 text-xs text-slate-500">
+                            <div>
+                              โดย <span className="font-semibold text-slate-700">{log.fullname}</span>
+                            </div>
+                            <div className="text-slate-400">
+                              {new Date(log.created_at).toLocaleString('th-TH', { 
+                                year: 'numeric', month: '2-digit', day: '2-digit', 
+                                hour: '2-digit', minute: '2-digit' 
+                              })} น.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

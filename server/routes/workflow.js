@@ -48,13 +48,18 @@ async function getWorkflowPatients(status, historyOf = null, reqDate = null) {
                 CONCAT(d.pname, d.fname, ' ', d.lname) as doctor_name,
                 COALESCE(ast.income, 0) as total_income,
                 COALESCE(ast.rcpt_money, 0) as rcpt_money,
-                COALESCE(ast.paid_money, 0) as paid_money
+                COALESCE(ast.paid_money, 0) as paid_money,
+                i.dchdate, i.dchtime,
+                dct.name as dchtype_name,
+                dcs.name as dchstts_name
             FROM ipt i
             INNER JOIN patient p ON i.hn = p.hn
             LEFT JOIN pttype pt ON i.pttype = pt.pttype
             LEFT JOIN ward w ON i.ward = w.ward
             LEFT JOIN doctor d ON i.admdoctor = d.code
             LEFT JOIN an_stat ast ON i.an = ast.an
+            LEFT JOIN dchtype dct ON i.dchtype = dct.dchtype
+            LEFT JOIN dchstts dcs ON i.dchstts = dcs.dchstts
             WHERE i.an IN (${placeholders})
         `;
         

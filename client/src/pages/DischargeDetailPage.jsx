@@ -13,6 +13,7 @@ import DrugProfileTab from './dcdetailtabs/DrugProfileTab'
 import ExpensesTab from './dcdetailtabs/ExpensesTab'
 import LabTab from './dcdetailtabs/LabTab'
 import OperationTab from './dcdetailtabs/OperationTab'
+import TimelineTab from './dcdetailtabs/TimelineTab'
 
 const TABS = [
   { id: 'checklist', label: 'รายการตรวจสอบ', icon: CheckCircle2 },
@@ -21,6 +22,7 @@ const TABS = [
   { id: 'expenses', label: 'ค่าใช้จ่ายตามหมวด', icon: DollarSign },
   { id: 'lab', label: 'Lab', icon: FlaskConical },
   { id: 'operation', label: 'Operation', icon: Scissors },
+  { id: 'timeline', label: 'Timeline', icon: Activity },
 ]
 
 const DOC_TYPES = [
@@ -88,7 +90,7 @@ export default function DischargeDetailPage() {
     return (
       <div className="h-screen flex flex-col items-center justify-center text-muted-foreground gap-4">
         <p>ไม่พบข้อมูลผู้ป่วย AN: {an}</p>
-        <button onClick={() => navigate('/ward')} className="text-blue-600 hover:underline">กลับไปหน้าหอผู้ป่วย</button>
+        <button onClick={() => navigate(-1)} className="text-blue-600 hover:underline">กลับไปหน้าก่อนหน้า</button>
       </div>
     )
   }
@@ -98,9 +100,9 @@ export default function DischargeDetailPage() {
   return (
     <div className="w-full px-4 py-6 space-y-4 animate-in fade-in zoom-in-95 duration-500">
       {/* Back + Patient Info Bar */}
-      <div className="bg-card rounded-2xl shadow-sm border border-border p-4">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/ward')} className="p-2 hover:bg-muted rounded-full transition-colors shrink-0">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card rounded-2xl p-4 shadow-sm border border-border">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-muted rounded-full transition-colors shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </button>
 
@@ -219,11 +221,12 @@ export default function DischargeDetailPage() {
       {/* Tab Content */}
       <div className="min-h-[400px]">
         {activeTab === 'checklist' && <ChecklistTab an={an} details={details} setDetails={setDetails} fetchData={fetchData} />}
+        {activeTab === 'timeline' && <TimelineTab details={details} />}
         {activeTab === 'documents' && <DocumentsTab patient={patient} />}
         {activeTab === 'drugs' && <DrugProfileTab an={an} isFilterActive={isFilterActive} />}
         {activeTab === 'expenses' && <ExpensesTab an={an} />}
         {activeTab === 'lab' && <LabTab an={an} isFilterActive={isFilterActive} />}
-        {activeTab === 'operation' && <OperationTab an={an} />}
+        {activeTab === 'operation' && <OperationTab an={an} hn={patient.hn} />}
       </div>
     </div>
   )

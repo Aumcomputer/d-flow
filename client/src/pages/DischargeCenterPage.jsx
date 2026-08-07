@@ -11,6 +11,9 @@ export default function DischargeCenterPage() {
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const navigate = useNavigate()
+  const POLL_INTERVAL = Number(import.meta.env.VITE_POLL_INTERVAL || 6)
+  const [waitingPatient, setWaitingPatient] = useState(null)
+  const [countdown, setCountdown] = useState(POLL_INTERVAL)
 
   const fetchPatients = async () => {
     setLoading(true)
@@ -64,15 +67,46 @@ export default function DischargeCenterPage() {
     }
   }
 
-  const handleSendFinance = async (an) => {
+  const handleSendFinance = async (p) => {
+    if (!p.dchdate) {
+      setWaitingPatient(p)
+      setCountdown(POLL_INTERVAL)
+      return
+    }
+
     if (!confirm('ยืนยันส่งการเงิน?')) return
     try {
-      await api.post(`/workflow/${an}/send-finance`)
-      setPatients(prev => prev.filter(p => p.an !== an))
+      await api.post(`/workflow/${p.an}/send-finance`)
+      setPatients(prev => prev.filter(pt => pt.an !== p.an))
     } catch (err) {
       alert('ไม่สามารถทำรายการได้')
     }
   }
+
+  useEffect(() => {
+    let timer;
+    if (waitingPatient) {
+      if (countdown > 0) {
+        timer = setTimeout(() => setCountdown(c => c - 1), 1000)
+      } else {
+        // Poll API
+        api.get(`/patients/${waitingPatient.an}`).then(res => {
+          if (res.data && res.data.dchdate) {
+            setWaitingPatient(null)
+            api.post(`/workflow/${waitingPatient.an}/send-finance`).then(() => {
+              setPatients(prev => prev.filter(pt => pt.an !== waitingPatient.an))
+            }).catch(err => alert('ไม่สามารถทำรายการได้'))
+          } else {
+            setCountdown(POLL_INTERVAL)
+          }
+        }).catch(err => {
+          console.error(err)
+          setCountdown(POLL_INTERVAL)
+        })
+      }
+    }
+    return () => clearTimeout(timer)
+  }, [waitingPatient, countdown])
 
   const formatMoney = (val) => {
     if (val === null || val === undefined) return '0.00'
@@ -140,12 +174,12 @@ export default function DischargeCenterPage() {
                   <th className="px-4 py-3">วันเวลาที่ส่ง</th>
                   <th className="px-4 py-3">AN</th>
                   <th className="px-4 py-3">HN</th>
-                  <th className="px-4 py-3">ชื่อ-สกุล</th>
-                  <th className="px-4 py-3">อายุ</th>
-                  <th className="px-4 py-3">หอผู้ป่วย</th>
-                  <th className="px-4 py-3">เบอร์โทรศัพท์</th>
+                  <th className="px-4 py-3">ชื่อ-สกุล (อายุ)</th>
+                  <th className="px-4 py-3">หอผู้ป่วย (เบอร์โทร)</th>
                   <th className="px-4 py-3">สิทธิ์การรักษา</th>
                   <th className="px-4 py-3">แพทย์</th>
+                  <th className="px-4 py-3">วันเวลา Discharge</th>
+                  <th className="px-4 py-3">Discharge Status/Type</th>
                   <th className="px-4 py-3 text-right">การจัดการ</th>
                 </tr>
               </thead>
@@ -178,19 +212,29 @@ export default function DischargeCenterPage() {
                       <td className="px-4 py-3 font-medium text-blue-600">{p.an}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.hn}</td>
                       <td className="px-4 py-3">
-                        <div className="font-medium">{p.pname}{p.fname} {p.lname}</div>
+                        <div className="font-medium text-slate-900">{p.pname}{p.fname} {p.lname}</div>
+                        <div className="text-sm text-muted-foreground">อายุ {p.age_y ? p.age_y + ' ปี' : '-'}</div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.age_y ? p.age_y + ' ปี' : '-'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.ward_name || '-'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.ward_phone || '-'}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-slate-900 line-clamp-1">{p.ward_name || '-'}</div>
+                        {p.ward_phone && <div className="text-sm text-muted-foreground">โทร. {p.ward_phone}</div>}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         <div className="line-clamp-1">{p.pttype_name || '-'}</div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{p.doctor_name || '-'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-slate-900">{p.dchdate ? new Date(p.dchdate).toLocaleDateString('th-TH') : '-'}</div>
+                        {p.dchtime && <div className="text-sm text-muted-foreground">{p.dchtime} น.</div>}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-slate-900">{p.dchstts_name || '-'}</div>
+                        <div className="text-sm text-muted-foreground">{p.dchtype_name || '-'}</div>
+                      </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleSendFinance(p.an); }}
+                            onClick={(e) => { e.stopPropagation(); handleSendFinance(p); }}
                             className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 h-9 px-3"
                           >
                             <Send className="w-4 h-4 mr-2" />
@@ -219,10 +263,12 @@ export default function DischargeCenterPage() {
                   <th className="px-4 py-3">ระยะเวลารอคอย</th>
                   <th className="px-4 py-3">AN</th>
                   <th className="px-4 py-3">HN</th>
-                  <th className="px-4 py-3">ชื่อ-สกุล</th>
-                  <th className="px-4 py-3">อายุ</th>
-                  <th className="px-4 py-3">หอผู้ป่วย</th>
-                  <th className="px-4 py-3">เบอร์โทรศัพท์</th>
+                  <th className="px-4 py-3">ชื่อ-สกุล (อายุ)</th>
+                  <th className="px-4 py-3">หอผู้ป่วย (เบอร์โทร)</th>
+                  <th className="px-4 py-3">สิทธิ์การรักษา</th>
+                  <th className="px-4 py-3">แพทย์</th>
+                  <th className="px-4 py-3">วันเวลา Discharge</th>
+                  <th className="px-4 py-3">Discharge Status/Type</th>
                   <th className="px-4 py-3">สถานะปัจจุบัน</th>
                 </tr>
               </thead>
@@ -258,11 +304,25 @@ export default function DischargeCenterPage() {
                       <td className="px-4 py-3 font-medium text-blue-600">{p.an}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.hn}</td>
                       <td className="px-4 py-3">
-                        <div className="font-medium">{p.pname}{p.fname} {p.lname}</div>
+                        <div className="font-medium text-slate-900">{p.pname}{p.fname} {p.lname}</div>
+                        <div className="text-sm text-muted-foreground">อายุ {p.age_y ? p.age_y + ' ปี' : '-'}</div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.age_y ? p.age_y + ' ปี' : '-'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.ward_name || '-'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.ward_phone || '-'}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-slate-900 line-clamp-1">{p.ward_name || '-'}</div>
+                        {p.ward_phone && <div className="text-sm text-muted-foreground">โทร. {p.ward_phone}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        <div className="line-clamp-1">{p.pttype_name || '-'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.doctor_name || '-'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-slate-900">{p.dchdate ? new Date(p.dchdate).toLocaleDateString('th-TH') : '-'}</div>
+                        {p.dchtime && <div className="text-sm text-muted-foreground">{p.dchtime} น.</div>}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-slate-900">{p.dchstts_name || '-'}</div>
+                        <div className="text-sm text-muted-foreground">{p.dchtype_name || '-'}</div>
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                           p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
@@ -286,6 +346,55 @@ export default function DischargeCenterPage() {
           )}
         </div>
       </div>
+
+      {/* Waiting Popup */}
+      {waitingPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 relative">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    className="text-slate-100"
+                    strokeWidth="3"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className="text-blue-500 transition-all duration-1000 ease-linear"
+                    strokeWidth="3"
+                    strokeDasharray={`${(countdown / POLL_INTERVAL) * 100}, 100`}
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xl font-bold text-blue-600">{countdown}</span>
+                </div>
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">กำลังตรวจสอบข้อมูล</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  รอหอผู้ป่วย discharge ใน Hosxp
+                </p>
+                <p className="text-sm font-medium text-slate-700 mt-2">
+                  ผู้ป่วย: {waitingPatient.pname}{waitingPatient.fname} {waitingPatient.lname}
+                </p>
+              </div>
+              <button
+                onClick={() => setWaitingPatient(null)}
+                className="mt-2 w-full py-2.5 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

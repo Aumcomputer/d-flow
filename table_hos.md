@@ -733,3 +733,30 @@ CREATE TABLE `lab_head` (
   KEY `ix_hn_order_date_index` (`hn`,`order_date`),
   KEY `ix_lon_l_index` (`lab_order_number`,`link_lab_order_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=tis620 COLLATE=tis620_thai_ci;
+
+-- hos.dchtype definition
+
+CREATE TABLE `dchtype` (
+  `dchtype` char(2) NOT NULL DEFAULT '',
+  `name` varchar(150) DEFAULT NULL,
+  `nhso_dchtype` char(2) DEFAULT NULL,
+  `hos_guid` varchar(38) DEFAULT NULL,
+  PRIMARY KEY (`dchtype`),
+  KEY `ix_hos_guid` (`hos_guid`),
+  KEY `hos_guid` (`hos_guid`)
+) ENGINE=InnoDB DEFAULT CHARSET=tis620 COLLATE=tis620_thai_ci;
+
+-- hos.dchstts definition
+
+CREATE TABLE `dchstts` (
+  `dchstts` char(2) NOT NULL DEFAULT '',
+  `name` varchar(150) DEFAULT NULL,
+  `nhso_dchstts` char(2) DEFAULT NULL,
+  `oldcode` varchar(5) DEFAULT NULL,
+  `hos_guid` varchar(38) DEFAULT NULL,
+  PRIMARY KEY (`dchstts`),
+  KEY `ix_oldcode` (`oldcode`),
+  KEY `ix_hos_guid` (`hos_guid`),
+  KEY `hos_guid` (`hos_guid`),
+  KEY `oldcode` (`oldcode`)
+) ENGINE=InnoDB DEFAULT CHARSET=tis620 COLLATE=tis620_thai_ci;
