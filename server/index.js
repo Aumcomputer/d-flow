@@ -22,7 +22,12 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Static file serving for /documents folder
-app.use('/documents', express.static(path.join(__dirname, 'documents')));
+const getUploadBaseDir = () => {
+    return process.env.UPLOAD_DIR 
+        ? path.resolve(__dirname, '..', process.env.UPLOAD_DIR)
+        : path.join(__dirname, 'documents');
+};
+app.use('/documents', express.static(getUploadBaseDir()));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);

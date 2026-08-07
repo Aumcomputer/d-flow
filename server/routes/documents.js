@@ -10,6 +10,12 @@ const { resizeImage } = require('../services/imageResizer');
 
 const router = express.Router();
 
+const getUploadBaseDir = () => {
+    return process.env.UPLOAD_DIR 
+        ? path.resolve(__dirname, '..', '..', process.env.UPLOAD_DIR)
+        : path.join(__dirname, '..', 'documents');
+};
+
 const upload = multer({ dest: path.join(__dirname, '..', 'temp_uploads') });
 
 // ============================================================
@@ -40,7 +46,7 @@ router.get('/file/:an/:filename', (req, res) => {
         if (an.includes('..') || filename.includes('..')) {
             return res.status(400).json({ error: 'Invalid path' });
         }
-        const filePath = path.join(__dirname, '..', 'documents', an, filename);
+        const filePath = path.join(getUploadBaseDir(), an, filename);
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'File not found' });
         }
@@ -142,7 +148,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         const newFilename = `${an}_${String(running).padStart(3, '0')}${ext}`;
 
         // --- Ensure target directory ---
-        const targetDir = path.join(__dirname, '..', 'documents', an);
+        const targetDir = path.join(getUploadBaseDir(), an);
         if (!fs.existsSync(targetDir)) {
             fs.mkdirSync(targetDir, { recursive: true });
         }
