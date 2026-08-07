@@ -9,6 +9,7 @@ export default function FinancePage() {
   const [historyPatients, setHistoryPatients] = useState([])
   const [activeTab, setActiveTab] = useState('pending')
   const [loading, setLoading] = useState(false)
+  const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const navigate = useNavigate()
 
   const fetchPatients = async () => {
@@ -16,7 +17,7 @@ export default function FinancePage() {
     try {
       const [pendingRes, historyRes] = await Promise.all([
         api.get('/workflow/finance'),
-        api.get('/workflow/finance/history')
+        api.get(`/workflow/finance/history?date=${historyDate}`)
       ])
       setPatients(pendingRes.data)
       setHistoryPatients(historyRes.data)
@@ -40,15 +41,18 @@ export default function FinancePage() {
 
   useEffect(() => {
     fetchPatients()
+  }, [historyDate])
 
-    socket.on('workflow:updated', () => {
+  useEffect(() => {
+    const onUpdate = () => {
       fetchPatients()
-    })
+    }
+    socket.on('workflow:updated', onUpdate)
 
     return () => {
-      socket.off('workflow:updated')
+      socket.off('workflow:updated', onUpdate)
     }
-  }, [])
+  }, [historyDate])
 
   const handleDone = async (an) => {
     if (!confirm('ยืนยันเสร็จสิ้นการเงิน?')) return
@@ -81,28 +85,40 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 border-b border-border">
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'pending'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-          }`}
-        >
-          รอชำระเงิน ({patients.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'history'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-          }`}
-        >
-          ประวัติวันนี้ ({historyPatients.length})
-        </button>
+      <div className="flex justify-between items-center border-b border-border">
+        <div className="flex space-x-1">
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'pending'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            รอชำระเงิน ({patients.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'history'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            ประวัติย้อนหลัง ({historyPatients.length})
+          </button>
+        </div>
+        
+        {activeTab === 'history' && (
+          <div className="px-2">
+            <input 
+              type="date" 
+              value={historyDate}
+              onChange={(e) => setHistoryDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+        )}
       </div>
 
       <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
@@ -111,7 +127,7 @@ export default function FinancePage() {
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
                 <tr>
-                  <th className="px-4 py-3">เวลาที่ส่ง</th>
+                  <th className="px-4 py-3">วันเวลาที่ส่ง</th>
                   <th className="px-4 py-3">AN</th>
                   <th className="px-4 py-3">HN</th>
                   <th className="px-4 py-3">ชื่อ-สกุล</th>
@@ -147,7 +163,10 @@ export default function FinancePage() {
                         className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
                       >
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                          {p.sent_finance_date ? new Date(p.sent_finance_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-'} น.
+                          {p.sent_finance_date ? new Date(p.sent_finance_date).toLocaleString('th-TH', { 
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit' 
+                          }) : '-'} น.
                         </td>
                         <td className="px-4 py-3 font-medium text-blue-600">{p.an}</td>
                         <td className="px-4 py-3 text-muted-foreground">{p.hn}</td>

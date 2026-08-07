@@ -5,21 +5,25 @@ const { getIO } = require('../lib/socket');
 
 const router = express.Router();
 
-async function getWorkflowPatients(status, historyOf = null) {
+async function getWorkflowPatients(status, historyOf = null, reqDate = null) {
     let hisConn, dflowConn;
     try {
         hisConn = await getHisConnection();
         dflowConn = await getDflowConnection();
         
-        let queryStr = `SELECT * FROM an_detail WHERE DATE(discharge_date) = CURDATE()`;
+        let queryStr = `SELECT * FROM an_detail WHERE 1=1`;
         let params = [];
 
-        if (historyOf === 'pharmacy') {
-            queryStr += ` AND pharmacy_done_by IS NOT NULL`;
-        } else if (historyOf === 'discharge_center') {
-            queryStr += ` AND dc_done_by IS NOT NULL`;
-        } else if (historyOf === 'finance') {
-            queryStr += ` AND finance_done_by IS NOT NULL`;
+        if (historyOf) {
+            const filterDate = reqDate || new Date().toISOString().split('T')[0];
+            if (historyOf === 'pharmacy') {
+                queryStr += ` AND pharmacy_done_by IS NOT NULL AND DATE(pharmacy_done_date) = ?`;
+            } else if (historyOf === 'discharge_center') {
+                queryStr += ` AND dc_done_by IS NOT NULL AND DATE(dc_done_date) = ?`;
+            } else if (historyOf === 'finance') {
+                queryStr += ` AND finance_done_by IS NOT NULL AND DATE(finance_done_date) = ?`;
+            }
+            params.push(filterDate);
         } else {
             queryStr += ` AND workflow_status = ?`;
             params.push(status);
@@ -125,7 +129,7 @@ router.get('/finance', authMiddleware, async (req, res) => {
 
 router.get('/pharmacy/history', authMiddleware, async (req, res) => {
     try {
-        const patients = await getWorkflowPatients(null, 'pharmacy');
+        const patients = await getWorkflowPatients(null, 'pharmacy', req.query.date);
         res.json(patients);
     } catch (err) {
         console.error(err);
@@ -135,7 +139,7 @@ router.get('/pharmacy/history', authMiddleware, async (req, res) => {
 
 router.get('/discharge-center/history', authMiddleware, async (req, res) => {
     try {
-        const patients = await getWorkflowPatients(null, 'discharge_center');
+        const patients = await getWorkflowPatients(null, 'discharge_center', req.query.date);
         res.json(patients);
     } catch (err) {
         console.error(err);
@@ -145,7 +149,7 @@ router.get('/discharge-center/history', authMiddleware, async (req, res) => {
 
 router.get('/finance/history', authMiddleware, async (req, res) => {
     try {
-        const patients = await getWorkflowPatients(null, 'finance');
+        const patients = await getWorkflowPatients(null, 'finance', req.query.date);
         res.json(patients);
     } catch (err) {
         console.error(err);
