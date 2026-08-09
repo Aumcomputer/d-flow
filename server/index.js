@@ -42,7 +42,11 @@ app.use((err, req, res, next) => {
 });
 
 const server = http.createServer(app);
-socketLib.init(server).then(() => {
+const redisLib = require('./lib/redis');
+
+redisLib.initRedis().then(() => {
+    return socketLib.init(server);
+}).then(() => {
     server.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });

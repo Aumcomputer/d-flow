@@ -8,8 +8,22 @@ const router = express.Router();
 router.get('/', authMiddleware, async (req, res) => {
     let conn;
     try {
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = 'cache:wards:list';
+        
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         conn = await getHisConnection();
         const rows = await conn.query('SELECT ward, name FROM ward WHERE ward_active = "Y" ORDER BY name ');
+        
+        try {
+            await redis.setEx(cacheKey, 604800, JSON.stringify(rows));
+        } catch (e) { console.error('Redis Set Error:', e); }
+        
         res.json(rows);
     } catch (error) {
         console.error('Fetch wards error:', error);
@@ -70,39 +84,57 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
     let hisConn, dflowConn;
     
     try {
-        hisConn = await getHisConnection();
-        dflowConn = await getDflowConnection();
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:wards:${wardCode}:patients_his`;
+        let rows = [];
         
-        // ipt.dchdate is often empty string or NULL if still admitted
-        const query = `
-            SELECT 
-                i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
-                p.pname, p.fname, p.lname, p.birthday,
-                (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
-                w.name AS ward_name,
-                d.name AS doctor_name,
-                pt.name AS pttype_name,
-                iptb.bedno,
-                aa.income AS total_income,
-                aa.rcpt_money,
-                aa.paid_money
-            FROM ipt i
-            LEFT JOIN patient p ON i.hn = p.hn
-            LEFT JOIN ward w ON i.ward = w.ward
-            LEFT JOIN doctor d ON i.incharge_doctor = d.code
-            LEFT JOIN pttype pt ON i.pttype = pt.pttype
-            LEFT JOIN iptadm iptb ON i.an = iptb.an
-            LEFT JOIN an_stat aa ON aa.an = i.an
-            WHERE i.ward = ? AND i.dchstts IS NULL
-            GROUP BY i.an
-            ORDER BY i.regdate DESC, i.regtime DESC
-        `;
-        
-        const rows = await hisConn.query(query, [wardCode]);
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) {
+                rows = JSON.parse(cached);
+            }
+        } catch (e) { console.error('Redis Get Error:', e); }
+
+        if (rows.length === 0) {
+            hisConn = await getHisConnection();
+            const query = `
+                SELECT 
+                    i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                    p.pname, p.fname, p.lname, p.birthday,
+                    (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
+                    w.name AS ward_name,
+                    d.name AS doctor_name,
+                    pt.name AS pttype_name,
+                    iptb.bedno,
+                    aa.income AS total_income,
+                    aa.rcpt_money,
+                    aa.paid_money
+                FROM ipt i
+                LEFT JOIN patient p ON i.hn = p.hn
+                LEFT JOIN ward w ON i.ward = w.ward
+                LEFT JOIN doctor d ON i.incharge_doctor = d.code
+                LEFT JOIN pttype pt ON i.pttype = pt.pttype
+                LEFT JOIN iptadm iptb ON i.an = iptb.an
+                LEFT JOIN an_stat aa ON aa.an = i.an
+                WHERE i.ward = ? AND i.dchstts IS NULL
+                GROUP BY i.an
+                ORDER BY i.regdate DESC, i.regtime DESC
+            `;
+            rows = await hisConn.query(query, [wardCode]);
+            
+            if (rows.length > 0) {
+                try {
+                    await redis.setEx(cacheKey, 180, JSON.stringify(rows));
+                } catch (e) { console.error('Redis Set Error:', e); }
+            }
+        }
         
         if (rows.length === 0) {
             return res.json([]);
         }
+
+        dflowConn = await getDflowConnection();
 
         const ans = rows.map(r => r.an);
         const completeness = await getDocCompleteness(ans);
@@ -119,6 +151,8 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
                 ...row,
                 isComplete: completeness[row.an] || false
             }));
+
+
 
         res.json(result);
     } catch (error) {

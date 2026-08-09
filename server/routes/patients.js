@@ -146,16 +146,44 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
         ].filter(Boolean);
 
         if (loginnames.length > 0) {
-            hisConn = await getHisConnection();
+            const { getRedisClient } = require('../lib/redis');
+            const redis = getRedisClient();
             const uniqueLoginNames = [...new Set(loginnames)];
-            const placeholders = uniqueLoginNames.map(() => '?').join(',');
-            const users = await hisConn.query(
-                `SELECT loginname, name FROM opduser WHERE loginname IN (${placeholders})`,
-                uniqueLoginNames
-            );
-            
             const userMap = {};
-            users.forEach(u => userMap[u.loginname] = u.name);
+            const missingNames = [];
+
+            try {
+                const keys = uniqueLoginNames.map(u => `user:name:${u}`);
+                const cachedNames = await redis.mGet(keys);
+                uniqueLoginNames.forEach((u, index) => {
+                    if (cachedNames[index]) userMap[u] = cachedNames[index];
+                    else missingNames.push(u);
+                });
+            } catch (err) {
+                console.error('Redis MGET Error:', err);
+                missingNames.push(...uniqueLoginNames);
+            }
+
+            if (missingNames.length > 0) {
+                hisConn = await getHisConnection();
+                const placeholders = missingNames.map(() => '?').join(',');
+                const users = await hisConn.query(
+                    `SELECT loginname, name FROM opduser WHERE loginname IN (${placeholders})`,
+                    missingNames
+                );
+                
+                const multi = redis.multi();
+                users.forEach(u => {
+                    userMap[u.loginname] = u.name;
+                    multi.setEx(`user:name:${u.loginname}`, 604800, u.name); // 7 days TTL
+                });
+                
+                try {
+                    await multi.exec();
+                } catch (err) {
+                    console.error('Redis SETEX Error:', err);
+                }
+            }
 
             detail.chk_right_name = userMap[detail.chk_right] || null;
             detail.chk_nurse_name = userMap[detail.chk_nurse] || null;
@@ -505,6 +533,15 @@ router.get('/:an/drugs', authMiddleware, async (req, res) => {
     let conn;
     try {
         const { an } = req.params;
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:patients:${an}:drugs`;
+        
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         conn = await getHisConnection();
 
         const sql = `
@@ -537,6 +574,10 @@ router.get('/:an/drugs', authMiddleware, async (req, res) => {
                 row.has_duplicate = dupOrderNos.has(row.order_no);
             }
         }
+
+        try {
+            await redis.setEx(cacheKey, 60, JSON.stringify(rows));
+        } catch (e) { console.error('Redis Set Error:', e); }
 
         res.json(rows);
     } catch (error) {

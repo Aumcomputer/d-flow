@@ -1,6 +1,6 @@
 let io;
-const { createClient } = require('redis');
 const { createAdapter } = require('@socket.io/redis-adapter');
+const { getRedisClient } = require('./redis');
 
 // Local tracking for fast cleanup when a specific socket disconnects from this instance
 const localSocketToCase = new Map();
@@ -9,24 +9,12 @@ module.exports = {
   init: async (httpServer) => {
     const { Server } = require('socket.io');
     
-    const redisHost = process.env.REDIS_HOST || '127.0.0.1';
-    const redisPort = process.env.REDIS_PORT || 6379;
-    const redisPassword = process.env.REDIS_PASSWORD || '';
-    
-    const redisUrl = redisPassword 
-      ? `redis://:${redisPassword}@${redisHost}:${redisPort}`
-      : `redis://${redisHost}:${redisPort}`;
-
-    const pubClient = createClient({ url: redisUrl });
+    const pubClient = getRedisClient();
     const subClient = pubClient.duplicate();
     
-    pubClient.on('error', (err) => console.error('Redis PubClient Error', err));
     subClient.on('error', (err) => console.error('Redis SubClient Error', err));
     
-    await Promise.all([
-      pubClient.connect(),
-      subClient.connect()
-    ]);
+    await subClient.connect();
 
     io = new Server(httpServer, {
       cors: {
