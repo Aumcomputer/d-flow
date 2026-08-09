@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, CheckCircle2, ClipboardList, Send } from 'lucide-react'
+import { User, CheckCircle2, ClipboardList, Send, AlertTriangle } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function DischargeCenterPage() {
   const [patients, setPatients] = useState([])
@@ -14,6 +15,10 @@ export default function DischargeCenterPage() {
   const POLL_INTERVAL = Number(import.meta.env.VITE_POLL_INTERVAL || 6)
   const [waitingPatient, setWaitingPatient] = useState(null)
   const [countdown, setCountdown] = useState(POLL_INTERVAL)
+  const [lockAlertInfo, setLockAlertInfo] = useState(null)
+  
+  const { user } = useAuth()
+  const [lockedCases, setLockedCases] = useState({})
 
   const fetchPatients = async () => {
     setLoading(true)
@@ -47,15 +52,39 @@ export default function DischargeCenterPage() {
   }, [historyDate])
 
   useEffect(() => {
+    socket.emit('get:locks', (locks) => {
+      if (locks) setLockedCases(locks)
+    })
+
+    const onLocked = ({ an, userName }) => setLockedCases(prev => ({ ...prev, [an]: userName }))
+    const onUnlocked = ({ an }) => setLockedCases(prev => {
+      const next = { ...prev }
+      delete next[an]
+      return next
+    })
+
     const onUpdate = () => {
       fetchPatients()
     }
+
     socket.on('workflow:updated', onUpdate)
+    socket.on('case:locked', onLocked)
+    socket.on('case:unlocked', onUnlocked)
 
     return () => {
       socket.off('workflow:updated', onUpdate)
+      socket.off('case:locked', onLocked)
+      socket.off('case:unlocked', onUnlocked)
     }
   }, [historyDate])
+
+  const handleRowClick = (an) => {
+    if (lockedCases[an] && lockedCases[an] !== user?.name) {
+      setLockAlertInfo({ userName: lockedCases[an] });
+      return;
+    }
+    navigate(`/dcdetail/${an}`, { state: { fromDischargeCenter: true } });
+  }
 
   const handleDone = async (an) => {
     if (!confirm('ยืนยันเสร็จสิ้นศูนย์จำหน่าย?')) return
@@ -180,7 +209,7 @@ export default function DischargeCenterPage() {
                   <th className="px-4 py-3">แพทย์</th>
                   <th className="px-4 py-3">วันเวลา Discharge</th>
                   <th className="px-4 py-3">Discharge Status/Type</th>
-                  <th className="px-4 py-3 text-right">การจัดการ</th>
+                  <th className="px-4 py-3 text-right">กำลังตรวจสอบโดย</th>
                 </tr>
               </thead>
               <tbody>
@@ -200,8 +229,8 @@ export default function DischargeCenterPage() {
                   patients.map((p) => (
                     <tr 
                       key={p.an} 
-                      onClick={() => navigate(`/dcdetail/${p.an}`)}
-                      className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
+                      onClick={() => handleRowClick(p.an)}
+                      className={`border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer ${lockedCases[p.an] ? 'bg-orange-50' : ''}`}
                     >
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {p.sent_dc_date ? new Date(p.sent_dc_date).toLocaleString('th-TH', { 
@@ -231,23 +260,15 @@ export default function DischargeCenterPage() {
                         <div className="text-slate-900">{p.dchstts_name || '-'}</div>
                         <div className="text-sm text-muted-foreground">{p.dchtype_name || '-'}</div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleSendFinance(p); }}
-                            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 h-9 px-3"
-                          >
-                            <Send className="w-4 h-4 mr-2" />
-                            ส่งการเงิน
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDone(p.an); }}
-                            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-3"
-                          >
-                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                            เสร็จสิ้น
-                          </button>
-                        </div>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        {lockedCases[p.an] ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                            {lockedCases[p.an]}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -269,19 +290,19 @@ export default function DischargeCenterPage() {
                   <th className="px-4 py-3">แพทย์</th>
                   <th className="px-4 py-3">วันเวลา Discharge</th>
                   <th className="px-4 py-3">Discharge Status/Type</th>
-                  <th className="px-4 py-3">สถานะปัจจุบัน</th>
+                  <th className="px-4 py-3">กำลังตรวจสอบโดย</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="12" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : historyPatients.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="12" className="px-4 py-8 text-center text-muted-foreground">
                       ไม่มีประวัติผู้ป่วย
                     </td>
                   </tr>
@@ -289,8 +310,8 @@ export default function DischargeCenterPage() {
                   historyPatients.map((p) => (
                     <tr 
                       key={p.an} 
-                      onClick={() => navigate(`/dcdetail/${p.an}`)}
-                      className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
+                      onClick={() => handleRowClick(p.an)}
+                      className={`border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer ${lockedCases[p.an] ? 'bg-orange-50' : ''}`}
                     >
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {p.sent_dc_date ? new Date(p.sent_dc_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-'} น.
@@ -323,20 +344,15 @@ export default function DischargeCenterPage() {
                         <div className="text-slate-900">{p.dchstts_name || '-'}</div>
                         <div className="text-sm text-muted-foreground">{p.dchtype_name || '-'}</div>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                          p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
-                          p.workflow_status === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
-                          p.workflow_status === 'finance' ? 'bg-amber-100 text-amber-700' :
-                          p.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                          'bg-slate-100 text-slate-700'
-                        }`}>
-                          {p.workflow_status === 'pharmacy' ? 'ห้องยา' :
-                           p.workflow_status === 'discharge_center' ? 'ศูนย์จำหน่าย' :
-                           p.workflow_status === 'finance' ? 'การเงิน' :
-                           p.workflow_status === 'completed' ? 'เสร็จสิ้น' :
-                           'รอดำเนินการ'}
-                        </span>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {lockedCases[p.an] ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                            {lockedCases[p.an]}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -389,6 +405,35 @@ export default function DischargeCenterPage() {
                 className="mt-2 w-full py-2.5 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lock Alert Popup */}
+      {lockAlertInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mb-2">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">ไม่สามารถเข้าถึงข้อมูลได้</h3>
+                <p className="text-sm text-slate-600 mt-2">
+                  ผู้ป่วยรายนี้กำลังถูกตรวจสอบรายละเอียดโดย
+                </p>
+                <div className="mt-3 inline-flex items-center gap-2 bg-orange-50 px-4 py-2 rounded-lg border border-orange-200 text-orange-800 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                  {lockAlertInfo.userName}
+                </div>
+              </div>
+              <button
+                onClick={() => setLockAlertInfo(null)}
+                className="mt-4 w-full py-2.5 rounded-xl text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-sm"
+              >
+                ตกลง
               </button>
             </div>
           </div>

@@ -42,7 +42,11 @@ app.use((err, req, res, next) => {
 });
 
 const server = http.createServer(app);
-socketLib.init(server);
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+socketLib.init(server).then(() => {
+    server.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}).catch(err => {
+    console.error('Failed to initialize socket/redis', err);
+    process.exit(1);
 });

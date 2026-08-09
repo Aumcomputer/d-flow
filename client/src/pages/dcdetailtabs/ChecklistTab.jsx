@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import socket from '../../services/socket';
 
-export default function ChecklistTab({ an, details, setDetails, fetchData }) {
+export default function ChecklistTab({ an, details, setDetails, fetchData, patient }) {
   const [audit, setAudit] = useState(null)
   const [loadingAudit, setLoadingAudit] = useState(true)
   const [workflowStatus, setWorkflowStatus] = useState(details?.workflow_status || null)
@@ -14,6 +14,11 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
   const [loadingLogs, setLoadingLogs] = useState(false)
   const location = useLocation()
   const fromWard = location.state?.fromWard === true
+  const fromDischargeCenter = location.state?.fromDischargeCenter === true
+
+  const POLL_INTERVAL = Number(import.meta.env.VITE_POLL_INTERVAL || 6)
+  const [isWaitingHOSxP, setIsWaitingHOSxP] = useState(false)
+  const [countdown, setCountdown] = useState(POLL_INTERVAL)
 
   const fetchLogs = async () => {
     setLoadingLogs(true)
@@ -45,6 +50,49 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
       socket.off('workflow:updated')
     }
   }, [an])
+
+  useEffect(() => {
+    let timer;
+    if (isWaitingHOSxP) {
+      if (countdown > 0) {
+        timer = setTimeout(() => setCountdown(c => c - 1), 1000)
+      } else {
+        // Poll API
+        api.get(`/patients/${an}`).then(res => {
+          if (res.data && res.data.dchdate) {
+            setIsWaitingHOSxP(false)
+            api.post(`/workflow/${an}/send-finance`).then(() => {
+              setWorkflowStatus('finance')
+              fetchData()
+            }).catch(err => alert('ไม่สามารถทำรายการได้'))
+          } else {
+            setCountdown(POLL_INTERVAL)
+          }
+        }).catch(err => {
+          console.error(err)
+          setCountdown(POLL_INTERVAL)
+        })
+      }
+    }
+    return () => clearTimeout(timer)
+  }, [isWaitingHOSxP, countdown, an])
+
+  const handleSendFinance = async () => {
+    if (!patient?.dchdate) {
+      setIsWaitingHOSxP(true)
+      setCountdown(POLL_INTERVAL)
+      return
+    }
+
+    if (!confirm('ยืนยันส่งการเงิน?')) return
+    try {
+      await api.post(`/workflow/${an}/send-finance`)
+      setWorkflowStatus('finance')
+      fetchData()
+    } catch (err) {
+      alert('ไม่สามารถทำรายการได้')
+    }
+  }
 
   const fetchDetail = async () => {
     try {
@@ -235,83 +283,136 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
       </div>
 
       {/* Bottom: Workflow Actions */}
-      {fromWard && (
+      {(fromWard || fromDischargeCenter) && (
       <div className="lg:col-span-2 mt-4">
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
           <div className="px-5 py-4 border-b border-border bg-muted/30 flex justify-between items-center">
             <div>
-              <h3 className="font-bold text-base text-slate-800">ส่งต่อแผนก (Workflow)</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">ส่งข้อมูลไปยังหน่วยงานที่เกี่ยวข้อง</p>
+              <h3 className="font-bold text-base text-slate-800">ส่งต่อแผนก</h3>
             </div>
-            {workflowStatus && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-600">สถานะปัจจุบัน:</span>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                  workflowStatus === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
-                  workflowStatus === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
-                  workflowStatus === 'finance' ? 'bg-amber-100 text-amber-700' :
-                  workflowStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                  'bg-slate-100 text-slate-700'
-                }`}>
-                  {workflowStatus === 'pharmacy' ? 'ห้องยา' :
-                   workflowStatus === 'discharge_center' ? 'ศูนย์จำหน่าย' :
-                   workflowStatus === 'finance' ? 'การเงิน' :
-                   workflowStatus === 'completed' ? 'เสร็จสิ้น' :
-                   workflowStatus === 'discharged' ? 'รอดำเนินการ' : workflowStatus}
-                </span>
+            <div className="flex items-center gap-3">
+              {fromDischargeCenter ? (
+                patient?.dchdate ? (
+                  <span className="text-sm text-slate-700">
+                    <span className="font-medium text-slate-500 mr-1">สถานะ:</span>
+                    Discharge วันที่ <span className="font-medium">{new Date(patient.dchdate).toLocaleDateString('th-TH')}</span> 
+                    {' '}เวลา <span className="font-medium">{patient.dchtime ? patient.dchtime + ' น.' : '-'}</span>
+                    {' '}Status: <span className="font-medium text-blue-600">{patient.dchstts_name || '-'}</span> 
+                    {' '}Type: <span className="font-medium text-purple-600">{patient.dchtype_name || '-'}</span>
+                  </span>
+                ) : (
+                  <span className="text-sm font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                    สถานะ : ยังไม่ได้ Discharge ใน Hosxp
+                  </span>
+                )
+              ) : (
+                <>
+                  <span className="text-sm font-medium text-slate-500">สถานะปัจจุบัน:</span>
+                  {workflowStatus ? (
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      workflowStatus === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
+                      workflowStatus === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
+                      workflowStatus === 'finance' ? 'bg-amber-100 text-amber-700' :
+                      workflowStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {workflowStatus === 'pharmacy' ? 'ห้องยา' :
+                       workflowStatus === 'discharge_center' ? 'ศูนย์จำหน่าย' :
+                       workflowStatus === 'finance' ? 'การเงิน' :
+                       workflowStatus === 'completed' ? 'เสร็จสิ้น' :
+                       workflowStatus === 'discharged' ? 'รอดำเนินการ' : workflowStatus}
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">ไม่ทราบสถานะ</span>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          
+          <div className="p-4 flex flex-col xl:flex-row items-center gap-4 bg-muted/10">
+            {fromWard && (
+              <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
+                <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
+                  หมายเลขโทรศัพท์หอผู้ป่วย <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={wardPhone}
+                  onChange={(e) => setWardPhone(e.target.value)}
+                  placeholder="ระบุเบอร์โทรศัพท์..."
+                  className="flex-1 sm:w-48 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
               </div>
             )}
-          </div>
-          <div className="p-4 flex flex-col xl:flex-row items-center gap-4 bg-muted/10">
-            <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
-              <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
-                หมายเลขโทรศัพท์หอผู้ป่วย <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={wardPhone}
-                onChange={(e) => setWardPhone(e.target.value)}
-                placeholder="ระบุเบอร์โทรศัพท์..."
-                className="flex-1 sm:w-48 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
+            
             <div className="flex gap-4 w-full xl:flex-1">
-              <button
-              onClick={async () => {
-                if(!wardPhone.trim()) {
-                  alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย');
-                  return;
-                }
-                if(!confirm('ยืนยันส่งห้องยา?')) return;
-                try {
-                  await api.post(`/workflow/${an}/send-pharmacy`, { phone: wardPhone })
-                  setWorkflowStatus('pharmacy')
-                } catch(err) { alert('ไม่สามารถส่งห้องยาได้') }
-              }}
-              disabled={!isChecklistComplete || ['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Pill className="w-5 h-5" />
-              <span className="font-medium">ส่งห้องยา</span>
-            </button>
-            <button
-              onClick={async () => {
-                if(!wardPhone.trim()) {
-                  alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย');
-                  return;
-                }
-                if(!confirm('ยืนยันส่งศูนย์จำหน่าย?')) return;
-                try {
-                  await api.post(`/workflow/${an}/send-dc`, { phone: wardPhone })
-                  setWorkflowStatus('discharge_center')
-                } catch(err) { alert('ไม่สามารถส่งศูนย์จำหน่ายได้') }
-              }}
-              disabled={!isChecklistComplete || ['discharge_center', 'finance', 'completed'].includes(workflowStatus)}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Building2 className="w-5 h-5" />
-              <span className="font-medium">ส่งศูนย์จำหน่าย</span>
-            </button>
+              {fromDischargeCenter ? (
+                <>
+                  <button
+                    onClick={handleSendFinance}
+                    disabled={['finance', 'completed'].includes(workflowStatus)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    <DollarSign className="w-5 h-5" />
+                    <span className="font-medium">ส่งการเงิน</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('ยืนยันเสร็จสิ้น?')) return;
+                      try {
+                        await api.post(`/workflow/${an}/dc-done`);
+                        setWorkflowStatus('completed');
+                        fetchData();
+                      } catch (err) { alert('ไม่สามารถทำรายการได้'); }
+                    }}
+                    disabled={['completed'].includes(workflowStatus)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span className="font-medium">เสร็จสิ้น</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={async () => {
+                      if(!wardPhone.trim()) {
+                        alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย');
+                        return;
+                      }
+                      if(!confirm('ยืนยันส่งห้องยา?')) return;
+                      try {
+                        await api.post(`/workflow/${an}/send-pharmacy`, { phone: wardPhone })
+                        setWorkflowStatus('pharmacy')
+                      } catch(err) { alert('ไม่สามารถส่งห้องยาได้') }
+                    }}
+                    disabled={!isChecklistComplete || ['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Pill className="w-5 h-5" />
+                    <span className="font-medium">ส่งห้องยา</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if(!wardPhone.trim()) {
+                        alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย');
+                        return;
+                      }
+                      if(!confirm('ยืนยันส่งศูนย์จำหน่าย?')) return;
+                      try {
+                        await api.post(`/workflow/${an}/send-dc`, { phone: wardPhone })
+                        setWorkflowStatus('discharge_center')
+                      } catch(err) { alert('ไม่สามารถส่งศูนย์จำหน่ายได้') }
+                    }}
+                    disabled={!isChecklistComplete || ['discharge_center', 'finance', 'completed'].includes(workflowStatus)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Building2 className="w-5 h-5" />
+                    <span className="font-medium">ส่งศูนย์จำหน่าย</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -374,6 +475,56 @@ export default function ChecklistTab({ an, details, setDetails, fetchData }) {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Waiting Popup */}
+      {isWaitingHOSxP && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 relative">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    className="text-slate-100"
+                    strokeWidth="3"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className="text-blue-500 transition-all duration-1000 ease-linear"
+                    strokeWidth="3"
+                    strokeDasharray={`${(countdown / POLL_INTERVAL) * 100}, 100`}
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xl font-bold text-blue-600">{countdown}</span>
+                </div>
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">กำลังตรวจสอบข้อมูล</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  รอหอผู้ป่วย discharge ใน Hosxp
+                </p>
+                {patient && (
+                  <p className="text-sm font-medium text-slate-700 mt-2">
+                    ผู้ป่วย: {patient.fullname}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setIsWaitingHOSxP(false)}
+                className="mt-2 w-full py-2.5 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                ยกเลิก
+              </button>
             </div>
           </div>
         </div>

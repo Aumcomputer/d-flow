@@ -1,12 +1,14 @@
 import { useState, useEffect, Fragment, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard } from 'lucide-react'
+import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard, Phone } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { Badge } from '../components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
 import { Select } from '../components/ui/select'
 import { Button } from '../components/ui/button'
 import api from '../services/api'
+import socket from '../services/socket'
+import { useAuth } from '../contexts/AuthContext'
 import DocumentsTab from '../components/DocumentsTab'
 import ChecklistTab from './dcdetailtabs/ChecklistTab'
 import DrugProfileTab from './dcdetailtabs/DrugProfileTab'
@@ -48,6 +50,8 @@ export default function DischargeDetailPage() {
   const [imgError, setImgError] = useState(false)
   const [isFilterActive, setIsFilterActive] = useState(false)
 
+  const { user } = useAuth()
+
   useEffect(() => {
     setIsFilterActive(false)
   }, [activeTab])
@@ -55,6 +59,15 @@ export default function DischargeDetailPage() {
   useEffect(() => {
     fetchData()
   }, [an])
+
+  useEffect(() => {
+    if (an && user?.name) {
+      socket.emit('case:join', { an, userName: user.name })
+      return () => {
+        socket.emit('case:leave', { an })
+      }
+    }
+  }, [an, user])
 
   const fetchData = async () => {
     setLoading(true)
@@ -149,16 +162,23 @@ export default function DischargeDetailPage() {
                 <Calendar className="w-4 h-4 text-blue-500" />
                 <span>วันที่ Admit: {formatDate(patient.regdate)}</span>
               </div>
+              {details?.ward_phone && (
+                <div className="flex items-center gap-1.5">
+                  <Phone className="w-4 h-4 text-blue-500" />
+                  <span>โทร. {details.ward_phone}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <Stethoscope className="w-4 h-4 text-blue-500" />
                 <span>{patient.doctor_name || '-'}</span>
               </div>
-            </div>
-
-
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Shield className="w-4 h-4 text-blue-500 shrink-0" />
-              <span>{patient.pttype_name || '-'}</span>
+              <div className="flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-blue-500 shrink-0" />
+                <span>{patient.pttype_name || '-'}</span>
+              </div>
             </div>
 
             {/* Financial Summary */}
@@ -220,7 +240,7 @@ export default function DischargeDetailPage() {
 
       {/* Tab Content */}
       <div className="min-h-[400px]">
-        {activeTab === 'checklist' && <ChecklistTab an={an} details={details} setDetails={setDetails} fetchData={fetchData} />}
+        {activeTab === 'checklist' && <ChecklistTab an={an} details={details} setDetails={setDetails} fetchData={fetchData} patient={patient} />}
         {activeTab === 'timeline' && <TimelineTab details={details} />}
         {activeTab === 'documents' && <DocumentsTab patient={patient} />}
         {activeTab === 'drugs' && <DrugProfileTab an={an} isFilterActive={isFilterActive} />}

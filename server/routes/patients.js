@@ -21,7 +21,9 @@ router.get('/:an', authMiddleware, async (req, res) => {
               ia.bedno,
               aa.income AS total_income,
               aa.rcpt_money,
-              aa.paid_money
+              aa.paid_money,
+              dct.name AS dchtype_name,
+              dcs.name AS dchstts_name
             FROM ipt i
             JOIN patient p ON i.hn = p.hn
             LEFT JOIN pttype pt ON i.pttype = pt.pttype
@@ -29,6 +31,8 @@ router.get('/:an', authMiddleware, async (req, res) => {
             LEFT JOIN doctor d ON i.incharge_doctor = d.code
             LEFT JOIN iptadm ia ON ia.an = i.an
             LEFT JOIN an_stat aa ON aa.an = i.an
+            LEFT JOIN dchtype dct ON i.dchtype = dct.dchtype
+            LEFT JOIN dchstts dcs ON i.dchstts = dcs.dchstts
             WHERE i.an = ?
         `;
 
