@@ -295,8 +295,8 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                 patient?.dchdate ? (
                   <span className="text-sm text-slate-700">
                     <span className="font-medium text-slate-500 mr-1">สถานะ:</span>
-                    Discharge วันที่ <span className="font-medium">{new Date(patient.dchdate).toLocaleDateString('th-TH')}</span> 
-                    {' '}เวลา <span className="font-medium">{patient.dchtime ? patient.dchtime + ' น.' : '-'}</span>
+                    Discharge ใน Hosxp <span className="font-medium">{new Date(patient.dchdate).toLocaleDateString('th-TH')}</span> 
+                    {' '} <span className="font-medium">{patient.dchtime ? patient.dchtime.substring(0, 5) + ' น.' : '-'}</span>
                     {' '}Status: <span className="font-medium text-blue-600">{patient.dchstts_name || '-'}</span> 
                     {' '}Type: <span className="font-medium text-purple-600">{patient.dchtype_name || '-'}</span>
                   </span>

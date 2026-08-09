@@ -207,21 +207,19 @@ export default function DischargeCenterPage() {
                   <th className="px-4 py-3">หอผู้ป่วย (เบอร์โทร)</th>
                   <th className="px-4 py-3">สิทธิ์การรักษา</th>
                   <th className="px-4 py-3">แพทย์</th>
-                  <th className="px-4 py-3">วันเวลา Discharge</th>
-                  <th className="px-4 py-3">Discharge Status/Type</th>
                   <th className="px-4 py-3 text-right">กำลังตรวจสอบโดย</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="8" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : patients.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="8" className="px-4 py-8 text-center text-muted-foreground">
                       ไม่มีผู้ป่วยที่ศูนย์จำหน่าย
                     </td>
                   </tr>
@@ -252,14 +250,6 @@ export default function DischargeCenterPage() {
                         <div className="line-clamp-1">{p.pttype_name || '-'}</div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{p.doctor_name || '-'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-slate-900">{p.dchdate ? new Date(p.dchdate).toLocaleDateString('th-TH') : '-'}</div>
-                        {p.dchtime && <div className="text-sm text-muted-foreground">{p.dchtime} น.</div>}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-slate-900">{p.dchstts_name || '-'}</div>
-                        <div className="text-sm text-muted-foreground">{p.dchtype_name || '-'}</div>
-                      </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         {lockedCases[p.an] ? (
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-medium">
@@ -288,21 +278,19 @@ export default function DischargeCenterPage() {
                   <th className="px-4 py-3">หอผู้ป่วย (เบอร์โทร)</th>
                   <th className="px-4 py-3">สิทธิ์การรักษา</th>
                   <th className="px-4 py-3">แพทย์</th>
-                  <th className="px-4 py-3">วันเวลา Discharge</th>
-                  <th className="px-4 py-3">Discharge Status/Type</th>
                   <th className="px-4 py-3">กำลังตรวจสอบโดย</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="12" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : historyPatients.length === 0 ? (
                   <tr>
-                    <td colSpan="12" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       ไม่มีประวัติผู้ป่วย
                     </td>
                   </tr>
@@ -336,14 +324,6 @@ export default function DischargeCenterPage() {
                         <div className="line-clamp-1">{p.pttype_name || '-'}</div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{p.doctor_name || '-'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-slate-900">{p.dchdate ? new Date(p.dchdate).toLocaleDateString('th-TH') : '-'}</div>
-                        {p.dchtime && <div className="text-sm text-muted-foreground">{p.dchtime} น.</div>}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-slate-900">{p.dchstts_name || '-'}</div>
-                        <div className="text-sm text-muted-foreground">{p.dchtype_name || '-'}</div>
-                      </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {lockedCases[p.an] ? (
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-medium">
