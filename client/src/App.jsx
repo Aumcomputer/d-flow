@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { SoundProvider } from './contexts/SoundContext'
 import LoginPage from './pages/LoginPage'
 import WelcomePage from './pages/WelcomePage'
 import DocumentsPage from './pages/DocumentsPage'
@@ -43,7 +44,9 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <SoundProvider>
+        <AppRoutes />
+      </SoundProvider>
     </AuthProvider>
   )
 }

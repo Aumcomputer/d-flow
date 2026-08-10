@@ -108,13 +108,13 @@ export default function DischargeDetailPage() {
     )
   }
 
-  const pendingMoney = Number(patient.paid_money || 0)
+  const pendingMoney = Number(patient.paid_money || 0) - Number(patient.total_deposit || 0)
 
   return (
     <div className="w-full px-4 py-6 space-y-4 animate-in fade-in zoom-in-95 duration-500">
       {/* Back + Patient Info Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card rounded-2xl p-4 shadow-sm border border-border">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-muted rounded-full transition-colors shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -182,17 +182,21 @@ export default function DischargeDetailPage() {
             </div>
 
             {/* Financial Summary */}
-            <div className="ml-auto flex items-center gap-4 text-sm">
-              <div className="text-center">
+            <div className="ml-auto flex items-center justify-end gap-6 text-sm w-full md:w-auto mt-4 md:mt-0">
+              <div className="text-right">
                 <div className="text-xs text-muted-foreground">ค่าใช้จ่ายรวม</div>
                 <div className="font-semibold">{formatMoney(patient.total_income)}</div>
               </div>
-              <div className="text-center">
+              <div className="text-right">
                 <div className="text-xs text-muted-foreground">ชำระแล้ว</div>
                 <div className="font-semibold text-emerald-600">{formatMoney(patient.rcpt_money)}</div>
               </div>
+              <div className="text-right">
+                <div className="text-xs text-muted-foreground">เงินมัดจำ</div>
+                <div className="font-semibold text-emerald-600">{formatMoney(patient.total_deposit)}</div>
+              </div>
               {pendingMoney > 0 && (
-                <div className="text-center px-3 py-1 rounded-lg bg-red-50 border border-red-200">
+                <div className="text-right px-3 py-1 rounded-lg bg-red-50 border border-red-200">
                   <div className="text-xs text-red-600">รอชำระ</div>
                   <div className="font-bold text-red-600">{formatMoney(pendingMoney)}</div>
                 </div>

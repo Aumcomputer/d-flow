@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { User, CheckCircle2, Pill } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
+import { useSound } from '../contexts/SoundContext'
 
 export default function PharmacyPage() {
   const [patients, setPatients] = useState([])
@@ -10,7 +11,18 @@ export default function PharmacyPage() {
   const [activeTab, setActiveTab] = useState('pending')
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
+  const [searchTerm, setSearchTerm] = useState('')
   const navigate = useNavigate()
+  const { playAlert } = useSound()
+
+  const filterPatients = (list) => {
+    const term = searchTerm.trim()
+    if (!term) return list
+    return list.filter(p => p.hn === term || p.an === term)
+  }
+
+  const displayedPending = filterPatients(patients)
+  const displayedHistory = filterPatients(historyPatients)
 
   const fetchPatients = async () => {
     setLoading(true)
@@ -44,15 +56,18 @@ export default function PharmacyPage() {
   }, [historyDate])
 
   useEffect(() => {
-    const onUpdate = () => {
+    const onUpdate = (data) => {
       fetchPatients()
+      if (data && data.status === 'pharmacy') {
+        playAlert()
+      }
     }
     socket.on('workflow:updated', onUpdate)
 
     return () => {
       socket.off('workflow:updated', onUpdate)
     }
-  }, [historyDate])
+  }, [historyDate, playAlert])
 
   const handleDone = async (an) => {
     if (!confirm('ยืนยันเสร็จสิ้นห้องยา?')) return
@@ -82,6 +97,15 @@ export default function PharmacyPage() {
             </h1>
             <p className="text-muted-foreground mt-1">ผู้ป่วยที่รอดำเนินการ จำนวน {patients.length} ราย</p>
           </div>
+        </div>
+        <div className="w-full md:w-72">
+          <input
+            type="text"
+            placeholder="ค้นหา HN หรือ AN"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 bg-card"
+          />
         </div>
       </div>
 
@@ -146,14 +170,14 @@ export default function PharmacyPage() {
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
-                ) : patients.length === 0 ? (
+                ) : displayedPending.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
-                      ไม่มีผู้ป่วยรอรับยา
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีผู้ป่วยรอรับยา'}
                     </td>
                   </tr>
                 ) : (
-                  patients.map((p) => (
+                  displayedPending.map((p) => (
                     <tr 
                       key={p.an} 
                       onClick={() => navigate(`/dcdetail/${p.an}`)}
@@ -214,14 +238,14 @@ export default function PharmacyPage() {
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
-                ) : historyPatients.length === 0 ? (
+                ) : displayedHistory.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
-                      ไม่มีประวัติผู้ป่วย
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีประวัติผู้ป่วย'}
                     </td>
                   </tr>
                 ) : (
-                  historyPatients.map((p) => (
+                  displayedHistory.map((p) => (
                     <tr 
                       key={p.an} 
                       onClick={() => navigate(`/dcdetail/${p.an}`)}

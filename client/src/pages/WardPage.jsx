@@ -237,6 +237,9 @@ export default function WardPage() {
                     <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors text-right" onClick={() => handleSort('rcpt_money')}>
                       ชำระแล้ว {sortConfig.key === 'rcpt_money' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                     </th>
+                    <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors text-right" onClick={() => handleSort('total_deposit')}>
+                      เงินมัดจำ {sortConfig.key === 'total_deposit' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                    </th>
                     <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors text-right" onClick={() => handleSort('paid_money')}>
                       รอชำระ {sortConfig.key === 'paid_money' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                     </th>
@@ -270,13 +273,13 @@ export default function WardPage() {
                 </tr>
               ) : sortedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'admitted' ? 11 : 10} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={activeTab === 'admitted' ? 12 : 10} className="px-4 py-8 text-center text-muted-foreground">
                     ไม่พบข้อมูลผู้ป่วย
                   </td>
                 </tr>
               ) : (
                 sortedPatients.map((p) => {
-                  const pendingMoney = Number(p.paid_money || 0)
+                  const pendingMoney = Number(p.paid_money || 0) - Number(p.total_deposit || 0)
                   return (
                   <tr 
                     key={p.an} 
@@ -319,6 +322,9 @@ export default function WardPage() {
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-emerald-600">
                           {formatMoney(p.rcpt_money)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                          {formatMoney(p.total_deposit)}
                         </td>
                         <td className={`px-4 py-3 text-right font-medium ${pendingMoney > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
                           {pendingMoney > 0 ? formatMoney(pendingMoney) : '-'}

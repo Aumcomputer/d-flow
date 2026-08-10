@@ -49,6 +49,7 @@ async function getWorkflowPatients(status, historyOf = null, reqDate = null) {
                 COALESCE(ast.income, 0) as total_income,
                 COALESCE(ast.rcpt_money, 0) as rcpt_money,
                 COALESCE(ast.paid_money, 0) as paid_money,
+                (SELECT COALESCE(SUM(deposit_amount), 0) FROM finance_deposit fd WHERE fd.vn = i.an) AS total_deposit,
                 i.dchdate, i.dchtime,
                 dct.name as dchtype_name,
                 dcs.name as dchstts_name
@@ -123,12 +124,52 @@ router.get('/discharge-center', authMiddleware, async (req, res) => {
 });
 
 router.get('/finance', authMiddleware, async (req, res) => {
+    let hisConn, dflowConn;
     try {
-        const patients = await getWorkflowPatients('finance');
+        let patients = await getWorkflowPatients('finance');
+        
+        if (patients.length > 0) {
+            hisConn = await getHisConnection();
+            dflowConn = await getDflowConnection();
+            const ans = patients.map(p => p.an);
+            const placeholders = ans.map(() => '?').join(',');
+            
+            const query = `
+                SELECT r.vn, MAX(r.bill_date_time) as bill_time
+                FROM rcpt_print r
+                JOIN ipt i ON r.vn = i.an
+                WHERE r.vn IN (${placeholders}) 
+                AND DATE(r.bill_date_time) = i.dchdate
+                GROUP BY r.vn
+            `;
+            const autoCompleted = await hisConn.query(query, ans);
+            
+            if (autoCompleted.length > 0) {
+                const completedAns = autoCompleted.map(r => r.vn);
+                for (const row of autoCompleted) {
+                    await dflowConn.query(
+                        `UPDATE an_detail 
+                         SET workflow_status = 'completed', 
+                             finance_done_date = ?, 
+                             finance_done_by = 'Auto (HIS)' 
+                         WHERE an = ?`,
+                        [row.bill_time, row.vn]
+                    );
+                    const { getIO } = require('../lib/socket');
+                    getIO().emit('workflow:updated', { an: row.vn, status: 'completed' });
+                }
+                
+                patients = patients.filter(p => !completedAns.includes(p.an));
+            }
+        }
+        
         res.json(patients);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
     }
 });
 

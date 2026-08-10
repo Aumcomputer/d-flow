@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { User, CheckCircle2, Wallet } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
+import { useSound } from '../contexts/SoundContext'
 
 export default function FinancePage() {
   const [patients, setPatients] = useState([])
@@ -10,7 +11,18 @@ export default function FinancePage() {
   const [activeTab, setActiveTab] = useState('pending')
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
+  const [searchTerm, setSearchTerm] = useState('')
   const navigate = useNavigate()
+  const { playAlert } = useSound()
+
+  const filterPatients = (list) => {
+    const term = searchTerm.trim()
+    if (!term) return list
+    return list.filter(p => p.hn === term || p.an === term)
+  }
+
+  const displayedPending = filterPatients(patients)
+  const displayedHistory = filterPatients(historyPatients)
 
   const fetchPatients = async () => {
     setLoading(true)
@@ -44,15 +56,18 @@ export default function FinancePage() {
   }, [historyDate])
 
   useEffect(() => {
-    const onUpdate = () => {
+    const onUpdate = (data) => {
       fetchPatients()
+      if (data && data.status === 'finance') {
+        playAlert()
+      }
     }
     socket.on('workflow:updated', onUpdate)
 
     return () => {
       socket.off('workflow:updated', onUpdate)
     }
-  }, [historyDate])
+  }, [historyDate, playAlert])
 
   const handleDone = async (an) => {
     if (!confirm('ยืนยันเสร็จสิ้นการเงิน?')) return
@@ -82,6 +97,15 @@ export default function FinancePage() {
             </h1>
             <p className="text-muted-foreground mt-1">ผู้ป่วยรอชำระเงิน จำนวน {patients.length} ราย</p>
           </div>
+        </div>
+        <div className="w-full md:w-72">
+          <input
+            type="text"
+            placeholder="ค้นหา HN หรือ AN"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 bg-card"
+          />
         </div>
       </div>
 
@@ -136,6 +160,9 @@ export default function FinancePage() {
                   <th className="px-4 py-3">เบอร์โทรศัพท์</th>
                   <th className="px-4 py-3">สิทธิ์การรักษา</th>
                   <th className="px-4 py-3">แพทย์</th>
+                  <th className="px-4 py-3 text-right">ค่าใช้จ่ายรวม</th>
+                  <th className="px-4 py-3 text-right">ชำระแล้ว</th>
+                  <th className="px-4 py-3 text-right">เงินมัดจำ</th>
                   <th className="px-4 py-3 text-right">รอชำระ</th>
                   <th className="px-4 py-3 text-right">การจัดการ</th>
                 </tr>
@@ -143,19 +170,19 @@ export default function FinancePage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="11" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="14" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
-                ) : patients.length === 0 ? (
+                ) : displayedPending.length === 0 ? (
                   <tr>
-                    <td colSpan="11" className="px-4 py-8 text-center text-muted-foreground">
-                      ไม่มีผู้ป่วยรอชำระเงิน
+                    <td colSpan="14" className="px-4 py-8 text-center text-muted-foreground">
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีผู้ป่วยรอชำระเงิน'}
                     </td>
                   </tr>
                 ) : (
-                  patients.map((p) => {
-                    const pendingMoney = Number(p.paid_money || 0)
+                  displayedPending.map((p) => {
+                    const pendingMoney = Number(p.paid_money || 0) - Number(p.total_deposit || 0)
                     return (
                       <tr 
                         key={p.an} 
@@ -180,6 +207,15 @@ export default function FinancePage() {
                           <div className="line-clamp-1">{p.pttype_name || '-'}</div>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{p.doctor_name || '-'}</td>
+                        <td className="px-4 py-3 text-right font-medium text-foreground">
+                          {formatMoney(p.total_income)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                          {formatMoney(p.rcpt_money)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                          {formatMoney(p.total_deposit)}
+                        </td>
                         <td className={`px-4 py-3 text-right font-medium ${pendingMoney > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
                           {pendingMoney > 0 ? formatMoney(pendingMoney) : '-'}
                         </td>
@@ -211,24 +247,30 @@ export default function FinancePage() {
                   <th className="px-4 py-3">อายุ</th>
                   <th className="px-4 py-3">หอผู้ป่วย</th>
                   <th className="px-4 py-3">เบอร์โทรศัพท์</th>
+                  <th className="px-4 py-3 text-right">ค่าใช้จ่ายรวม</th>
+                  <th className="px-4 py-3 text-right">ชำระแล้ว</th>
+                  <th className="px-4 py-3 text-right">เงินมัดจำ</th>
+                  <th className="px-4 py-3 text-right">รอชำระ</th>
                   <th className="px-4 py-3">สถานะปัจจุบัน</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="14" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
-                ) : historyPatients.length === 0 ? (
+                ) : displayedHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
-                      ไม่มีประวัติผู้ป่วย
+                    <td colSpan="14" className="px-4 py-8 text-center text-muted-foreground">
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีประวัติผู้ป่วย'}
                     </td>
                   </tr>
                 ) : (
-                  historyPatients.map((p) => (
+                  displayedHistory.map((p) => {
+                    const pendingMoney = Number(p.paid_money || 0) - Number(p.total_deposit || 0)
+                    return (
                     <tr 
                       key={p.an} 
                       onClick={() => navigate(`/dcdetail/${p.an}`)}
@@ -251,6 +293,18 @@ export default function FinancePage() {
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.age_y ? p.age_y + ' ปี' : '-'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.ward_name || '-'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.ward_phone || '-'}</td>
+                      <td className="px-4 py-3 text-right font-medium text-foreground">
+                        {formatMoney(p.total_income)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                        {formatMoney(p.rcpt_money)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                        {formatMoney(p.total_deposit)}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-medium ${pendingMoney > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                        {pendingMoney > 0 ? formatMoney(pendingMoney) : '-'}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                           p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
@@ -267,7 +321,8 @@ export default function FinancePage() {
                         </span>
                       </td>
                     </tr>
-                  ))
+                    )
+                  })
                 )}
               </tbody>
             </table>

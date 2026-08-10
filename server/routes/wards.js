@@ -109,7 +109,8 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
                     iptb.bedno,
                     aa.income AS total_income,
                     aa.rcpt_money,
-                    aa.paid_money
+                    aa.paid_money,
+                    (SELECT COALESCE(SUM(deposit_amount), 0) FROM finance_deposit fd WHERE fd.vn = i.an) AS total_deposit
                 FROM ipt i
                 LEFT JOIN patient p ON i.hn = p.hn
                 LEFT JOIN ward w ON i.ward = w.ward
@@ -201,7 +202,8 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
                 iptb.bedno,
                 aa.income AS total_income,
                 aa.rcpt_money,
-                aa.paid_money
+                aa.paid_money,
+                (SELECT COALESCE(SUM(deposit_amount), 0) FROM finance_deposit fd WHERE fd.vn = i.an) AS total_deposit
             FROM ipt i
             LEFT JOIN patient p ON i.hn = p.hn
             LEFT JOIN ward w ON i.ward = w.ward

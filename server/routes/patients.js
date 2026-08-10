@@ -22,6 +22,7 @@ router.get('/:an', authMiddleware, async (req, res) => {
               aa.income AS total_income,
               aa.rcpt_money,
               aa.paid_money,
+              (SELECT COALESCE(SUM(deposit_amount), 0) FROM finance_deposit fd WHERE fd.vn = i.an) AS total_deposit,
               dct.name AS dchtype_name,
               dcs.name AS dchstts_name
             FROM ipt i

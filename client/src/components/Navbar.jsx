@@ -1,10 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useSound } from '../contexts/SoundContext'
 import { Button } from './ui/button'
-import { LogOut, UserCircle, Workflow } from 'lucide-react'
+import { LogOut, UserCircle, Volume2, VolumeX } from 'lucide-react'
 
 export default function Navbar() {
   const { user, logout } = useAuth()
+  const { isSoundEnabled, toggleSound } = useSound()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -30,14 +32,21 @@ export default function Navbar() {
         <div className="flex items-center gap-6">
 
           <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-slate-600 font-medium bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-            <UserCircle className="w-5 h-5 text-slate-400" />
-            {user?.name || user?.loginname}
-          </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full px-4">
-            <LogOut className="w-4 h-4 mr-2" />
-            ออกจากระบบ
-          </Button>
+            <button 
+              onClick={toggleSound}
+              className={`p-2 rounded-full transition-colors ${isSoundEnabled ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
+              title={isSoundEnabled ? "ปิดเสียงแจ้งเตือน" : "เปิดเสียงแจ้งเตือน"}
+            >
+              {isSoundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+            </button>
+            <div className="flex items-center gap-2 text-slate-600 font-medium bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+              <UserCircle className="w-5 h-5 text-slate-400" />
+              {user?.name || user?.loginname}
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full px-4">
+              <LogOut className="w-4 h-4 mr-2" />
+              ออกจากระบบ
+            </Button>
           </div>
         </div>
       </div>
