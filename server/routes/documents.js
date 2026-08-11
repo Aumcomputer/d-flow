@@ -140,6 +140,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             if (!finalDocTypeId && pdfResult.docTypeId) {
                 finalDocTypeId = pdfResult.docTypeId;
             }
+        } else if (isImage && finalDocTypeId === 1) {
+            const { extractCidFromImage } = require('../services/ocrService');
+            extractedCid = await extractCidFromImage(file.path);
         }
 
         // --- Generate filename: {AN}_{running}.{ext} ---

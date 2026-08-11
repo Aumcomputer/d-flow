@@ -12,7 +12,7 @@ import { Skeleton } from '../components/ui/skeleton'
 import {
   ArrowLeft, Search, UploadCloud, CheckCircle2, Circle,
   FileText, Trash2, Eye, User, Stethoscope, CreditCard,
-  ShieldCheck, AlertTriangle
+  ShieldCheck, AlertTriangle, Scan
 } from 'lucide-react'
 
 const DOC_TYPES = [
@@ -33,6 +33,7 @@ export default function DocumentsPage() {
   const [error, setError] = useState('')
   const [uploadProgress, setUploadProgress] = useState(false)
   const [imgError, setImgError] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
 
   // Classification dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -109,6 +110,64 @@ export default function DocumentsPage() {
       alert('อัปโหลดล้มเหลว: ' + (err.response?.data?.error || err.message))
     } finally {
       setUploadProgress(false)
+    }
+  }
+
+  const handleScan = async (docTypeId = null) => {
+    if (!patient) return
+    const scannerPort = import.meta.env.VITE_LOCAL_SCANNER_PORT || 3478
+    
+    // กำหนด API endpoint ตามประเภทเอกสาร (1 = บัตรประชาชน)
+    const scanApiEndpoint = docTypeId === 1 ? '/api/scan-idcard' : '/api/scan-a4'
+    
+    try {
+      setIsScanning(true)
+      const scanRes = await fetch(`http://localhost:${scannerPort}${scanApiEndpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      const responseText = await scanRes.text()
+      let scanData
+      try {
+        scanData = JSON.parse(responseText)
+      } catch (parseErr) {
+        console.error('Invalid JSON from Local Agent:', responseText.substring(0, 500))
+        throw new Error('Local Agent ตอบกลับมาเป็นรูปแบบที่ไม่ถูกต้อง (อาจเกิด Error ที่ตัว Agent หรือพอร์ตชนกัน)')
+      }
+      
+      if (!scanData.success) {
+        throw new Error(scanData.error || 'สแกนไม่สำเร็จ')
+      }
+      
+      const base64Content = scanData.imageData || scanData.pdfData || scanData.image || scanData.data
+      
+      if (typeof base64Content !== 'string' || !base64Content) {
+        throw new Error('ไม่พบข้อมูลภาพจากการสแกน (Local Agent ส่งข้อมูลมา: ' + JSON.stringify(Object.keys(scanData)) + ')')
+      }
+      
+      const b64Data = base64Content.split(',')[1] || ''
+      const isActuallyPdf = b64Data.startsWith('JVBERi')
+      
+      const base64Response = await fetch(base64Content)
+      const blob = await base64Response.blob()
+      
+      const ext = isActuallyPdf ? 'pdf' : (blob.type.includes('image') ? 'jpg' : 'pdf')
+      const mime = isActuallyPdf ? 'application/pdf' : (blob.type || 'application/pdf')
+      
+      const file = new File([blob], `scan_${Date.now()}.${ext}`, { type: mime })
+      
+      await handleUpload(file, docTypeId)
+      
+    } catch (err) {
+      console.error('Scan failed:', err)
+      if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+        alert("ไม่สามารถเชื่อมต่อ Local Scanner Agent ได้ (Can't connect local agent)")
+      } else {
+        alert('สแกนล้มเหลว: ' + err.message)
+      }
+    } finally {
+      setIsScanning(false)
     }
   }
 
@@ -329,20 +388,29 @@ export default function DocumentsPage() {
                             <Badge variant="secondary" className="text-xs rounded-full">{typeDocs.length} ไฟล์</Badge>
                           )}
                         </div>
-                        <label className="cursor-pointer text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors inline-flex items-center gap-1">
-                          <UploadCloud className="w-3.5 h-3.5" />
-                          อัปโหลด
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept=".pdf,.jpg,.jpeg,.png,.webp"
-                            onChange={(e) => {
-                              if (e.target.files?.[0]) handleUpload(e.target.files[0], docType.id)
-                              e.target.value = ''
-                            }}
-                            disabled={!patient}
-                          />
-                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleScan(docType.id)}
+                            className="cursor-pointer text-xs font-medium bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors inline-flex items-center gap-1 border border-emerald-200/60"
+                          >
+                            <Scan className="w-3.5 h-3.5" />
+                            สแกน
+                          </button>
+                          <label className="cursor-pointer text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors inline-flex items-center gap-1 border border-blue-200/60">
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            อัปโหลด
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.jpg,.jpeg,.png,.webp"
+                              onChange={(e) => {
+                                if (e.target.files?.[0]) handleUpload(e.target.files[0], docType.id)
+                                e.target.value = ''
+                              }}
+                              disabled={!patient}
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       {/* List of uploaded files for this type */}
@@ -446,6 +514,17 @@ export default function DocumentsPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>ยกเลิก</Button>
             <Button onClick={handleClassify} className="bg-gradient-to-r from-blue-500 to-indigo-500">ยืนยัน</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Scanning Dialog */}
+      <Dialog open={isScanning} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-xs [&>button]:hidden">
+          <div className="flex flex-col items-center justify-center py-6 gap-4">
+            <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin"></div>
+            <p className="text-lg font-medium text-slate-700">กำลังสแกน...</p>
+            <p className="text-sm text-slate-500">กรุณารอสักครู่ เครื่องสแกนกำลังทำงาน</p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
