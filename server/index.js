@@ -44,9 +44,36 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app);
 const redisLib = require('./lib/redis');
 
+const { getDflowConnection } = require('./config/database');
+async function migrateDB() {
+    let conn;
+    try {
+        conn = await getDflowConnection();
+        try {
+            await conn.query(`
+                ALTER TABLE an_detail 
+                ADD COLUMN chk_hm INT DEFAULT NULL, 
+                ADD COLUMN chk_returnmed INT DEFAULT NULL, 
+                ADD COLUMN phar_chk_hm VARCHAR(50) DEFAULT NULL, 
+                ADD COLUMN phar_chk_returnmed VARCHAR(50) DEFAULT NULL, 
+                ADD COLUMN phar_chk_hm_date DATETIME DEFAULT NULL, 
+                ADD COLUMN phar_chk_returnmed_date DATETIME DEFAULT NULL
+            `);
+            console.log('Database migrated: added HM and return_med columns');
+        } catch (e) {
+            // Ignore duplicate column errors (already migrated)
+            if (e.code !== 'ER_DUP_FIELDNAME') throw e;
+        }
+    } catch (err) {
+        console.error('Migration error:', err);
+    } finally {
+        if (conn) conn.release();
+    }
+}
+
 redisLib.initRedis().then(() => {
     return socketLib.init(server);
-}).then(() => {
+}).then(() => migrateDB()).then(() => {
     server.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });

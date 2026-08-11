@@ -258,7 +258,10 @@ router.post('/:an/cancel-discharge', authMiddleware, async (req, res) => {
                 sent_dc_by = NULL, sent_dc_date = NULL,
                 dc_done_by = NULL, dc_done_date = NULL,
                 sent_finance_by = NULL, sent_finance_date = NULL,
-                finance_done_by = NULL, finance_done_date = NULL
+                finance_done_by = NULL, finance_done_date = NULL,
+                chk_hm = NULL, chk_returnmed = NULL,
+                phar_chk_hm = NULL, phar_chk_returnmed = NULL,
+                phar_chk_hm_date = NULL, phar_chk_returnmed_date = NULL
              WHERE an = ?`,
             [an]
         );

@@ -244,31 +244,63 @@ async function updateWorkflowStatus(req, res, setClause, values, newStatus, acti
 }
 
 router.post('/:an/send-pharmacy', authMiddleware, async (req, res) => {
-    const { phone } = req.body;
-    const phoneUpdate = phone ? ', ward_phone = ?' : '';
-    const values = phone ? [req.user.loginname, phone] : [req.user.loginname];
+    const { phone, hm, returnmed } = req.body;
+    let setClause = 'sent_pharmacy_by = ?, sent_pharmacy_date = NOW()';
+    const values = [req.user.loginname];
     
-    await updateWorkflowStatus(
-        req, res,
-        `sent_pharmacy_by = ?, sent_pharmacy_date = NOW()${phoneUpdate}`,
-        values,
-        'pharmacy',
-        'SEND_PHARMACY'
-    );
+    if (phone) { setClause += ', ward_phone = ?'; values.push(phone); }
+    if (hm !== undefined) { setClause += ', chk_hm = ?'; values.push(hm ? 1 : 0); }
+    if (returnmed !== undefined) { setClause += ', chk_returnmed = ?'; values.push(returnmed ? 1 : 0); }
+    
+    await updateWorkflowStatus(req, res, setClause, values, 'pharmacy', 'SEND_PHARMACY');
 });
 
 router.post('/:an/send-dc', authMiddleware, async (req, res) => {
-    const { phone } = req.body;
-    const phoneUpdate = phone ? ', ward_phone = ?' : '';
-    const values = phone ? [req.user.loginname, phone] : [req.user.loginname];
+    const { phone, hm, returnmed } = req.body;
+    let setClause = 'sent_dc_by = ?, sent_dc_date = NOW()';
+    const values = [req.user.loginname];
+    
+    if (phone) { setClause += ', ward_phone = ?'; values.push(phone); }
+    if (hm !== undefined) { setClause += ', chk_hm = ?'; values.push(hm ? 1 : 0); }
+    if (returnmed !== undefined) { setClause += ', chk_returnmed = ?'; values.push(returnmed ? 1 : 0); }
 
-    await updateWorkflowStatus(
-        req, res,
-        `sent_dc_by = ?, sent_dc_date = NOW()${phoneUpdate}`,
-        values,
-        'discharge_center',
-        'SEND_DC'
-    );
+    await updateWorkflowStatus(req, res, setClause, values, 'discharge_center', 'SEND_DC');
+});
+
+router.post('/:an/pharmacy-check', authMiddleware, async (req, res) => {
+    let conn;
+    try {
+        const { an } = req.params;
+        const { type } = req.body;
+        const loginname = req.user.loginname;
+        
+        let setClause = '';
+        let actionType = '';
+        if (type === 'hm') {
+            setClause = 'phar_chk_hm = ?, phar_chk_hm_date = NOW()';
+            actionType = 'PHAR_CHK_HM';
+        } else if (type === 'returnmed') {
+            setClause = 'phar_chk_returnmed = ?, phar_chk_returnmed_date = NOW()';
+            actionType = 'PHAR_CHK_RETURNMED';
+        } else {
+            return res.status(400).json({ error: 'Invalid check type' });
+        }
+        
+        const { getDflowConnection } = require('../config/database');
+        conn = await getDflowConnection();
+        await conn.query(`UPDATE an_detail SET ${setClause} WHERE an = ?`, [loginname, an]);
+        await conn.query('INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)', [an, actionType, loginname]);
+        
+        const { getIO } = require('../lib/socket');
+        getIO().emit('workflow:updated', { an, type: 'pharmacy_check' });
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
+    }
 });
 
 router.post('/:an/pharmacy-done', authMiddleware, async (req, res) => {

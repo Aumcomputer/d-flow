@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X } from 'lucide-react';
+import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X, Calendar } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import socket from '../../services/socket';
@@ -9,6 +9,8 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
   const [loadingAudit, setLoadingAudit] = useState(true)
   const [workflowStatus, setWorkflowStatus] = useState(details?.workflow_status || null)
   const [wardPhone, setWardPhone] = useState(details?.ward_phone || '')
+  const [chkHm, setChkHm] = useState(details?.chk_hm ?? null)
+  const [chkReturnMed, setChkReturnMed] = useState(details?.chk_returnmed ?? null)
   const [showLogs, setShowLogs] = useState(false)
   const [logs, setLogs] = useState([])
   const [loadingLogs, setLoadingLogs] = useState(false)
@@ -34,6 +36,8 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
     if (details?.workflow_status) {
       setWorkflowStatus(details.workflow_status)
     }
+    if (details?.chk_hm !== undefined && details.chk_hm !== null) setChkHm(details.chk_hm)
+    if (details?.chk_returnmed !== undefined && details.chk_returnmed !== null) setChkReturnMed(details.chk_returnmed)
   }, [details])
 
   useEffect(() => {
@@ -178,7 +182,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
   ] : []
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4 max-w-6xl mx-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-4 w-full">
       {/* Left: Automated Audit */}
       <div>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -282,71 +286,112 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
         </div>
       </div>
 
-      {/* Bottom: Workflow Actions */}
+      {/* Right/Bottom: Workflow Actions */}
       {(fromWard || fromDischargeCenter) && (
-      <div className="lg:col-span-2 mt-4">
-        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-          <div className="px-5 py-4 border-b border-border bg-muted/30 flex justify-between items-center">
-            <div>
-              <h3 className="font-bold text-base text-slate-800">ส่งต่อแผนก</h3>
-            </div>
-            <div className="flex items-center gap-3">
-              {fromDischargeCenter ? (
-                patient?.dchdate ? (
-                  <span className="text-sm text-slate-700">
-                    <span className="font-medium text-slate-500 mr-1">สถานะ:</span>
-                    Discharge ใน Hosxp <span className="font-medium">{new Date(patient.dchdate).toLocaleDateString('th-TH')}</span> 
-                    {' '} <span className="font-medium">{patient.dchtime ? patient.dchtime.substring(0, 5) + ' น.' : '-'}</span>
-                    {' '}Status: <span className="font-medium text-blue-600">{patient.dchstts_name || '-'}</span> 
-                    {' '}Type: <span className="font-medium text-purple-600">{patient.dchtype_name || '-'}</span>
-                  </span>
-                ) : (
-                  <span className="text-sm font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
-                    สถานะ : ยังไม่ได้ Discharge ใน Hosxp
-                  </span>
-                )
-              ) : (
-                <>
-                  <span className="text-sm font-medium text-slate-500">สถานะปัจจุบัน:</span>
-                  {workflowStatus ? (
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      workflowStatus === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
-                      workflowStatus === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
-                      workflowStatus === 'finance' ? 'bg-amber-100 text-amber-700' :
-                      workflowStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                      'bg-slate-100 text-slate-700'
-                    }`}>
-                      {workflowStatus === 'pharmacy' ? 'ห้องยา' :
-                       workflowStatus === 'discharge_center' ? 'ศูนย์จำหน่าย' :
-                       workflowStatus === 'finance' ? 'การเงิน' :
-                       workflowStatus === 'completed' ? 'เสร็จสิ้น' :
-                       workflowStatus === 'discharged' ? 'รอดำเนินการ' : workflowStatus}
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">ไม่ทราบสถานะ</span>
-                  )}
-                </>
-              )}
-            </div>
+      <div>
+        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden h-full flex flex-col">
+          <div className="px-5 py-4 border-b border-border bg-muted/30">
+            <h3 className="font-bold text-base text-slate-800">ส่งต่อแผนก</h3>
           </div>
           
-          <div className="p-4 flex flex-col xl:flex-row items-center gap-4 bg-muted/10">
-            {fromWard && (
-              <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
-                <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
-                  หมายเลขโทรศัพท์หอผู้ป่วย <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={wardPhone}
-                  onChange={(e) => setWardPhone(e.target.value)}
-                  placeholder="ระบุเบอร์โทรศัพท์..."
-                  className="flex-1 sm:w-48 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
+          <div className="p-4 flex flex-col gap-4 bg-muted/10 flex-1">
+            {fromDischargeCenter ? (
+              patient?.dchdate ? (
+                <div className="flex flex-col p-3.5 bg-blue-50/50 border border-blue-100 rounded-xl text-sm w-full gap-2.5">
+                  <div className="font-semibold text-blue-800 border-b border-blue-200/60 pb-2.5 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                    สถานะ: Discharge ใน HOSxP
+                  </div>
+                  <div className="flex flex-col gap-2 px-1">
+                    <div className="flex items-center gap-2.5 text-slate-700">
+                      <Calendar className="w-4 h-4 text-slate-400" />
+                      <span>วันที่: <span className="font-medium text-slate-900">{new Date(patient.dchdate).toLocaleDateString('th-TH')} {patient.dchtime ? patient.dchtime.substring(0, 5) + ' น.' : ''}</span></span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-slate-700">
+                      <Activity className="w-4 h-4 text-slate-400" />
+                      <span>Status: <span className="font-medium text-emerald-600">{patient.dchstts_name || '-'}</span></span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-slate-700">
+                      <Shield className="w-4 h-4 text-slate-400" />
+                      <span>Type: <span className="font-medium text-purple-600">{patient.dchtype_name || '-'}</span></span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm font-medium text-amber-600 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200 text-center">
+                  สถานะ : ยังไม่ได้ Discharge ใน Hosxp
+                </div>
+              )
+            ) : (
+              <div className="flex items-center justify-between p-3.5 bg-white border border-slate-200 rounded-xl">
+                <span className="text-sm font-medium text-slate-500">สถานะปัจจุบัน:</span>
+                {workflowStatus ? (
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                    workflowStatus === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
+                    workflowStatus === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
+                    workflowStatus === 'finance' ? 'bg-amber-100 text-amber-700' :
+                    workflowStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                    'bg-slate-100 text-slate-700'
+                  }`}>
+                    {workflowStatus === 'pharmacy' ? 'ห้องยา' :
+                     workflowStatus === 'discharge_center' ? 'ศูนย์จำหน่าย' :
+                     workflowStatus === 'finance' ? 'การเงิน' :
+                     workflowStatus === 'completed' ? 'เสร็จสิ้น' :
+                     workflowStatus === 'discharged' ? 'รอดำเนินการ' : workflowStatus}
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">ไม่ทราบสถานะ</span>
+                )}
               </div>
             )}
+            {fromWard && (
+              <>
+                <div className="flex items-center gap-3 w-full shrink-0">
+                  <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
+                    เบอร์โทรศัพท์ <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={wardPhone}
+                    onChange={(e) => setWardPhone(e.target.value.replace(/\D/g, ''))}
+                    placeholder="ระบุเบอร์โทรศัพท์..."
+                    disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+                
+                <div className="flex flex-col gap-3 w-full bg-white p-3 rounded-xl border border-slate-200 shadow-sm mt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-700">Homemed <span className="text-red-500">*</span></span>
+                    <div className="flex items-center gap-4">
+                      <label className={`flex items-center gap-2 ${['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input type="radio" name="chk_hm" disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)} checked={chkHm === 1} onChange={() => setChkHm(1)} className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" />
+                        <span className="text-sm">มี</span>
+                      </label>
+                      <label className={`flex items-center gap-2 ${['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input type="radio" name="chk_hm" disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)} checked={chkHm === 0} onChange={() => setChkHm(0)} className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" />
+                        <span className="text-sm">ไม่มี</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-700">ยาคืน <span className="text-red-500">*</span></span>
+                    <div className="flex items-center gap-4">
+                      <label className={`flex items-center gap-2 ${['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input type="radio" name="chk_returnmed" disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)} checked={chkReturnMed === 1} onChange={() => setChkReturnMed(1)} className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" />
+                        <span className="text-sm">มี</span>
+                      </label>
+                      <label className={`flex items-center gap-2 ${['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                        <input type="radio" name="chk_returnmed" disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)} checked={chkReturnMed === 0} onChange={() => setChkReturnMed(0)} className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" />
+                        <span className="text-sm">ไม่มี</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
             
-            <div className="flex gap-4 w-full xl:flex-1">
+            <div className="flex flex-col gap-3 w-full mt-2">
               {fromDischargeCenter ? (
                 <>
                   <button
@@ -375,42 +420,55 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={async () => {
-                      if(!wardPhone.trim()) {
-                        alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย');
-                        return;
-                      }
-                      if(!confirm('ยืนยันส่งห้องยา?')) return;
-                      try {
-                        await api.post(`/workflow/${an}/send-pharmacy`, { phone: wardPhone })
-                        setWorkflowStatus('pharmacy')
-                      } catch(err) { alert('ไม่สามารถส่งห้องยาได้') }
-                    }}
-                    disabled={!isChecklistComplete || ['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Pill className="w-5 h-5" />
-                    <span className="font-medium">ส่งห้องยา</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if(!wardPhone.trim()) {
-                        alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย');
-                        return;
-                      }
-                      if(!confirm('ยืนยันส่งศูนย์จำหน่าย?')) return;
-                      try {
-                        await api.post(`/workflow/${an}/send-dc`, { phone: wardPhone })
-                        setWorkflowStatus('discharge_center')
-                      } catch(err) { alert('ไม่สามารถส่งศูนย์จำหน่ายได้') }
-                    }}
-                    disabled={!isChecklistComplete || ['discharge_center', 'finance', 'completed'].includes(workflowStatus)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Building2 className="w-5 h-5" />
-                    <span className="font-medium">ส่งศูนย์จำหน่าย</span>
-                  </button>
+                  {(chkHm === 1 || chkReturnMed === 1) && (
+                    <button
+                      onClick={async () => {
+                        if(!wardPhone.trim()) { alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย'); return; }
+                        if(chkHm === null || chkReturnMed === null) { alert('กรุณาระบุ Homemed และ ยาคืน'); return; }
+                        if(!confirm('ยืนยันส่งห้องยา?')) return;
+                        try {
+                          await api.post(`/workflow/${an}/send-pharmacy`, { phone: wardPhone, hm: chkHm, returnmed: chkReturnMed })
+                          setWorkflowStatus('pharmacy')
+                        } catch(err) { alert('ไม่สามารถส่งห้องยาได้') }
+                      }}
+                      disabled={!isChecklistComplete || !wardPhone.trim() || ['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Pill className="w-5 h-5" />
+                      <span className="font-medium">ส่งห้องยา</span>
+                    </button>
+                  )}
+                  
+                  {(chkHm === 0 && chkReturnMed === 0) && (
+                    <button
+                      onClick={async () => {
+                        if(!wardPhone.trim()) { alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย'); return; }
+                        if(chkHm === null || chkReturnMed === null) { alert('กรุณาระบุ Homemed และ ยาคืน'); return; }
+                        if(!confirm('ยืนยันส่งศูนย์จำหน่าย?')) return;
+                        try {
+                          await api.post(`/workflow/${an}/send-dc`, { phone: wardPhone, hm: chkHm, returnmed: chkReturnMed })
+                          setWorkflowStatus('discharge_center')
+                        } catch(err) { alert('ไม่สามารถส่งศูนย์จำหน่ายได้') }
+                      }}
+                      disabled={!isChecklistComplete || !wardPhone.trim() || ['discharge_center', 'finance', 'completed'].includes(workflowStatus)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Building2 className="w-5 h-5" />
+                      <span className="font-medium">ส่งศูนย์จำหน่าย</span>
+                    </button>
+                  )}
+                  
+                  {(chkHm === null || chkReturnMed === null) && (
+                    <div className="text-center py-3 px-3 bg-slate-100 rounded-xl border border-slate-200 text-sm text-slate-500 font-medium">
+                      กรุณาระบุ Homemed และ ยาคืน ก่อนส่งต่อ
+                    </div>
+                  )}
+                  
+                  {(!isChecklistComplete || !wardPhone.trim()) && (chkHm !== null && chkReturnMed !== null) && (
+                    <div className="text-center py-2 px-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100 font-medium">
+                      กรุณากรอก "เบอร์โทรศัพท์" และติ๊ก "รายการตรวจสอบ" ให้ครบถ้วน
+                    </div>
+                  )}
                 </>
               )}
             </div>

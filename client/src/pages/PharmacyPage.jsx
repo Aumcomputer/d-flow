@@ -69,6 +69,15 @@ export default function PharmacyPage() {
     }
   }, [historyDate, playAlert])
 
+  const handlePharmacyCheck = async (an, type) => {
+    try {
+      await api.post(`/workflow/${an}/pharmacy-check`, { type })
+      fetchPatients()
+    } catch (err) {
+      alert('ไม่สามารถทำรายการได้')
+    }
+  }
+
   const handleDone = async (an) => {
     if (!confirm('ยืนยันเสร็จสิ้นห้องยา?')) return
     try {
@@ -160,19 +169,21 @@ export default function PharmacyPage() {
                   <th className="px-4 py-3">เบอร์โทรศัพท์</th>
                   <th className="px-4 py-3">สิทธิ์การรักษา</th>
                   <th className="px-4 py-3">แพทย์</th>
+                  <th className="px-4 py-3 text-center">Homemed</th>
+                  <th className="px-4 py-3 text-center">ยาคืน</th>
                   <th className="px-4 py-3 text-right">การจัดการ</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="12" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : displayedPending.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="12" className="px-4 py-8 text-center text-muted-foreground">
                       {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีผู้ป่วยรอรับยา'}
                     </td>
                   </tr>
@@ -201,10 +212,55 @@ export default function PharmacyPage() {
                         <div className="line-clamp-1">{p.pttype_name || '-'}</div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{p.doctor_name || '-'}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-center align-middle">
+                        {p.chk_hm === 1 ? (
+                          p.phar_chk_hm ? (
+                            <div className="flex flex-col items-center gap-1 text-emerald-600">
+                              <CheckCircle2 className="w-5 h-5" />
+                              <span className="text-[10px] whitespace-nowrap">เสร็จแล้ว</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="text-amber-600 font-medium text-xs whitespace-nowrap">มี HM</div>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handlePharmacyCheck(p.an, 'hm'); }}
+                                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-[10px] whitespace-nowrap rounded border border-blue-200"
+                              >
+                                กดเมื่อเสร็จ
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center align-middle">
+                        {p.chk_returnmed === 1 ? (
+                          p.phar_chk_returnmed ? (
+                            <div className="flex flex-col items-center gap-1 text-emerald-600">
+                              <CheckCircle2 className="w-5 h-5" />
+                              <span className="text-[10px] whitespace-nowrap">เสร็จแล้ว</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="text-amber-600 font-medium text-xs whitespace-nowrap">มียาคืน</div>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handlePharmacyCheck(p.an, 'returnmed'); }}
+                                className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-600 text-[10px] whitespace-nowrap rounded border border-purple-200"
+                              >
+                                กดเมื่อเสร็จ
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right align-middle">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDone(p.an); }}
-                          className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4"
+                          disabled={(p.chk_hm === 1 && !p.phar_chk_hm) || (p.chk_returnmed === 1 && !p.phar_chk_returnmed)}
+                          className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed h-9 px-4"
                         >
                           <CheckCircle2 className="w-4 h-4 mr-2" />
                           เสร็จสิ้น
@@ -228,19 +284,21 @@ export default function PharmacyPage() {
                   <th className="px-4 py-3">อายุ</th>
                   <th className="px-4 py-3">หอผู้ป่วย</th>
                   <th className="px-4 py-3">เบอร์โทรศัพท์</th>
+                  <th className="px-4 py-3 text-center">Homemed</th>
+                  <th className="px-4 py-3 text-center">ยาคืน</th>
                   <th className="px-4 py-3">สถานะปัจจุบัน</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="12" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : displayedHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="12" className="px-4 py-8 text-center text-muted-foreground">
                       {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีประวัติผู้ป่วย'}
                     </td>
                   </tr>
@@ -268,6 +326,28 @@ export default function PharmacyPage() {
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.age_y ? p.age_y + ' ปี' : '-'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.ward_name || '-'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.ward_phone || '-'}</td>
+                      <td className="px-4 py-3 text-center">
+                        {p.chk_hm === 1 ? (
+                          p.phar_chk_hm ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" />
+                          ) : (
+                            <span className="text-amber-600 font-medium text-xs">ค้าง</span>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {p.chk_returnmed === 1 ? (
+                          p.phar_chk_returnmed ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" />
+                          ) : (
+                            <span className="text-amber-600 font-medium text-xs">ค้าง</span>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                           p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
