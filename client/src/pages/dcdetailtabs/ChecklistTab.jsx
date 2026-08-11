@@ -290,58 +290,63 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
       {(fromWard || fromDischargeCenter) && (
       <div>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden h-full flex flex-col">
-          <div className="px-5 py-4 border-b border-border bg-muted/30">
+          <div className="px-5 py-4 border-b border-border bg-muted/30 flex justify-between items-center">
             <h3 className="font-bold text-base text-slate-800">ส่งต่อแผนก</h3>
-          </div>
-          
-          <div className="p-4 flex flex-col gap-4 bg-muted/10 flex-1">
-            {fromDischargeCenter ? (
-              patient?.dchdate ? (
-                <div className="flex flex-col p-3.5 bg-blue-50/50 border border-blue-100 rounded-xl text-sm w-full gap-2.5">
-                  <div className="font-semibold text-blue-800 border-b border-blue-200/60 pb-2.5 flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {fromDischargeCenter ? (
+                patient?.dchdate ? (
+                  <div className="font-semibold text-blue-800 flex items-center gap-2 text-sm bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
                     <CheckCircle2 className="w-4 h-4 text-blue-600" />
                     สถานะ: Discharge ใน HOSxP
                   </div>
-                  <div className="flex flex-col gap-2 px-1">
-                    <div className="flex items-center gap-2.5 text-slate-700">
-                      <Calendar className="w-4 h-4 text-slate-400" />
-                      <span>วันที่: <span className="font-medium text-slate-900">{new Date(patient.dchdate).toLocaleDateString('th-TH')} {patient.dchtime ? patient.dchtime.substring(0, 5) + ' น.' : ''}</span></span>
-                    </div>
-                    <div className="flex items-center gap-2.5 text-slate-700">
-                      <Activity className="w-4 h-4 text-slate-400" />
-                      <span>Status: <span className="font-medium text-emerald-600">{patient.dchstts_name || '-'}</span></span>
-                    </div>
-                    <div className="flex items-center gap-2.5 text-slate-700">
-                      <Shield className="w-4 h-4 text-slate-400" />
-                      <span>Type: <span className="font-medium text-purple-600">{patient.dchtype_name || '-'}</span></span>
-                    </div>
+                ) : (
+                  <span className="text-sm font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200">
+                    สถานะ : ยังไม่ได้ Discharge ใน Hosxp
+                  </span>
+                )
+              ) : (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium text-slate-500">สถานะปัจจุบัน:</span>
+                  {workflowStatus ? (
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      workflowStatus === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
+                      workflowStatus === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
+                      workflowStatus === 'finance' ? 'bg-amber-100 text-amber-700' :
+                      workflowStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {workflowStatus === 'pharmacy' ? 'ห้องยา' :
+                       workflowStatus === 'discharge_center' ? 'ศูนย์จำหน่าย' :
+                       workflowStatus === 'finance' ? 'การเงิน' :
+                       workflowStatus === 'completed' ? 'เสร็จสิ้น' :
+                       workflowStatus === 'discharged' ? 'รอดำเนินการ' : workflowStatus}
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">ไม่ทราบสถานะ</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="p-4 flex flex-col gap-4 bg-muted/10 flex-1">
+            {fromDischargeCenter && patient?.dchdate && (
+              <div className="flex flex-col p-4 bg-white border border-slate-200 rounded-xl text-sm w-full shadow-sm">
+                <div className="font-semibold text-slate-800 mb-3 pb-2 border-b border-slate-100">รายละเอียดการจำหน่าย</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> วันที่จำหน่าย</span>
+                    <span className="font-medium text-slate-800">{new Date(patient.dchdate).toLocaleDateString('th-TH')} {patient.dchtime ? patient.dchtime.substring(0, 5) + ' น.' : ''}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5"><Activity className="w-3.5 h-3.5" /> Status</span>
+                    <span className="font-medium text-emerald-600">{patient.dchstts_name || '-'}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Type</span>
+                    <span className="font-medium text-purple-600">{patient.dchtype_name || '-'}</span>
                   </div>
                 </div>
-              ) : (
-                <div className="text-sm font-medium text-amber-600 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200 text-center">
-                  สถานะ : ยังไม่ได้ Discharge ใน Hosxp
-                </div>
-              )
-            ) : (
-              <div className="flex items-center justify-between p-3.5 bg-white border border-slate-200 rounded-xl">
-                <span className="text-sm font-medium text-slate-500">สถานะปัจจุบัน:</span>
-                {workflowStatus ? (
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                    workflowStatus === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
-                    workflowStatus === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
-                    workflowStatus === 'finance' ? 'bg-amber-100 text-amber-700' :
-                    workflowStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                    'bg-slate-100 text-slate-700'
-                  }`}>
-                    {workflowStatus === 'pharmacy' ? 'ห้องยา' :
-                     workflowStatus === 'discharge_center' ? 'ศูนย์จำหน่าย' :
-                     workflowStatus === 'finance' ? 'การเงิน' :
-                     workflowStatus === 'completed' ? 'เสร็จสิ้น' :
-                     workflowStatus === 'discharged' ? 'รอดำเนินการ' : workflowStatus}
-                  </span>
-                ) : (
-                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">ไม่ทราบสถานะ</span>
-                )}
               </div>
             )}
             {fromWard && (
