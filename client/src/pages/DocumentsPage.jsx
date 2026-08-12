@@ -113,12 +113,12 @@ export default function DocumentsPage() {
     }
   }
 
-  const handleScan = async (docTypeId = null) => {
+  const handleScan = async (docTypeId = null, forceApi = null) => {
     if (!patient) return
     const scannerPort = import.meta.env.VITE_LOCAL_SCANNER_PORT || 3478
     
-    // กำหนด API endpoint ตามประเภทเอกสาร (1 = บัตรประชาชน)
-    const scanApiEndpoint = docTypeId === 1 ? '/api/scan-idcard' : '/api/scan-a4'
+    // กำหนด API endpoint ตามที่ส่งมา หรือตามประเภทเอกสาร (1 = บัตรประชาชน)
+    const scanApiEndpoint = forceApi ? forceApi : (docTypeId === 1 ? '/api/scan-idcard' : '/api/scan-a4')
     
     try {
       setIsScanning(true)
@@ -389,13 +389,32 @@ export default function DocumentsPage() {
                           )}
                         </div>
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => handleScan(docType.id)}
-                            className="cursor-pointer text-xs font-medium bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors inline-flex items-center gap-1 border border-emerald-200/60"
-                          >
-                            <Scan className="w-3.5 h-3.5" />
-                            สแกน
-                          </button>
+                          {docType.id === 1 ? (
+                            <>
+                              <button
+                                onClick={() => handleScan(docType.id, '/api/scan-idcard')}
+                                className="cursor-pointer text-xs font-medium bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors inline-flex items-center gap-1 border border-emerald-200/60"
+                              >
+                                <Scan className="w-3.5 h-3.5" />
+                                สแกนบัตร
+                              </button>
+                              <button
+                                onClick={() => handleScan(docType.id, '/api/scan-a4')}
+                                className="cursor-pointer text-xs font-medium bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors inline-flex items-center gap-1 border border-emerald-200/60"
+                              >
+                                <Scan className="w-3.5 h-3.5" />
+                                สแกน A4
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleScan(docType.id)}
+                              className="cursor-pointer text-xs font-medium bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors inline-flex items-center gap-1 border border-emerald-200/60"
+                            >
+                              <Scan className="w-3.5 h-3.5" />
+                              สแกน
+                            </button>
+                          )}
                           <label className="cursor-pointer text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors inline-flex items-center gap-1 border border-blue-200/60">
                             <UploadCloud className="w-3.5 h-3.5" />
                             อัปโหลด
