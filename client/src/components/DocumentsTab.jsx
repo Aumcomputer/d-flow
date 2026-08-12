@@ -6,6 +6,7 @@ import { Badge } from './ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'
 import { Select } from './ui/select'
 import { Button } from './ui/button'
+import FileViewerModal from './FileViewerModal'
 
 const DOC_TYPES = [
   { id: 1, name: 'บัตรประชาชน', required: true },
@@ -46,6 +47,7 @@ export default function DocumentsTab({ patient }) {
   const [completeness, setCompleteness] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
+  const [viewingDoc, setViewingDoc] = useState(null)
 
   // Classification dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -326,15 +328,13 @@ export default function DocumentsTab({ patient }) {
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                               <span className="text-slate-400 text-xs">{formatDate(doc.uploaded_at)}</span>
-                              <a
-                                href={getFileUrl(doc.file_path)}
-                                target="_blank"
-                                rel="noreferrer"
+                              <button
+                                onClick={() => setViewingDoc(doc)}
                                 className="p-1.5 text-blue-500 hover:bg-blue-100 rounded-md transition-colors"
                                 title="ดูเอกสาร"
                               >
                                 <Eye className="w-4 h-4" />
-                              </a>
+                              </button>
                               <button
                                 onClick={() => handleDelete(doc.id)}
                                 className="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors"
@@ -416,6 +416,12 @@ export default function DocumentsTab({ patient }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <FileViewerModal 
+        doc={viewingDoc} 
+        isOpen={!!viewingDoc} 
+        onClose={() => setViewingDoc(null)} 
+      />
     </div>
   )
 }

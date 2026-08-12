@@ -9,11 +9,8 @@ import { Badge } from '../components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
 import { Select } from '../components/ui/select'
 import { Skeleton } from '../components/ui/skeleton'
-import {
-  ArrowLeft, Search, UploadCloud, CheckCircle2, Circle,
-  FileText, Trash2, Eye, User, Stethoscope, CreditCard,
-  ShieldCheck, AlertTriangle, Scan
-} from 'lucide-react'
+import { Trash2, FileText, UploadCloud, CheckCircle2, Circle, Eye, Search, ChevronLeft, Calendar, User, Phone, MapPin, Activity, Shield, Scan, ArrowLeft, Stethoscope, CreditCard, ShieldCheck, AlertTriangle } from 'lucide-react'
+import FileViewerModal from '../components/FileViewerModal'
 
 const DOC_TYPES = [
   { id: 1, name: 'บัตรประชาชน', required: true },
@@ -34,6 +31,7 @@ export default function DocumentsPage() {
   const [uploadProgress, setUploadProgress] = useState(false)
   const [imgError, setImgError] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
+  const [viewingDoc, setViewingDoc] = useState(null)
 
   // Classification dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -205,11 +203,6 @@ export default function DocumentsPage() {
     } catch (err) {
       alert('ไม่สามารถลบเอกสารได้')
     }
-  }
-
-  // Build file URL (browser will automatically send HTTP-Only cookie)
-  const getFileUrl = (filePath) => {
-    return `/api/documents/file/${filePath}`
   }
 
   const getPatientImageUrl = (hn) => {
@@ -444,15 +437,13 @@ export default function DocumentsPage() {
                                 </div>
                                 <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                                   <span className="text-slate-400 text-xs">{formatDate(doc.uploaded_at)}</span>
-                                  <a
-                                    href={getFileUrl(doc.file_path)}
-                                    target="_blank"
-                                    rel="noreferrer"
+                                  <button
+                                    onClick={() => setViewingDoc(doc)}
                                     className="p-1.5 text-blue-500 hover:bg-blue-100 rounded-md transition-colors"
                                     title="ดูเอกสาร"
                                   >
                                     <Eye className="w-4 h-4" />
-                                  </a>
+                                  </button>
                                   <button
                                     onClick={() => handleDelete(doc.id)}
                                     className="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors"
@@ -546,6 +537,11 @@ export default function DocumentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <FileViewerModal 
+        doc={viewingDoc} 
+        isOpen={!!viewingDoc} 
+        onClose={() => setViewingDoc(null)} 
+      />
     </div>
   )
 }
