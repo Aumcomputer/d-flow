@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard, Phone } from 'lucide-react'
+import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard, Phone, Receipt } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { Badge } from '../components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
@@ -15,6 +15,7 @@ import DrugProfileTab from './dcdetailtabs/DrugProfileTab'
 import ExpensesTab from './dcdetailtabs/ExpensesTab'
 import LabTab from './dcdetailtabs/LabTab'
 import OperationTab from './dcdetailtabs/OperationTab'
+import ReceiptsTab from './dcdetailtabs/ReceiptsTab'
 import TimelineTab from './dcdetailtabs/TimelineTab'
 
 const TABS = [
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'expenses', label: 'ค่าใช้จ่ายตามหมวด', icon: DollarSign },
   { id: 'lab', label: 'Lab', icon: FlaskConical },
   { id: 'operation', label: 'Operation', icon: Scissors },
+  { id: 'receipts', label: 'ใบเสร็จรับเงิน', icon: Receipt },
   { id: 'timeline', label: 'Timeline', icon: Activity },
 ]
 
@@ -251,6 +253,7 @@ export default function DischargeDetailPage() {
         {activeTab === 'expenses' && <ExpensesTab an={an} />}
         {activeTab === 'lab' && <LabTab an={an} isFilterActive={isFilterActive} />}
         {activeTab === 'operation' && <OperationTab an={an} hn={patient.hn} />}
+        {activeTab === 'receipts' && <ReceiptsTab an={an} />}
       </div>
     </div>
   )

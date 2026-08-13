@@ -186,7 +186,7 @@ export default function FinancePage() {
                     return (
                       <tr 
                         key={p.an} 
-                        onClick={() => navigate(`/dcdetail/${p.an}`)}
+                        onClick={() => navigate(`/dcdetail/${p.an}?tab=expenses`)}
                         className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
                       >
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
@@ -273,7 +273,7 @@ export default function FinancePage() {
                     return (
                     <tr 
                       key={p.an} 
-                      onClick={() => navigate(`/dcdetail/${p.an}`)}
+                      onClick={() => navigate(`/dcdetail/${p.an}?tab=expenses`)}
                       className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
                     >
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">

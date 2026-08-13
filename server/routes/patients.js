@@ -768,4 +768,59 @@ router.get('/:hn/emrscan-url', authMiddleware, async (req, res) => {
     }
 });
 
+// ==================== Receipts ====================
+router.get('/:an/receipts', authMiddleware, async (req, res) => {
+    let conn;
+    try {
+        const { an } = req.params;
+        conn = await getHisConnection();
+        const sql = `
+            SELECT 
+              r.finance_number, r.rcpno, r.bill_date_time, 
+              r.total_amount, r.discount, r.bill_amount,
+              pt.name as pttype_name,
+              o.name as staff_name
+            FROM rcpt_print r
+            LEFT JOIN pttype pt ON r.pttype = pt.pttype
+            LEFT JOIN opduser o ON r.user = o.loginname
+            WHERE r.vn = ?
+            ORDER BY r.bill_date_time DESC
+        `;
+        const rows = await conn.query(sql, [an]);
+        res.json(rows);
+    } catch (error) {
+        console.error('Fetch receipts error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+router.get('/:an/receipts/:finance_number', authMiddleware, async (req, res) => {
+    let conn;
+    try {
+        const { finance_number } = req.params;
+        conn = await getHisConnection();
+        const sql = `
+            SELECT 
+              d.income as incomecode,
+              i.name as income_name,
+              d.paidst,
+              d.rcptamt as amount,
+              d.discount,
+              d.total_amount
+            FROM rcpt_print_detail d
+            LEFT JOIN income i ON d.income = i.income
+            WHERE d.finance_number = ?
+        `;
+        const rows = await conn.query(sql, [finance_number]);
+        res.json(rows);
+    } catch (error) {
+        console.error('Fetch receipt details error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
 module.exports = router;
