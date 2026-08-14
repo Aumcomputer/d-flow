@@ -76,8 +76,8 @@ export default function PharmacyPage() {
       const nextPharChkHm = type === 'hm' ? 1 : patient.phar_chk_hm;
       const nextPharChkReturn = type === 'returnmed' ? 1 : patient.phar_chk_returnmed;
       
-      const hmDone = patient.chk_hm === 0 || nextPharChkHm === 1;
-      const returnDone = patient.chk_returnmed === 0 || nextPharChkReturn === 1;
+      const hmDone = patient.chk_hm === 0 || !!nextPharChkHm;
+      const returnDone = patient.chk_returnmed === 0 || !!nextPharChkReturn;
       
       if (hmDone && returnDone) {
         await api.post(`/workflow/${patient.an}/pharmacy-done`)
