@@ -143,7 +143,8 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
             detail.chk_right, detail.chk_nurse, detail.chk_bed, 
             detail.chk_lab_dup, detail.chk_cost_dup, detail.chk_opnote,
             detail.discharge_by, detail.sent_pharmacy_by, detail.pharmacy_done_by,
-            detail.sent_dc_by, detail.dc_done_by, detail.sent_finance_by, detail.finance_done_by
+            detail.sent_dc_by, detail.dc_done_by, detail.sent_finance_by, detail.finance_done_by,
+            detail.discount_by
         ].filter(Boolean);
 
         if (loginnames.length > 0) {
@@ -200,6 +201,7 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
             detail.dc_done_by_name = userMap[detail.dc_done_by] || null;
             detail.sent_finance_by_name = userMap[detail.sent_finance_by] || null;
             detail.finance_done_by_name = userMap[detail.finance_done_by] || null;
+            detail.discount_by_name = userMap[detail.discount_by] || null;
         }
 
         res.json(detail);
@@ -209,6 +211,39 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
     } finally {
         if (conn) conn.release();
         if (hisConn) hisConn.release();
+    }
+});
+
+// Save discount
+router.post('/:an/discount', authMiddleware, async (req, res) => {
+    let conn;
+    try {
+        const { an } = req.params;
+        const { discount_money, discount_detail } = req.body;
+        const loginname = req.user.loginname;
+        conn = await getDflowConnection();
+        
+        await conn.query(
+            `INSERT INTO an_detail (an, discount_money, discount_detail, discount_by) 
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE 
+             discount_money = VALUES(discount_money), 
+             discount_detail = VALUES(discount_detail), 
+             discount_by = VALUES(discount_by)`,
+            [an, discount_money, discount_detail, loginname]
+        );
+
+        await conn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, 'UPDATE_DISCOUNT', loginname]
+        );
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Save discount error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
     }
 });
 

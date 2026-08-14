@@ -163,7 +163,8 @@ export default function FinancePage() {
                   <th className="px-4 py-3 text-right">ค่าใช้จ่ายรวม</th>
                   <th className="px-4 py-3 text-right">ชำระแล้ว</th>
                   <th className="px-4 py-3 text-right">เงินมัดจำ</th>
-                  <th className="px-4 py-3 text-right">รอชำระ</th>
+                  <th className="px-4 py-3 text-right">ส่วนลด</th>
+                  <th className="px-4 py-3 text-right">ยอดชำระ</th>
                   <th className="px-4 py-3 text-right">การจัดการ</th>
                 </tr>
               </thead>
@@ -182,11 +183,11 @@ export default function FinancePage() {
                   </tr>
                 ) : (
                   displayedPending.map((p) => {
-                    const pendingMoney = Number(p.paid_money || 0) - Number(p.total_deposit || 0)
+                    const pendingMoney = Number(p.paid_money || 0) - Number(p.rcpt_money || 0) - Number(p.total_deposit || 0) - Number(p.discount_money || 0)
                     return (
                       <tr 
                         key={p.an} 
-                        onClick={() => navigate(`/dcdetail/${p.an}?tab=expenses`)}
+                        onClick={() => navigate(`/dcdetail/${p.an}?tab=discount`)}
                         className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
                       >
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
@@ -215,6 +216,9 @@ export default function FinancePage() {
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-emerald-600">
                           {formatMoney(p.total_deposit)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                          {formatMoney(p.discount_money)}
                         </td>
                         <td className={`px-4 py-3 text-right font-medium ${pendingMoney > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
                           {pendingMoney > 0 ? formatMoney(pendingMoney) : '-'}
@@ -250,7 +254,8 @@ export default function FinancePage() {
                   <th className="px-4 py-3 text-right">ค่าใช้จ่ายรวม</th>
                   <th className="px-4 py-3 text-right">ชำระแล้ว</th>
                   <th className="px-4 py-3 text-right">เงินมัดจำ</th>
-                  <th className="px-4 py-3 text-right">รอชำระ</th>
+                  <th className="px-4 py-3 text-right">ส่วนลด</th>
+                  <th className="px-4 py-3 text-right">ยอดชำระ</th>
                   <th className="px-4 py-3">สถานะปัจจุบัน</th>
                 </tr>
               </thead>
@@ -269,11 +274,11 @@ export default function FinancePage() {
                   </tr>
                 ) : (
                   displayedHistory.map((p) => {
-                    const pendingMoney = Number(p.paid_money || 0) - Number(p.total_deposit || 0)
+                    const pendingMoney = Number(p.paid_money || 0) - Number(p.rcpt_money || 0) - Number(p.total_deposit || 0) - Number(p.discount_money || 0)
                     return (
                     <tr 
                       key={p.an} 
-                      onClick={() => navigate(`/dcdetail/${p.an}?tab=expenses`)}
+                      onClick={() => navigate(`/dcdetail/${p.an}?tab=discount`)}
                       className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
                     >
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
@@ -301,6 +306,9 @@ export default function FinancePage() {
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-emerald-600">
                         {formatMoney(p.total_deposit)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                        {formatMoney(p.discount_money)}
                       </td>
                       <td className={`px-4 py-3 text-right font-medium ${pendingMoney > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
                         {pendingMoney > 0 ? formatMoney(pendingMoney) : '-'}

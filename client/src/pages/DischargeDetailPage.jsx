@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard, Phone, Receipt } from 'lucide-react'
+import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard, Phone, Receipt, Tag } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { Badge } from '../components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
@@ -17,6 +17,7 @@ import LabTab from './dcdetailtabs/LabTab'
 import OperationTab from './dcdetailtabs/OperationTab'
 import ReceiptsTab from './dcdetailtabs/ReceiptsTab'
 import TimelineTab from './dcdetailtabs/TimelineTab'
+import DiscountTab from './dcdetailtabs/DiscountTab'
 
 const TABS = [
   { id: 'checklist', label: 'รายการตรวจสอบ', icon: CheckCircle2 },
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'lab', label: 'Lab', icon: FlaskConical },
   { id: 'operation', label: 'Operation', icon: Scissors },
   { id: 'receipts', label: 'ใบเสร็จรับเงิน', icon: Receipt },
+  { id: 'discount', label: 'ส่วนลด', icon: Tag },
   { id: 'timeline', label: 'Timeline', icon: Activity },
 ]
 
@@ -54,9 +56,7 @@ export default function DischargeDetailPage() {
 
   const { user } = useAuth()
 
-  useEffect(() => {
-    setIsFilterActive(false)
-  }, [activeTab])
+  // Removed useEffect for isFilterActive reset
 
   useEffect(() => {
     fetchData()
@@ -110,7 +110,11 @@ export default function DischargeDetailPage() {
     )
   }
 
-  const pendingMoney = Number(patient.paid_money || 0) - Number(patient.total_deposit || 0)
+  const paidMoney = Number(patient?.paid_money || 0)
+  const totalDeposit = Number(patient?.total_deposit || 0)
+  const rcptMoney = Number(patient?.rcpt_money || 0)
+  const discountMoney = Number(details?.discount_money || 0)
+  const pendingMoney = paidMoney - rcptMoney - totalDeposit - discountMoney
 
   return (
     <div className="w-full px-4 py-6 space-y-4 animate-in fade-in zoom-in-95 duration-500">
@@ -199,7 +203,7 @@ export default function DischargeDetailPage() {
               </div>
               {pendingMoney > 0 && (
                 <div className="text-right px-3 py-1 rounded-lg bg-red-50 border border-red-200">
-                  <div className="text-xs text-red-600">รอชำระ</div>
+                  <div className="text-xs text-red-600">ยอดชำระ</div>
                   <div className="font-bold text-red-600">{formatMoney(pendingMoney)}</div>
                 </div>
               )}
@@ -216,7 +220,10 @@ export default function DischargeDetailPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id)
+                  setIsFilterActive(false)
+                }}
                 className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-blue-600 text-blue-600'
@@ -246,11 +253,12 @@ export default function DischargeDetailPage() {
 
       {/* Tab Content */}
       <div className="min-h-[400px]">
-        {activeTab === 'checklist' && <ChecklistTab an={an} details={details} setDetails={setDetails} fetchData={fetchData} patient={patient} />}
+        {activeTab === 'checklist' && <ChecklistTab an={an} details={details} setDetails={setDetails} fetchData={fetchData} patient={patient} setActiveTab={setActiveTab} setIsFilterActive={setIsFilterActive} />}
         {activeTab === 'timeline' && <TimelineTab details={details} />}
         {activeTab === 'documents' && <DocumentsTab patient={patient} />}
         {activeTab === 'drugs' && <DrugProfileTab an={an} isFilterActive={isFilterActive} />}
         {activeTab === 'expenses' && <ExpensesTab an={an} />}
+        {activeTab === 'discount' && <DiscountTab an={an} patient={patient} details={details} fetchDetails={fetchData} />}
         {activeTab === 'lab' && <LabTab an={an} isFilterActive={isFilterActive} />}
         {activeTab === 'operation' && <OperationTab an={an} hn={patient.hn} />}
         {activeTab === 'receipts' && <ReceiptsTab an={an} />}

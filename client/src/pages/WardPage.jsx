@@ -11,6 +11,7 @@ export default function WardPage() {
   const [activeTab, setActiveTab] = useState('admitted')
   const [patients, setPatients] = useState([])
   const [loading, setLoading] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   
   // Sorting state
   const [sortConfig, setSortConfig] = useState({ key: 'bedno', direction: 'asc' })
@@ -39,7 +40,7 @@ export default function WardPage() {
     return () => {
       socket.off('workflow:updated', handleWorkflowUpdate)
     }
-  }, [selectedWard, activeTab])
+  }, [selectedWard, activeTab, selectedDate])
 
   const fetchWards = async () => {
     try {
@@ -57,9 +58,10 @@ export default function WardPage() {
     if (!selectedWard) return
     setLoading(true)
     try {
-      const endpoint = activeTab === 'admitted' 
+      let endpoint = activeTab === 'admitted' 
         ? `/wards/${selectedWard}/patients` 
         : `/wards/${selectedWard}/discharged`
+      if (activeTab === 'discharged') endpoint += `?date=${selectedDate}`
       const res = await api.get(endpoint)
       setPatients(res.data)
     } catch (err) {
@@ -125,13 +127,7 @@ export default function WardPage() {
   }
 
   const handleCancelDischarge = async (an) => {
-    if (!confirm('ยืนยันการยกเลิกจำหน่าย (Cancel Discharge) ผู้ป่วยรายนี้?')) return
-    try {
-      await api.post(`/patients/${an}/cancel-discharge`)
-      fetchPatients()
-    } catch (err) {
-      alert('ไม่สามารถยกเลิกจำหน่ายได้')
-    }
+    // This function is kept for potential future use or can be removed entirely
   }
 
   const formatDate = (dateStr) => {
@@ -178,6 +174,14 @@ export default function WardPage() {
               className="flex h-10 w-full sm:w-[250px] rounded-md border border-input bg-background px-3 py-2 pl-9 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             />
           </div>
+          {activeTab === 'discharged' && (
+            <input 
+              type="date" 
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full md:w-auto px-4 py-2 bg-white border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+            />
+          )}
         </div>
       </div>
 
@@ -201,7 +205,7 @@ export default function WardPage() {
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
-          ผู้ป่วยที่ Discharge วันนี้
+          ผู้ป่วยที่ Discharge
         </button>
       </div>
 
@@ -241,13 +245,14 @@ export default function WardPage() {
                       เงินมัดจำ {sortConfig.key === 'total_deposit' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                     </th>
                     <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors text-right" onClick={() => handleSort('paid_money')}>
-                      รอชำระ {sortConfig.key === 'paid_money' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      ยอดชำระ {sortConfig.key === 'paid_money' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                     </th>
                   </>
                 )}
                 {activeTab === 'discharged' && (
                   <>
                     <th className="px-4 py-3 text-center">เวลาที่ Discharge</th>
+                    <th className="px-4 py-3 text-center">Discharge ใน HOSxP</th>
                     <th className="px-4 py-3 text-center">เวลาที่เสร็จสิ้น</th>
                     <th className="px-4 py-3 text-center">
                       สถานะ
@@ -267,19 +272,19 @@ export default function WardPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={activeTab === 'admitted' ? 11 : 10} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={activeTab === 'admitted' ? 11 : 11} className="px-4 py-8 text-center text-muted-foreground">
                     กำลังโหลดข้อมูล...
                   </td>
                 </tr>
               ) : sortedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'admitted' ? 12 : 10} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={activeTab === 'admitted' ? 12 : 11} className="px-4 py-8 text-center text-muted-foreground">
                     ไม่พบข้อมูลผู้ป่วย
                   </td>
                 </tr>
               ) : (
                 sortedPatients.map((p) => {
-                  const pendingMoney = Number(p.paid_money || 0) - Number(p.total_deposit || 0)
+                  const pendingMoney = Number(p.paid_money || 0) - Number(p.rcpt_money || 0) - Number(p.total_deposit || 0) - Number(p.discount_money || 0)
                   return (
                   <tr 
                     key={p.an} 
@@ -336,6 +341,13 @@ export default function WardPage() {
                         <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
                           {p.discharge_date ? new Date(p.discharge_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-'}
                         </td>
+                        <td className="px-4 py-3 text-center">
+                          {p.dchdate ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
                           {p.finance_done_date 
                             ? new Date(p.finance_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) 
@@ -379,12 +391,7 @@ export default function WardPage() {
                         </button>
                       ) : (
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleCancelDischarge(p.an); }}
-                            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-rose-200 text-rose-600 hover:bg-rose-50 h-9 px-3"
-                          >
-                            ยกเลิก Discharge
-                          </button>
+                          <span className="text-muted-foreground text-sm">-</span>
                         </div>
                       )}
                     </td>

@@ -173,21 +173,17 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
     try {
         dflowConn = await getDflowConnection();
         
-        // Find ANs discharged today in D-Flow
-        const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        // Find ANs discharged on specific date in D-Flow
+        const dateStr = req.query.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         const anDetailRows = await dflowConn.query(
             `SELECT * 
              FROM an_detail 
              WHERE DATE(discharge_date) = ?`,
-            [todayStr]
+            [dateStr]
         );
         
-        if (anDetailRows.length === 0) {
-            return res.json([]);
-        }
-        
         const ans = anDetailRows.map(r => r.an);
-        const placeholders = ans.map(() => '?').join(',');
+        const placeholders = ans.length > 0 ? ans.map(() => '?').join(',') : "''";
         
         hisConn = await getHisConnection();
         // Fetch details from HIS, filtering by ward
@@ -203,7 +199,8 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
                 aa.income AS total_income,
                 aa.rcpt_money,
                 aa.paid_money,
-                (SELECT COALESCE(SUM(deposit_amount), 0) FROM finance_deposit fd WHERE fd.vn = i.an) AS total_deposit
+                (SELECT COALESCE(SUM(deposit_amount), 0) FROM finance_deposit fd WHERE fd.vn = i.an) AS total_deposit,
+                i.dchdate, i.dchstts
             FROM ipt i
             LEFT JOIN patient p ON i.hn = p.hn
             LEFT JOIN ward w ON i.ward = w.ward
@@ -211,14 +208,18 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
             LEFT JOIN pttype pt ON i.pttype = pt.pttype
             LEFT JOIN iptadm iptb ON i.an = iptb.an
             LEFT JOIN an_stat aa ON aa.an = i.an
-            WHERE i.ward = ? AND i.an IN (${placeholders})
+            WHERE i.ward = ? AND (i.dchdate = ? ${ans.length > 0 ? `OR i.an IN (${placeholders})` : ''})
             GROUP BY i.an
             ORDER BY i.dchdate DESC, i.dchtime DESC
         `;
         
-        const rows = await hisConn.query(query, [wardCode, ...ans]);
+        const params = ans.length > 0 ? [wardCode, dateStr, ...ans] : [wardCode, dateStr];
+        const rows = await hisConn.query(query, params);
         
-        const completeness = await getDocCompleteness(ans);
+        if (rows.length === 0) return res.json([]);
+        
+        const allAns = rows.map(r => r.an);
+        const completeness = await getDocCompleteness(allAns);
         
         // Merge D-Flow discharge details
         const result = rows.map(row => {

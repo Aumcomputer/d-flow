@@ -52,7 +52,7 @@ export default function ExpensesTab({ an }) {
               <th className="px-4 py-3 text-left w-20">CODE</th>
               <th className="px-4 py-3 text-left">ชื่อรายการ</th>
               <th className="px-4 py-3 text-right">จำนวนเงินรวม</th>
-              <th className="px-4 py-3 text-right">รอชำระ</th>
+              <th className="px-4 py-3 text-right">ยอดชำระ</th>
               <th className="px-4 py-3 w-10"></th>
             </tr>
           </thead>
@@ -94,6 +94,7 @@ export default function ExpensesTab({ an }) {
                                     <th className="px-2 py-1.5 text-left">รหัส</th>
                                     <th className="px-2 py-1.5 text-left">ชื่อรายการ</th>
                                     <th className="px-2 py-1.5 text-left">ผู้บันทึก</th>
+                                    <th className="px-2 py-1.5 text-center">สถานะ</th>
                                     <th className="px-2 py-1.5 text-right">จำนวน</th>
                                     <th className="px-2 py-1.5 text-right">ราคา/หน่วย</th>
                                     <th className="px-2 py-1.5 text-right">รวม</th>
@@ -107,6 +108,7 @@ export default function ExpensesTab({ an }) {
                                       <td className="px-2 py-1.5 font-mono">{d.icode}</td>
                                       <td className="px-2 py-1.5">{d.name || '-'}</td>
                                       <td className="px-2 py-1.5 text-muted-foreground">{d.entry_staff || '-'}</td>
+                                      <td className="px-2 py-1.5 text-center font-medium">{d.paidst || '-'}</td>
                                       <td className="px-2 py-1.5 text-right">{d.qty}</td>
                                       <td className="px-2 py-1.5 text-right">{formatMoney(d.unitprice)}</td>
                                       <td className="px-2 py-1.5 text-right font-medium">{formatMoney(d.sum_price)}</td>

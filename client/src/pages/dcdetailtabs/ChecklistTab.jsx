@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import socket from '../../services/socket';
 
-export default function ChecklistTab({ an, details, setDetails, fetchData, patient }) {
+export default function ChecklistTab({ an, details, setDetails, fetchData, patient, setActiveTab, setIsFilterActive }) {
   const [audit, setAudit] = useState(null)
   const [loadingAudit, setLoadingAudit] = useState(true)
   const [workflowStatus, setWorkflowStatus] = useState(details?.workflow_status || null)
@@ -17,10 +17,6 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
   const location = useLocation()
   const fromWard = location.state?.fromWard === true
   const fromDischargeCenter = location.state?.fromDischargeCenter === true
-
-  const POLL_INTERVAL = Number(import.meta.env.VITE_POLL_INTERVAL || 6)
-  const [isWaitingHOSxP, setIsWaitingHOSxP] = useState(false)
-  const [countdown, setCountdown] = useState(POLL_INTERVAL)
 
   const fetchLogs = async () => {
     setLoadingLogs(true)
@@ -55,39 +51,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
     }
   }, [an])
 
-  useEffect(() => {
-    let timer;
-    if (isWaitingHOSxP) {
-      if (countdown > 0) {
-        timer = setTimeout(() => setCountdown(c => c - 1), 1000)
-      } else {
-        // Poll API
-        api.get(`/patients/${an}`).then(res => {
-          if (res.data && res.data.dchdate) {
-            setIsWaitingHOSxP(false)
-            api.post(`/workflow/${an}/send-finance`).then(() => {
-              setWorkflowStatus('finance')
-              fetchData()
-            }).catch(err => alert('ไม่สามารถทำรายการได้'))
-          } else {
-            setCountdown(POLL_INTERVAL)
-          }
-        }).catch(err => {
-          console.error(err)
-          setCountdown(POLL_INTERVAL)
-        })
-      }
-    }
-    return () => clearTimeout(timer)
-  }, [isWaitingHOSxP, countdown, an])
-
   const handleSendFinance = async () => {
-    if (!patient?.dchdate) {
-      setIsWaitingHOSxP(true)
-      setCountdown(POLL_INTERVAL)
-      return
-    }
-
     if (!confirm('ยืนยันส่งการเงิน?')) return
     try {
       await api.post(`/workflow/${an}/send-finance`)
@@ -153,18 +117,21 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
       passLabel: 'เอกสารสิทธิ์ครบถ้วน',
       failLabel: `เอกสารสิทธิ์ไม่ครบถ้วน (ขาด ${audit.docMissing} รายการ)`,
       icon: FileText,
+      tabId: 'documents',
     },
     {
       pass: audit.labNoSpecimen === 0,
       passLabel: 'ไม่พบรายการ Lab ซ้ำซ้อน',
       failLabel: `พบรายการ Lab ซ้ำซ้อน ${audit.labNoSpecimen} รายการ`,
       icon: FlaskConical,
+      tabId: 'lab',
     },
     {
       pass: audit.duplicateCharges === 0,
       passLabel: 'ไม่พบค่าใช้จ่ายซ้ำซ้อน',
       failLabel: `พบค่าใช้จ่ายซ้ำซ้อน ${audit.duplicateCharges} รายการ`,
       icon: DollarSign,
+      tabId: 'drugs',
     },
     {
       pass: audit.bedMissingDays === 0,
@@ -172,12 +139,14 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
       failLabel: `ลงค่าเตียงไม่ครบถ้วน ขาด ${audit.bedMissingDays} วัน`,
       failDetail: audit.bedMissingDates?.map(d => formatDate(d)).join(', '),
       icon: Bed,
+      tabId: 'expenses',
     },
     ...(audit.totalOps > 0 ? [{
       pass: audit.totalOps === audit.opnotesCompleted,
       passLabel: `มี Operation ${audit.totalOps} รายการ และบันทึก Operative Note ครบถ้วน`,
       failLabel: `มี Operation ${audit.totalOps} รายการ แต่บันทึก Operative Note ไม่ครบ (ขาด ${audit.totalOps - audit.opnotesCompleted} รายการ)`,
       icon: Scissors,
+      tabId: 'operation',
     }] : []),
   ] : []
 
@@ -202,10 +171,18 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
               return (
                 <div
                   key={idx}
-                  className={`flex items-start gap-3 p-3.5 rounded-xl border-2 transition-all ${
+                  onClick={() => {
+                    if (item.tabId && setActiveTab) {
+                      setActiveTab(item.tabId)
+                      if ((item.tabId === 'lab' || item.tabId === 'drugs') && setIsFilterActive) {
+                        setIsFilterActive(true)
+                      }
+                    }
+                  }}
+                  className={`flex items-start gap-3 p-3.5 rounded-xl border-2 transition-all cursor-pointer hover:-translate-y-0.5 hover:shadow-md ${
                     item.pass
-                      ? 'border-emerald-200 bg-emerald-50/60'
-                      : 'border-red-200 bg-red-50/60'
+                      ? 'border-emerald-200 bg-emerald-50/60 hover:border-emerald-300'
+                      : 'border-red-200 bg-red-50/60 hover:border-red-300'
                   }`}
                 >
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
@@ -543,55 +520,6 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
         </div>
       )}
 
-      {/* Waiting Popup */}
-      {isWaitingHOSxP && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 flex flex-col items-center text-center space-y-4">
-              <div className="w-16 h-16 relative">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    className="text-slate-100"
-                    strokeWidth="3"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  <path
-                    className="text-blue-500 transition-all duration-1000 ease-linear"
-                    strokeWidth="3"
-                    strokeDasharray={`${(countdown / POLL_INTERVAL) * 100}, 100`}
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xl font-bold text-blue-600">{countdown}</span>
-                </div>
-              </div>
-              <div>
-                <h3 className="font-bold text-lg text-slate-800">กำลังตรวจสอบข้อมูล</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  รอหอผู้ป่วย discharge ใน Hosxp
-                </p>
-                {patient && (
-                  <p className="text-sm font-medium text-slate-700 mt-2">
-                    ผู้ป่วย: {patient.fullname}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setIsWaitingHOSxP(false)}
-                className="mt-2 w-full py-2.5 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                ยกเลิก
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
