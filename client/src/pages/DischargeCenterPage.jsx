@@ -4,6 +4,7 @@ import { User, CheckCircle2, ClipboardList, Send, AlertTriangle } from 'lucide-r
 import api from '../services/api'
 import socket from '../services/socket'
 import { useAuth } from '../contexts/AuthContext'
+import { useSound } from '../contexts/SoundContext'
 
 export default function DischargeCenterPage() {
   const [patients, setPatients] = useState([])
@@ -18,6 +19,7 @@ export default function DischargeCenterPage() {
   const [lockAlertInfo, setLockAlertInfo] = useState(null)
   
   const { user } = useAuth()
+  const { playAlert } = useSound()
   const [lockedCases, setLockedCases] = useState({})
 
   const fetchPatients = async () => {
@@ -63,8 +65,11 @@ export default function DischargeCenterPage() {
       return next
     })
 
-    const onUpdate = () => {
+    const onUpdate = (data) => {
       fetchPatients()
+      if (data && data.status === 'discharge_center') {
+        playAlert()
+      }
     }
 
     socket.on('workflow:updated', onUpdate)
@@ -76,7 +81,7 @@ export default function DischargeCenterPage() {
       socket.off('case:locked', onLocked)
       socket.off('case:unlocked', onUnlocked)
     }
-  }, [historyDate])
+  }, [historyDate, playAlert])
 
   const handleRowClick = (an) => {
     if (lockedCases[an] && lockedCases[an] !== user?.name) {

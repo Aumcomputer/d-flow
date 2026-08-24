@@ -81,7 +81,7 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
                 rows="3"
                 value={discountDetail}
                 onChange={(e) => setDiscountDetail(e.target.value)}
-                placeholder="เช่น ผู้ป่วยอนาถา, นโยบายพิเศษ..."
+                placeholder="เช่น ส่วนลดค่าเตียง 50% สำหรับสิทธิ์ข้าราชการ"
                 className="w-full px-4 py-2 text-base border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
               />
             </div>

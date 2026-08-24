@@ -35,6 +35,18 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/wards', wardRoutes);
 app.use('/api/workflow', require('./routes/workflow'));
 
+// System routes
+app.post('/api/system/force-refresh', (req, res) => {
+    try {
+        const { getIO } = require('./lib/socket');
+        getIO().emit('system:force_refresh');
+        res.json({ success: true, message: 'Refresh signal sent to all clients' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

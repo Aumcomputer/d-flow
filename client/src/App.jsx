@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { SoundProvider } from './contexts/SoundContext'
+import socket from './services/socket'
 import LoginPage from './pages/LoginPage'
 import WelcomePage from './pages/WelcomePage'
 import DocumentsPage from './pages/DocumentsPage'
@@ -42,6 +44,19 @@ function AppRoutes() {
 }
 
 function App() {
+  useEffect(() => {
+    const handleForceRefresh = () => {
+      alert('มีการอัปเดตระบบเวอร์ชันใหม่ ระบบจะทำการรีเฟรชหน้าจอ')
+      window.location.reload(true)
+    }
+
+    socket.on('system:force_refresh', handleForceRefresh)
+
+    return () => {
+      socket.off('system:force_refresh', handleForceRefresh)
+    }
+  }, [])
+
   return (
     <AuthProvider>
       <SoundProvider>

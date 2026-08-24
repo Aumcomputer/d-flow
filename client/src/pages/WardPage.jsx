@@ -127,7 +127,13 @@ export default function WardPage() {
   }
 
   const handleCancelDischarge = async (an) => {
-    // This function is kept for potential future use or can be removed entirely
+    if (!confirm('ยืนยันการยกเลิกจำหน่าย (Cancel Discharge) ผู้ป่วยรายนี้?')) return
+    try {
+      await api.post(`/patients/${an}/cancel-discharge`)
+      fetchPatients()
+    } catch (err) {
+      alert('ไม่สามารถยกเลิกจำหน่ายได้')
+    }
   }
 
   const formatDate = (dateStr) => {
@@ -391,7 +397,16 @@ export default function WardPage() {
                         </button>
                       ) : (
                         <div className="flex items-center justify-end gap-2">
-                          <span className="text-muted-foreground text-sm">-</span>
+                          {p.discharge_date ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCancelDischarge(p.an); }}
+                              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-rose-200 text-rose-600 hover:bg-rose-50 h-9 px-3"
+                            >
+                              ยกเลิก Discharge
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
                         </div>
                       )}
                     </td>
