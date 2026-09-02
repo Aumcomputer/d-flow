@@ -8,7 +8,8 @@ const hisPool = mariadb.createPool({
     password: process.env.HIS_DB_PASSWORD,
     database: process.env.HIS_DB_NAME,
     port: process.env.HIS_DB_PORT || 3306,
-    charset: 'utf8', 
+    charset: 'tis620', 
+    initSql: "SET NAMES tis620",
     connectionLimit: 10
 });
 
