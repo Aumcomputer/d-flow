@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const { getHisConnection, getDflowConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { getIO } = require('../lib/socket');
@@ -341,6 +342,72 @@ router.post('/:an/finance-done', authMiddleware, async (req, res) => {
         'completed',
         'FINANCE_DONE'
     );
+});
+
+// Cancel forward from discharge center (requires password confirmation)
+router.post('/:an/cancel-dc-forward', authMiddleware, async (req, res) => {
+    let hisConn, dflowConn;
+    try {
+        const { an } = req.params;
+        const { password } = req.body;
+        const loginname = req.user.loginname;
+
+        if (!password) {
+            return res.status(400).json({ error: 'กรุณาระบุรหัสผ่านเพื่อยืนยัน' });
+        }
+
+        // 1. Verify password with HIS (opduser)
+        hisConn = await getHisConnection();
+        const hashedPassword = crypto.createHash('md5').update(password).digest('hex');
+        const userRows = await hisConn.query(
+            'SELECT loginname, name, account_disable FROM opduser WHERE loginname = ? AND passweb = ?',
+            [loginname, hashedPassword]
+        );
+
+        if (userRows.length === 0) {
+            return res.status(400).json({ error: 'รหัสผ่านไม่ถูกต้อง' });
+        }
+
+        if (userRows[0].account_disable === 'Y') {
+            return res.status(403).json({ error: 'บัญชีผู้ใช้นี้ถูกระงับการใช้งาน' });
+        }
+
+        // 2. Reset workflow status in an_detail back to discharge_center
+        dflowConn = await getDflowConnection();
+        await dflowConn.query(
+            `UPDATE an_detail SET 
+                workflow_status = 'discharge_center',
+                dc_done_by = NULL,
+                dc_done_date = NULL,
+                sent_finance_by = NULL,
+                sent_finance_date = NULL,
+                finance_done_by = NULL,
+                finance_done_date = NULL
+             WHERE an = ?`,
+            [an]
+        );
+
+        // 3. Log to activity_logs
+        await dflowConn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, 'CANCEL_FORWARD_DC', loginname]
+        );
+
+        // 4. Emit socket event
+        try {
+            getIO().emit('workflow:updated', { an, status: 'discharge_center' });
+        } catch (e) {
+            console.error('Socket emit error:', e);
+        }
+
+        res.json({ success: true, message: 'ยกเลิกการส่งต่อเรียบร้อยแล้ว' });
+    } catch (error) {
+        console.error('Cancel DC forward error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
+    }
 });
 
 module.exports = router;

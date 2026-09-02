@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X, Calendar } from 'lucide-react';
+import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X, Calendar, RotateCcw, Lock } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import socket from '../../services/socket';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ChecklistTab({ an, details, setDetails, fetchData, patient, setActiveTab, setIsFilterActive }) {
+  const { user } = useAuth()
   const [audit, setAudit] = useState(null)
   const [loadingAudit, setLoadingAudit] = useState(true)
   const [workflowStatus, setWorkflowStatus] = useState(details?.workflow_status || null)
@@ -17,6 +19,36 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
   const location = useLocation()
   const fromWard = location.state?.fromWard === true
   const fromDischargeCenter = location.state?.fromDischargeCenter === true
+
+  // Cancel Forward Modal States
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelPassword, setCancelPassword] = useState('')
+  const [cancelError, setCancelError] = useState('')
+  const [cancelSubmitting, setCancelSubmitting] = useState(false)
+
+  const handleConfirmCancelForward = async (e) => {
+    if (e) e.preventDefault()
+    if (!cancelPassword.trim()) {
+      setCancelError('กรุณากรอกรหัสผ่าน')
+      return
+    }
+    setCancelSubmitting(true)
+    setCancelError('')
+    try {
+      await api.post(`/workflow/${an}/cancel-dc-forward`, { password: cancelPassword })
+      setShowCancelModal(false)
+      setCancelPassword('')
+      setWorkflowStatus('discharge_center')
+      if (fetchData) fetchData()
+      fetchDetail()
+      alert('ยกเลิกการส่งต่อเรียบร้อยแล้ว ดึงเคสกลับมาศูนย์จำหน่ายสำเร็จ')
+    } catch (err) {
+      console.error('Cancel DC forward error:', err)
+      setCancelError(err.response?.data?.error || 'เกิดข้อผิดพลาด ไม่สามารถยกเลิกได้')
+    } finally {
+      setCancelSubmitting(false)
+    }
+  }
 
   const fetchLogs = async () => {
     setLoadingLogs(true)
@@ -376,29 +408,46 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
             <div className="flex flex-col gap-3 w-full mt-2">
               {fromDischargeCenter ? (
                 <>
-                  <button
-                    onClick={handleSendFinance}
-                    disabled={['finance', 'completed'].includes(workflowStatus)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  >
-                    <DollarSign className="w-5 h-5" />
-                    <span className="font-medium">ส่งการเงิน</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!confirm('ยืนยันเสร็จสิ้น?')) return;
-                      try {
-                        await api.post(`/workflow/${an}/dc-done`);
-                        setWorkflowStatus('completed');
-                        fetchData();
-                      } catch (err) { alert('ไม่สามารถทำรายการได้'); }
-                    }}
-                    disabled={['completed'].includes(workflowStatus)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  >
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span className="font-medium">เสร็จสิ้น</span>
-                  </button>
+                  <div className="flex items-center gap-3 w-full">
+                    <button
+                      onClick={handleSendFinance}
+                      disabled={['finance', 'completed'].includes(workflowStatus)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    >
+                      <DollarSign className="w-5 h-5" />
+                      <span className="font-medium">ส่งการเงิน</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('ยืนยันเสร็จสิ้น?')) return;
+                        try {
+                          await api.post(`/workflow/${an}/dc-done`);
+                          setWorkflowStatus('completed');
+                          fetchData();
+                        } catch (err) { alert('ไม่สามารถทำรายการได้'); }
+                      }}
+                      disabled={['completed'].includes(workflowStatus)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="font-medium">เสร็จสิ้น</span>
+                    </button>
+                  </div>
+
+                  {['finance', 'completed'].includes(workflowStatus) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCancelPassword('');
+                        setCancelError('');
+                        setShowCancelModal(true);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 hover:border-rose-300 rounded-xl transition-all font-medium text-sm shadow-sm"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>ยกเลิกการส่งต่อ</span>
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -483,20 +532,59 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
               ) : (
                 <div className="space-y-4">
                   {logs.map(log => {
-                    const isCheck = log.action_type.startsWith('CHECK_')
-                    const fieldId = log.action_type.replace(/^(UN)?CHECK_/, '').toLowerCase()
-                    const item = checklistItems.find(c => c.id === fieldId)
-                    const label = item ? item.label.replace('*', '') : fieldId
-                    
+                    let actionText = ''
+                    let dotColor = 'bg-slate-400'
+
+                    if (log.action_type === 'CANCEL_FORWARD_DC') {
+                      actionText = 'ยกเลิกการส่งต่อ (ดึงกลับมาศูนย์จำหน่าย)'
+                      dotColor = 'bg-rose-600'
+                    } else if (log.action_type === 'CANCEL_DISCHARGE') {
+                      actionText = 'ยกเลิกจำหน่าย (Discharge)'
+                      dotColor = 'bg-rose-600'
+                    } else if (log.action_type === 'DISCHARGE') {
+                      actionText = 'ทำรายการ Discharge'
+                      dotColor = 'bg-blue-600'
+                    } else if (log.action_type === 'SEND_PHARMACY') {
+                      actionText = 'ส่งห้องยา'
+                      dotColor = 'bg-blue-600'
+                    } else if (log.action_type === 'SEND_DC') {
+                      actionText = 'ส่งศูนย์จำหน่าย'
+                      dotColor = 'bg-purple-600'
+                    } else if (log.action_type === 'PHARMACY_DONE') {
+                      actionText = 'ห้องยาเสร็จสิ้น'
+                      dotColor = 'bg-purple-600'
+                    } else if (log.action_type === 'SEND_FINANCE') {
+                      actionText = 'ส่งการเงิน'
+                      dotColor = 'bg-amber-600'
+                    } else if (log.action_type === 'DC_DONE') {
+                      actionText = 'เสร็จสิ้นศูนย์จำหน่าย'
+                      dotColor = 'bg-emerald-600'
+                    } else if (log.action_type === 'FINANCE_DONE') {
+                      actionText = 'เสร็จสิ้นการเงิน'
+                      dotColor = 'bg-emerald-600'
+                    } else if (log.action_type === 'UPDATE_DISCOUNT') {
+                      actionText = 'บันทึกส่วนลด'
+                      dotColor = 'bg-indigo-600'
+                    } else if (log.action_type.startsWith('CHECK_')) {
+                      const fieldId = log.action_type.replace('CHECK_', '').toLowerCase()
+                      const item = checklistItems.find(c => c.id === fieldId)
+                      actionText = `เลือก ${item ? item.label.replace('*', '') : fieldId}`
+                      dotColor = 'bg-emerald-500'
+                    } else if (log.action_type.startsWith('UNCHECK_')) {
+                      const fieldId = log.action_type.replace('UNCHECK_', '').toLowerCase()
+                      const item = checklistItems.find(c => c.id === fieldId)
+                      actionText = `ยกเลิก ${item ? item.label.replace('*', '') : fieldId}`
+                      dotColor = 'bg-red-500'
+                    } else {
+                      actionText = log.action_type
+                    }
+
                     return (
                       <div key={log.id} className="flex gap-3 text-sm">
-                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${isCheck ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        <div className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${dotColor}`} />
                         <div className="flex-1">
                           <div className="font-medium text-slate-800">
-                            {isCheck ? 'เลือก' : 'ยกเลิก'}{' '}
-                            <span className="text-muted-foreground font-normal">
-                              {label}
-                            </span>
+                            {actionText}
                           </div>
                           <div className="flex justify-between items-center mt-1 text-xs text-slate-500">
                             <div>
@@ -516,6 +604,98 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Forward Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-border animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-border bg-rose-50/50 flex justify-between items-center">
+              <div className="flex items-center gap-3 text-rose-700">
+                <div className="p-2 bg-rose-100 rounded-xl">
+                  <RotateCcw className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-800">ยืนยันยกเลิกการส่งต่อ</h3>
+                  <p className="text-xs text-rose-600">ดึงเคสกลับมายังศูนย์จำหน่าย</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowCancelModal(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmCancelForward} className="p-6 space-y-4">
+              <div className="text-sm text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ผู้ขอยกเลิก:</span>
+                  <span className="font-semibold text-slate-800">{user?.name || user?.loginname}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Username:</span>
+                  <span className="font-mono text-slate-700">{user?.loginname}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">AN:</span>
+                  <span className="font-mono font-semibold text-slate-800">{an}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  กรุณากรอกรหัสผ่านเพื่อยืนยัน <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={cancelPassword}
+                  onChange={(e) => {
+                    setCancelPassword(e.target.value);
+                    if (cancelError) setCancelError('');
+                  }}
+                  placeholder="รหัสผ่านเข้าสู่ระบบของคุณ..."
+                  autoFocus
+                  disabled={cancelSubmitting}
+                  className="w-full px-3.5 py-2.5 text-sm border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-background"
+                />
+                {cancelError && (
+                  <div className="flex items-center gap-1.5 text-rose-600 text-xs mt-2">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{cancelError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={cancelSubmitting}
+                  className="flex-1 px-4 py-2.5 border border-input bg-background hover:bg-muted text-foreground text-sm font-medium rounded-xl transition-colors"
+                >
+                  ปิด
+                </button>
+                <button
+                  type="submit"
+                  disabled={cancelSubmitting || !cancelPassword.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-xl shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {cancelSubmitting ? (
+                    <span>กำลังดำเนินการ...</span>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4" />
+                      <span>ยืนยันยกเลิก</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

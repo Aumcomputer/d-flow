@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const { getHisConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 
@@ -278,10 +279,32 @@ router.post('/:an/discharge', authMiddleware, async (req, res) => {
 
 // Cancel discharge
 router.post('/:an/cancel-discharge', authMiddleware, async (req, res) => {
-    let conn;
+    let conn, hisConn;
     try {
         const { an } = req.params;
+        const { password } = req.body;
         const loginname = req.user.loginname;
+
+        if (!password) {
+            return res.status(400).json({ error: 'กรุณาระบุรหัสผ่านเพื่อยืนยัน' });
+        }
+
+        // Verify password with HIS opduser
+        hisConn = await getHisConnection();
+        const hashedPassword = crypto.createHash('md5').update(password).digest('hex');
+        const userRows = await hisConn.query(
+            'SELECT loginname, name, account_disable FROM opduser WHERE loginname = ? AND passweb = ?',
+            [loginname, hashedPassword]
+        );
+
+        if (userRows.length === 0) {
+            return res.status(400).json({ error: 'รหัสผ่านไม่ถูกต้อง' });
+        }
+
+        if (userRows[0].account_disable === 'Y') {
+            return res.status(403).json({ error: 'บัญชีผู้ใช้นี้ถูกระงับการใช้งาน' });
+        }
+
         conn = await getDflowConnection();
         
         await conn.query(
@@ -313,12 +336,13 @@ router.post('/:an/cancel-discharge', authMiddleware, async (req, res) => {
             [an, 'CANCEL_DISCHARGE', loginname]
         );
 
-        res.json({ success: true });
+        res.json({ success: true, message: 'ยกเลิก Discharge เรียบร้อยแล้ว' });
     } catch (error) {
         console.error('Cancel discharge error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (conn) conn.release();
+        if (hisConn) hisConn.release();
     }
 });
 
@@ -369,7 +393,7 @@ router.get('/:an/activity-logs', authMiddleware, async (req, res) => {
         
         const logs = await conn.query(
             `SELECT * FROM activity_logs 
-             WHERE an = ? AND action_type LIKE '%CHECK_CHK_%'
+             WHERE an = ?
              ORDER BY created_at DESC`,
             [an]
         );

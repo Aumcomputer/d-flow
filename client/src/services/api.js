@@ -11,7 +11,8 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       const isAuthMe = error.config && error.config.url === '/auth/me'
       const isAlreadyOnLogin = window.location.pathname === '/login'
-      if (!isAuthMe && !isAlreadyOnLogin) {
+      const isConfirmation = error.config && (error.config.skipAuthRedirect || error.config.url?.includes('cancel-'))
+      if (!isAuthMe && !isAlreadyOnLogin && !isConfirmation) {
         window.location.href = '/login'
       }
     }
