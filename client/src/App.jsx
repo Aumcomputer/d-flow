@@ -6,6 +6,7 @@ import socket from './services/socket'
 import LoginPage from './pages/LoginPage'
 import WelcomePage from './pages/WelcomePage'
 import DocumentsPage from './pages/DocumentsPage'
+import PttypePage from './pages/PttypePage'
 import WardPage from './pages/WardPage'
 import PharmacyPage from './pages/PharmacyPage'
 import DischargeCenterPage from './pages/DischargeCenterPage'
@@ -34,6 +35,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<ProtectedRoute><WelcomePage /></ProtectedRoute>} />
       <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
+      <Route path="/pttype" element={<ProtectedRoute><PttypePage /></ProtectedRoute>} />
       <Route path="/ward" element={<ProtectedRoute><WardPage /></ProtectedRoute>} />
       <Route path="/dcdetail/:an" element={<ProtectedRoute><DischargeDetailPage /></ProtectedRoute>} />
       <Route path="/pharmacy" element={<ProtectedRoute><PharmacyPage /></ProtectedRoute>} />

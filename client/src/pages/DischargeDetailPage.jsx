@@ -255,7 +255,7 @@ export default function DischargeDetailPage() {
       <div className="min-h-[400px]">
         {activeTab === 'checklist' && <ChecklistTab an={an} details={details} setDetails={setDetails} fetchData={fetchData} patient={patient} setActiveTab={setActiveTab} setIsFilterActive={setIsFilterActive} />}
         {activeTab === 'timeline' && <TimelineTab details={details} />}
-        {activeTab === 'documents' && <DocumentsTab patient={patient} />}
+        {activeTab === 'documents' && <DocumentsTab patient={patient} details={details} fetchDetails={fetchData} />}
         {activeTab === 'drugs' && <DrugProfileTab an={an} isFilterActive={isFilterActive} />}
         {activeTab === 'expenses' && <ExpensesTab an={an} />}
         {activeTab === 'discount' && <DiscountTab an={an} patient={patient} details={details} fetchDetails={fetchData} />}

@@ -19,6 +19,7 @@ router.get('/:an', authMiddleware, async (req, res) => {
               pt.name AS pttype_name,
               w.name AS ward_name,
               d.name AS doctor_name,
+              i.incharge_doctor AS doctor_code,
               ia.bedno,
               aa.income AS total_income,
               aa.rcpt_money,
@@ -145,7 +146,7 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
             detail.chk_lab_dup, detail.chk_cost_dup, detail.chk_opnote,
             detail.discharge_by, detail.sent_pharmacy_by, detail.pharmacy_done_by,
             detail.sent_dc_by, detail.dc_done_by, detail.sent_finance_by, detail.finance_done_by,
-            detail.discount_by
+            detail.discount_by, detail.consult_pttype_by, detail.grant_pttype_by
         ].filter(Boolean);
 
         if (loginnames.length > 0) {
@@ -203,6 +204,8 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
             detail.sent_finance_by_name = userMap[detail.sent_finance_by] || null;
             detail.finance_done_by_name = userMap[detail.finance_done_by] || null;
             detail.discount_by_name = userMap[detail.discount_by] || null;
+            detail.consult_pttype_by_name = userMap[detail.consult_pttype_by] || detail.consult_pttype_by || null;
+            detail.grant_pttype_by_name = userMap[detail.grant_pttype_by] || detail.grant_pttype_by || null;
         }
 
         res.json(detail);

@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { FileText, Building2, Pill, ClipboardList, Wallet, ChevronRight } from 'lucide-react'
+import { FileText, ShieldCheck, Building2, Pill, ClipboardList, Wallet, ChevronRight } from 'lucide-react'
 import { Card, CardContent } from '../components/ui/card'
 
 const modules = [
   { path: '/documents', name: 'เวชระเบียน', desc: 'จัดการเอกสารผู้ป่วยใน', icon: FileText, color: 'from-blue-500 to-indigo-500', bg: 'bg-blue-50', text: 'text-blue-600' },
+  { path: '/pttype', name: 'งานสิทธิ์', desc: 'ข้อมูลสิทธิผู้ป่วย', icon: ShieldCheck, color: 'from-sky-400 to-cyan-500', bg: 'bg-sky-50', text: 'text-sky-600' },
   { path: '/ward', name: 'หอผู้ป่วย', desc: 'ข้อมูลหอผู้ป่วย', icon: Building2, color: 'from-teal-400 to-emerald-500', bg: 'bg-teal-50', text: 'text-teal-600' },
   { path: '/pharmacy', name: 'ห้องยา', desc: 'ระบบห้องยา', icon: Pill, color: 'from-green-400 to-emerald-600', bg: 'bg-green-50', text: 'text-green-600' },
   { path: '/discharge', name: 'ศูนย์จำหน่าย', desc: 'ศูนย์จำหน่ายผู้ป่วย', icon: ClipboardList, color: 'from-orange-400 to-amber-500', bg: 'bg-orange-50', text: 'text-orange-600' },
@@ -27,7 +28,7 @@ export default function WelcomePage() {
         </div>
       </div>
       <div className="flex-1 flex flex-col justify-center">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
         {modules.map((m, i) => (
           <Link key={m.path} to={m.path} className="group block">
             <Card className="glass-card h-full border-none overflow-hidden relative rounded-2xl group-hover:-translate-y-1 duration-300">

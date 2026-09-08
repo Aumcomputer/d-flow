@@ -34,6 +34,7 @@ app.use('/api/patients', patientRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/wards', wardRoutes);
 app.use('/api/workflow', require('./routes/workflow'));
+app.use('/api/pttype', require('./routes/pttype'));
 
 // System routes
 app.post('/api/system/force-refresh', (req, res) => {
@@ -74,6 +75,38 @@ async function migrateDB() {
             console.log('Database migrated: added HM and return_med columns');
         } catch (e) {
             // Ignore duplicate column errors (already migrated)
+            if (e.code !== 'ER_DUP_FIELDNAME') throw e;
+        }
+
+        try {
+            await conn.query(`
+                ALTER TABLE an_detail 
+                ADD COLUMN consult_pttype_urgency VARCHAR(50) DEFAULT NULL,
+                ADD COLUMN consult_pttype_reason TEXT DEFAULT NULL,
+                ADD COLUMN consult_pttype_doctor_code VARCHAR(20) DEFAULT NULL,
+                ADD COLUMN consult_pttype_doctor_name VARCHAR(150) DEFAULT NULL,
+                ADD COLUMN consult_pttype_by VARCHAR(50) DEFAULT NULL,
+                ADD COLUMN consult_pttype_date DATETIME DEFAULT NULL,
+                ADD COLUMN consult_pttype_status VARCHAR(20) DEFAULT 'pending'
+            `);
+            console.log('Database migrated: added consult_pttype columns');
+        } catch (e) {
+            if (e.code !== 'ER_DUP_FIELDNAME') throw e;
+        }
+
+        try {
+            await conn.query(`
+                ALTER TABLE an_detail 
+                ADD COLUMN grant_pttype_code VARCHAR(20) DEFAULT NULL,
+                ADD COLUMN grant_pttype_name VARCHAR(255) DEFAULT NULL,
+                ADD COLUMN grant_pttype_is_other TINYINT(1) DEFAULT 0,
+                ADD COLUMN grant_pttype_other_text VARCHAR(255) DEFAULT NULL,
+                ADD COLUMN grant_pttype_asm_type VARCHAR(50) DEFAULT NULL,
+                ADD COLUMN grant_pttype_by VARCHAR(50) DEFAULT NULL,
+                ADD COLUMN grant_pttype_date DATETIME DEFAULT NULL
+            `);
+            console.log('Database migrated: added grant_pttype columns');
+        } catch (e) {
             if (e.code !== 'ER_DUP_FIELDNAME') throw e;
         }
     } catch (err) {
