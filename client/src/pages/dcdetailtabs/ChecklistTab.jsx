@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X, Calendar, RotateCcw, Lock } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X, Calendar, RotateCcw, Lock, Plus, Minus } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import socket from '../../services/socket';
@@ -13,12 +13,17 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
   const [wardPhone, setWardPhone] = useState(details?.ward_phone || '')
   const [chkHm, setChkHm] = useState(details?.chk_hm ?? null)
   const [chkReturnMed, setChkReturnMed] = useState(details?.chk_returnmed ?? null)
+  const [chkPayment, setChkPayment] = useState(details?.chk_payment ?? null)
+  const [todayReturnDrugs, setTodayReturnDrugs] = useState([])
+  const [returnDrugQtys, setReturnDrugQtys] = useState({})
+  const [loadingReturnDrugs, setLoadingReturnDrugs] = useState(false)
   const [showLogs, setShowLogs] = useState(false)
   const [logs, setLogs] = useState([])
   const [loadingLogs, setLoadingLogs] = useState(false)
   const location = useLocation()
   const fromWard = location.state?.fromWard === true
   const fromDischargeCenter = location.state?.fromDischargeCenter === true
+  const isWard = fromWard || !fromDischargeCenter
 
   // Cancel Forward Modal States
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -66,6 +71,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
     }
     if (details?.chk_hm !== undefined && details.chk_hm !== null) setChkHm(details.chk_hm)
     if (details?.chk_returnmed !== undefined && details.chk_returnmed !== null) setChkReturnMed(details.chk_returnmed)
+    if (details?.chk_payment !== undefined && details.chk_payment !== null) setChkPayment(details.chk_payment)
   }, [details])
 
   useEffect(() => {
@@ -99,8 +105,60 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
       const res = await api.get(`/patients/${an}/detail`)
       setWorkflowStatus(res.data.workflow_status)
       if (res.data.ward_phone) setWardPhone(res.data.ward_phone)
+      if (res.data.chk_payment !== undefined && res.data.chk_payment !== null) setChkPayment(res.data.chk_payment)
     } catch (err) { console.error(err) }
   }
+
+  const fetchTodayReturnDrugs = useCallback(async () => {
+    if (!an) return
+    setLoadingReturnDrugs(true)
+    try {
+      const res = await api.get(`/patients/${an}/today-return-drugs`)
+      const drugs = res.data || []
+      setTodayReturnDrugs(drugs)
+      const qtys = {}
+      drugs.forEach(d => {
+        qtys[d.icode] = d.return_qty || 0
+      })
+      setReturnDrugQtys(qtys)
+    } catch (err) {
+      console.error('Fetch today return drugs error:', err)
+    } finally {
+      setLoadingReturnDrugs(false)
+    }
+  }, [an])
+
+  const handleQtyChange = (icode, newQty) => {
+    const qty = Math.max(0, parseInt(newQty, 10) || 0)
+    setReturnDrugQtys(prev => ({
+      ...prev,
+      [icode]: qty
+    }))
+  }
+
+  // Auto-save return drugs with debounce when in ward mode
+  useEffect(() => {
+    if (!an || chkReturnMed !== 1 || Object.keys(returnDrugQtys).length === 0) return
+    if (['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)) return
+
+    const timer = setTimeout(() => {
+      const itemsToSave = Object.entries(returnDrugQtys).map(([icode, qty]) => ({ icode, qty }))
+      api.post(`/patients/${an}/return-drugs`, { items: itemsToSave }).catch(e => {
+        console.error('Auto-save return drugs error:', e)
+      })
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [an, chkReturnMed, returnDrugQtys, workflowStatus])
+
+  useEffect(() => {
+    if (chkReturnMed === 1) {
+      fetchTodayReturnDrugs()
+    } else {
+      setTodayReturnDrugs([])
+      setReturnDrugQtys({})
+    }
+  }, [chkReturnMed, fetchTodayReturnDrugs])
 
   const fetchAudit = async () => {
     setLoadingAudit(true)
@@ -296,7 +354,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
       </div>
 
       {/* Right/Bottom: Workflow Actions */}
-      {(fromWard || fromDischargeCenter) && (
+      {(isWard || fromDischargeCenter) && (
       <div>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden h-full flex flex-col">
           <div className="px-5 py-4 border-b border-border bg-muted/30 flex justify-between items-center">
@@ -321,12 +379,14 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                       workflowStatus === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
                       workflowStatus === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
                       workflowStatus === 'finance' ? 'bg-amber-100 text-amber-700' :
+                      workflowStatus === 'ward_waiting' ? 'bg-teal-100 text-teal-700' :
                       workflowStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                       'bg-slate-100 text-slate-700'
                     }`}>
                       {workflowStatus === 'pharmacy' ? 'ห้องยา' :
                        workflowStatus === 'discharge_center' ? 'ศูนย์จำหน่าย' :
                        workflowStatus === 'finance' ? 'การเงิน' :
+                       workflowStatus === 'ward_waiting' ? 'รอกลับบ้าน' :
                        workflowStatus === 'completed' ? 'เสร็จสิ้น' :
                        workflowStatus === 'discharged' ? 'รอดำเนินการ' : workflowStatus}
                     </span>
@@ -358,7 +418,40 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                 </div>
               </div>
             )}
-            {fromWard && (
+            {fromDischargeCenter && (
+              <div className="flex flex-col gap-3 w-full bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-slate-800">
+                    ยอดต้องชำระ <span className="text-red-500">*</span>
+                  </span>
+                  <div className="flex items-center gap-5">
+                    <label className={`flex items-center gap-2 ${['finance', 'pharmacy', 'completed', 'ward_waiting'].includes(workflowStatus) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                      <input 
+                        type="radio" 
+                        name="chk_payment" 
+                        disabled={['finance', 'pharmacy', 'completed', 'ward_waiting'].includes(workflowStatus)} 
+                        checked={chkPayment === 1} 
+                        onChange={() => setChkPayment(1)} 
+                        className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" 
+                      />
+                      <span className="text-sm font-medium text-slate-800">มี</span>
+                    </label>
+                    <label className={`flex items-center gap-2 ${['finance', 'pharmacy', 'completed', 'ward_waiting'].includes(workflowStatus) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                      <input 
+                        type="radio" 
+                        name="chk_payment" 
+                        disabled={['finance', 'pharmacy', 'completed', 'ward_waiting'].includes(workflowStatus)} 
+                        checked={chkPayment === 0} 
+                        onChange={() => setChkPayment(0)} 
+                        className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" 
+                      />
+                      <span className="text-sm font-medium text-slate-800">ไม่มี</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+            {isWard && (
               <>
                 <div className="flex items-center gap-3 w-full shrink-0">
                   <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
@@ -392,15 +485,131 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                     <span className="text-sm font-medium text-slate-700">ยาคืน <span className="text-red-500">*</span></span>
                     <div className="flex items-center gap-4">
                       <label className={`flex items-center gap-2 ${['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                        <input type="radio" name="chk_returnmed" disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)} checked={chkReturnMed === 1} onChange={() => setChkReturnMed(1)} className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" />
+                        <input 
+                          type="radio" 
+                          name="chk_returnmed" 
+                          disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)} 
+                          checked={chkReturnMed === 1} 
+                          onChange={async () => {
+                            setChkReturnMed(1);
+                            try {
+                              await api.post(`/patients/${an}/return-med-status`, { chk_returnmed: 1 });
+                            } catch (e) {
+                              console.error('Update return med status error:', e);
+                            }
+                          }} 
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" 
+                        />
                         <span className="text-sm">มี</span>
                       </label>
                       <label className={`flex items-center gap-2 ${['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
-                        <input type="radio" name="chk_returnmed" disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)} checked={chkReturnMed === 0} onChange={() => setChkReturnMed(0)} className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" />
+                        <input 
+                          type="radio" 
+                          name="chk_returnmed" 
+                          disabled={['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)} 
+                          checked={chkReturnMed === 0} 
+                          onChange={async () => {
+                            setChkReturnMed(0);
+                            try {
+                              await api.post(`/patients/${an}/return-med-status`, { chk_returnmed: 0 });
+                            } catch (e) {
+                              console.error('Update return med status error:', e);
+                            }
+                          }} 
+                          className="text-blue-600 focus:ring-blue-500 w-4 h-4 disabled:cursor-not-allowed" 
+                        />
                         <span className="text-sm">ไม่มี</span>
                       </label>
                     </div>
                   </div>
+
+                  {/* แสดงรายการยาคืนทั้งหมดของ AN นี้เมื่อเลือกมียาคืน */}
+                  {chkReturnMed === 1 && (
+                    <div className="mt-2 pt-3 border-t border-slate-100 space-y-2.5 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 font-semibold text-blue-900 text-xs sm:text-sm">
+                          <Pill className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span>รายการยาคืน ({todayReturnDrugs.length})</span>
+                        </div>
+                        <span className="text-[10px] sm:text-[11px] text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full font-medium shrink-0">
+                          มียาคืน
+                        </span>
+                      </div>
+
+                      {loadingReturnDrugs ? (
+                        <div className="py-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                          <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                          <span>กำลังโหลดรายการยา...</span>
+                        </div>
+                      ) : todayReturnDrugs.length === 0 ? (
+                        <div className="py-3 px-3 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          ไม่พบรายการยาคืนที่เข้าเงื่อนไขสำหรับ AN นี้
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {todayReturnDrugs.map((drug, index) => {
+                            const qty = returnDrugQtys[drug.icode] ?? 0;
+                            const isQtyActive = qty > 0;
+                            const isLocked = ['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus);
+
+                            return (
+                              <div
+                                key={drug.icode || index}
+                                className={`p-2.5 rounded-xl border text-xs transition-colors flex items-center justify-between gap-2 ${
+                                  isQtyActive
+                                    ? 'bg-blue-50/60 border-blue-300 ring-1 ring-blue-200'
+                                    : 'bg-slate-50 hover:bg-slate-100/70 border-slate-200'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isQtyActive ? 'bg-blue-600 ring-2 ring-blue-300' : 'bg-slate-400'}`} />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-medium text-slate-800 break-words leading-tight">{drug.drug_name}</span>
+                                    {drug.units && (
+                                      <span className="text-[10px] text-slate-500 font-normal">หน่วย: {drug.units}</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    disabled={isLocked}
+                                    onClick={() => handleQtyChange(drug.icode, qty - 1)}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-bold border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all shadow-xs"
+                                    title="ลดจำนวน"
+                                  >
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    disabled={isLocked}
+                                    value={qty}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10);
+                                      handleQtyChange(drug.icode, isNaN(val) ? 0 : Math.max(0, val));
+                                    }}
+                                    className="w-12 h-7 text-center font-semibold text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={isLocked}
+                                    onClick={() => handleQtyChange(drug.icode, qty + 1)}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold border border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all shadow-xs"
+                                    title="เพิ่มจำนวน"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -410,31 +619,29 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                 <>
                   <div className="flex items-center gap-3 w-full">
                     <button
-                      onClick={handleSendFinance}
-                      disabled={['finance', 'completed'].includes(workflowStatus)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-                    >
-                      <DollarSign className="w-5 h-5" />
-                      <span className="font-medium">ส่งการเงิน</span>
-                    </button>
-                    <button
                       onClick={async () => {
-                        if (!confirm('ยืนยันเสร็จสิ้น?')) return;
+                        if (chkPayment === null) {
+                          alert('กรุณาเลือกว่ามียอดต้องชำระหรือไม่');
+                          return;
+                        }
+                        if (!confirm('ยืนยันเสร็จสิ้นศูนย์จำหน่าย?')) return;
                         try {
-                          await api.post(`/workflow/${an}/dc-done`);
-                          setWorkflowStatus('completed');
-                          fetchData();
-                        } catch (err) { alert('ไม่สามารถทำรายการได้'); }
+                          await api.post(`/workflow/${an}/dc-done`, { chk_payment: chkPayment });
+                          if (fetchData) fetchData();
+                          fetchDetail();
+                        } catch (err) {
+                          alert('ไม่สามารถทำรายการได้: ' + (err.response?.data?.error || err.message));
+                        }
                       }}
-                      disabled={['completed'].includes(workflowStatus)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                      disabled={chkPayment === null || ['finance', 'pharmacy', 'completed', 'ward_waiting'].includes(workflowStatus)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm font-medium"
                     >
                       <CheckCircle2 className="w-5 h-5" />
-                      <span className="font-medium">เสร็จสิ้น</span>
+                      <span>เสร็จสิ้น</span>
                     </button>
                   </div>
 
-                  {['finance', 'completed'].includes(workflowStatus) && (
+                  {['finance', 'pharmacy', 'completed', 'ward_waiting'].includes(workflowStatus) && (
                     <button
                       type="button"
                       onClick={() => {
@@ -451,38 +658,25 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                 </>
               ) : (
                 <>
-                  {(chkHm === 1 || chkReturnMed === 1) && (
-                    <button
-                      onClick={async () => {
-                        if(!wardPhone.trim()) { alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย'); return; }
-                        if(chkHm === null || chkReturnMed === null) { alert('กรุณาระบุ Homemed และ ยาคืน'); return; }
-                        if(!confirm('ยืนยันส่งห้องยา?')) return;
-                        try {
-                          await api.post(`/workflow/${an}/send-pharmacy`, { phone: wardPhone, hm: chkHm, returnmed: chkReturnMed })
-                          setWorkflowStatus('pharmacy')
-                        } catch(err) { alert('ไม่สามารถส่งห้องยาได้') }
-                      }}
-                      disabled={!isChecklistComplete || !wardPhone.trim() || ['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Pill className="w-5 h-5" />
-                      <span className="font-medium">ส่งห้องยา</span>
-                    </button>
-                  )}
-                  
-                  {(chkHm === 0 && chkReturnMed === 0) && (
+                  {(chkHm !== null && chkReturnMed !== null) && (
                     <button
                       onClick={async () => {
                         if(!wardPhone.trim()) { alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย'); return; }
                         if(chkHm === null || chkReturnMed === null) { alert('กรุณาระบุ Homemed และ ยาคืน'); return; }
                         if(!confirm('ยืนยันส่งศูนย์จำหน่าย?')) return;
                         try {
-                          await api.post(`/workflow/${an}/send-dc`, { phone: wardPhone, hm: chkHm, returnmed: chkReturnMed })
-                          setWorkflowStatus('discharge_center')
-                        } catch(err) { alert('ไม่สามารถส่งศูนย์จำหน่ายได้') }
+                          const returnDrugList = Object.entries(returnDrugQtys).map(([icode, qty]) => ({ icode, qty }));
+                          await api.post(`/workflow/${an}/send-dc`, {
+                            phone: wardPhone,
+                            hm: chkHm,
+                            returnmed: chkReturnMed,
+                            return_drugs: chkReturnMed === 1 ? returnDrugList : []
+                          });
+                          setWorkflowStatus('discharge_center');
+                        } catch(err) { alert('ไม่สามารถส่งศูนย์จำหน่ายได้'); }
                       }}
-                      disabled={!isChecklistComplete || !wardPhone.trim() || ['discharge_center', 'finance', 'completed'].includes(workflowStatus)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      disabled={!isChecklistComplete || !wardPhone.trim() || ['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                     >
                       <Building2 className="w-5 h-5" />
                       <span className="font-medium">ส่งศูนย์จำหน่าย</span>
@@ -495,7 +689,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                     </div>
                   )}
                   
-                  {(!isChecklistComplete || !wardPhone.trim()) && (chkHm !== null && chkReturnMed !== null) && (
+                  {(!isChecklistComplete || !wardPhone.trim()) && chkHm !== null && chkReturnMed !== null && (
                     <div className="text-center py-2 px-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100 font-medium">
                       กรุณากรอก "เบอร์โทรศัพท์" และติ๊ก "รายการตรวจสอบ" ให้ครบถ้วน
                     </div>

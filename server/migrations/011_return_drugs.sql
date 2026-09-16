@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS `return_drugs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `an` VARCHAR(20) NOT NULL,
+    `icode` VARCHAR(20) NOT NULL,
+    `qty` INT NOT NULL DEFAULT 1,
+    `created_by` VARCHAR(50) NOT NULL,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_by` VARCHAR(50) DEFAULT NULL,
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uq_an_icode` (`an`, `icode`),
+    INDEX `idx_an` (`an`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

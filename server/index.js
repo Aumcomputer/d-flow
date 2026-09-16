@@ -3,6 +3,11 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const http = require('http');
+
+// Support BigInt serialization in JSON responses
+BigInt.prototype.toJSON = function() {
+    return Number(this);
+};
 const socketLib = require('./lib/socket');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -108,6 +113,22 @@ async function migrateDB() {
             console.log('Database migrated: added grant_pttype columns');
         } catch (e) {
             if (e.code !== 'ER_DUP_FIELDNAME') throw e;
+        }
+
+        try {
+            await conn.query(`
+                CREATE TABLE IF NOT EXISTS pttype_comments (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    an VARCHAR(20) NOT NULL,
+                    comment TEXT NOT NULL,
+                    created_by VARCHAR(50) NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_an (an)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            `);
+            console.log('Database migrated: pttype_comments table verified');
+        } catch (e) {
+            console.error('Migration pttype_comments error:', e);
         }
     } catch (err) {
         console.error('Migration error:', err);

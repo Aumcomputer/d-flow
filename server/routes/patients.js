@@ -146,6 +146,7 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
             detail.chk_lab_dup, detail.chk_cost_dup, detail.chk_opnote,
             detail.discharge_by, detail.sent_pharmacy_by, detail.pharmacy_done_by,
             detail.sent_dc_by, detail.dc_done_by, detail.sent_finance_by, detail.finance_done_by,
+            detail.ward_done_by,
             detail.discount_by, detail.consult_pttype_by, detail.grant_pttype_by
         ].filter(Boolean);
 
@@ -203,6 +204,7 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
             detail.dc_done_by_name = userMap[detail.dc_done_by] || null;
             detail.sent_finance_by_name = userMap[detail.sent_finance_by] || null;
             detail.finance_done_by_name = userMap[detail.finance_done_by] || null;
+            detail.ward_done_by_name = userMap[detail.ward_done_by] || null;
             detail.discount_by_name = userMap[detail.discount_by] || null;
             detail.consult_pttype_by_name = userMap[detail.consult_pttype_by] || detail.consult_pttype_by || null;
             detail.grant_pttype_by_name = userMap[detail.grant_pttype_by] || detail.grant_pttype_by || null;
@@ -697,6 +699,254 @@ router.get('/:an/drugs/:orderNo', authMiddleware, async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (conn) conn.release();
+    }
+});
+
+// Returnable Drugs (รายการยาสำหรับตรวจสอบยาคืนของ AN นี้ทั้งหมด)
+const getReturnDrugsHandler = async (req, res) => {
+    let conn;
+    try {
+        const { an } = req.params;
+
+        // Parse dosageforms and categories/icodes from .env
+        const dosageforms = (process.env.RETURN_MED_DOSAGEFORMS || 'INJECTIONS')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        const excludeCategories = (process.env.RETURN_MED_EXCLUDE_CATEGORIES || 'FLUIDS AND ELECTROLYTES,INTRAVENOUS SOLOTION,INTRAVENOUS SOLUTION,INTRAVENOUS ANAESTHETICS,LOCAL ANAESTHETICS')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        const excludeCategoriesLike = (process.env.RETURN_MED_EXCLUDE_CATEGORIES_LIKE || 'ANAESTHETICS')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        const includeCategoriesLike = (process.env.RETURN_MED_INCLUDE_CATEGORIES_LIKE || 'ANXIOLYTICS,OPIOID,SEDATIVES')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        const includeIcodes = (process.env.RETURN_MED_INCLUDE_ICODES || '1500513,1460536,1590016,1490407')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        const excludeNameLike = (process.env.RETURN_MED_EXCLUDE_NAME_LIKE || 'วิสัญญี')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+        conn = await getHisConnection();
+
+        let sql = `
+            SELECT DISTINCT o.icode,
+                   CONCAT(d.name, IF(d.strength IS NOT NULL AND d.strength != '', CONCAT(' ', d.strength), '')) AS drug_name,
+                   d.name, d.strength, d.units
+            FROM opitemrece o
+            INNER JOIN drugitems d ON d.icode = o.icode
+            WHERE o.an = ?
+        `;
+        const params = [an];
+
+        const orConditions = [];
+
+        // Condition 1: dosageform IN (...) AND drugcategory NOT IN (...) AND drugcategory NOT LIKE ...
+        if (dosageforms.length > 0) {
+            const dosagePlaceholders = dosageforms.map(() => '?').join(',');
+            let cond = `(d.dosageform IN (${dosagePlaceholders})`;
+            params.push(...dosageforms);
+
+            const notCategoryConds = [];
+            if (excludeCategories.length > 0) {
+                const excludePlaceholders = excludeCategories.map(() => '?').join(',');
+                notCategoryConds.push(`d.drugcategory NOT IN (${excludePlaceholders})`);
+                params.push(...excludeCategories);
+            }
+            for (const catLike of excludeCategoriesLike) {
+                notCategoryConds.push('d.drugcategory NOT LIKE ?');
+                params.push(`%${catLike}%`);
+            }
+
+            if (notCategoryConds.length > 0) {
+                cond += ` AND (d.drugcategory IS NULL OR (${notCategoryConds.join(' AND ')}))`;
+            }
+            cond += ')';
+            orConditions.push(cond);
+        }
+
+        // Condition 2: drugcategory LIKE '%...%' (ANXIOLYTICS, OPIOID, SEDATIVES, etc.)
+        for (const catLike of includeCategoriesLike) {
+            orConditions.push('d.drugcategory LIKE ?');
+            params.push(`%${catLike}%`);
+        }
+
+        // Condition 3: specific icodes
+        if (includeIcodes.length > 0) {
+            const icodePlaceholders = includeIcodes.map(() => '?').join(',');
+            orConditions.push(`o.icode IN (${icodePlaceholders})`);
+            params.push(...includeIcodes);
+        }
+
+        if (orConditions.length > 0) {
+            sql += ` AND (${orConditions.join(' OR ')})`;
+        }
+
+        for (const nameLike of excludeNameLike) {
+            sql += ` AND d.name NOT LIKE ?`;
+            params.push(`%${nameLike}%`);
+        }
+
+        sql += ` ORDER BY drug_name ASC`;
+
+        const rows = await conn.query(sql, params);
+
+        // Fetch saved return drugs from D-Flow DB
+        let dflowConn;
+        const savedMap = {};
+        try {
+            dflowConn = await getDflowConnection();
+            const savedRows = await dflowConn.query(
+                'SELECT icode, qty, created_by, created_at, updated_by, updated_at FROM return_drugs WHERE an = ?',
+                [an]
+            );
+            savedRows.forEach(r => {
+                savedMap[r.icode] = {
+                    qty: r.qty,
+                    created_by: r.created_by,
+                    created_at: r.created_at,
+                    updated_by: r.updated_by,
+                    updated_at: r.updated_at
+                };
+            });
+        } catch (dflowErr) {
+            console.error('Fetch return_drugs error from dflow:', dflowErr);
+        } finally {
+            if (dflowConn) dflowConn.release();
+        }
+
+        const result = rows.map(r => {
+            const saved = savedMap[r.icode];
+            return {
+                ...r,
+                return_qty: saved ? saved.qty : 0,
+                created_by: saved?.created_by || null,
+                created_at: saved?.created_at || null,
+                updated_by: saved?.updated_by || null,
+                updated_at: saved?.updated_at || null
+            };
+        });
+
+        res.json(result);
+    } catch (error) {
+        console.error('Fetch return drugs error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
+    }
+};
+
+router.get('/:an/today-return-drugs', authMiddleware, getReturnDrugsHandler);
+router.get('/:an/return-drugs', authMiddleware, getReturnDrugsHandler);
+
+// Save return drugs for an AN
+router.post('/:an/return-drugs', authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { an } = req.params;
+        const loginname = req.user.loginname;
+        const items = req.body.items || (req.body.icode !== undefined ? [{ icode: req.body.icode, qty: req.body.qty }] : []);
+
+        dflowConn = await getDflowConnection();
+
+        for (const item of items) {
+            const icode = String(item.icode || '').trim();
+            const qty = parseInt(item.qty, 10);
+            if (!icode) continue;
+
+            if (isNaN(qty) || qty <= 0) {
+                await dflowConn.query(
+                    'DELETE FROM return_drugs WHERE an = ? AND icode = ?',
+                    [an, icode]
+                );
+            } else {
+                await dflowConn.query(
+                    `INSERT INTO return_drugs (an, icode, qty, created_by, updated_by)
+                     VALUES (?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                        qty = VALUES(qty),
+                        updated_by = VALUES(updated_by),
+                        updated_at = NOW()`,
+                    [an, icode, qty, loginname, loginname]
+                );
+            }
+        }
+
+        // If any return drugs have qty > 0, ensure chk_returnmed is set to 1 in an_detail
+        const hasPositiveQty = items.some(it => parseInt(it.qty, 10) > 0);
+        if (hasPositiveQty) {
+            await dflowConn.query(
+                `INSERT INTO an_detail (an, chk_returnmed) VALUES (?, 1)
+                 ON DUPLICATE KEY UPDATE chk_returnmed = 1`,
+                [an]
+            );
+        }
+
+        await dflowConn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, 'UPDATE_RETURN_DRUGS', loginname]
+        );
+
+        try {
+            const { getIO } = require('../lib/socket');
+            getIO().emit('workflow:updated', { an, type: 'update_return_drugs' });
+        } catch (e) {
+            // Socket might not be initialized in test environments
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Save return drugs error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// Update return med checkbox status immediately
+router.post('/:an/return-med-status', authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { an } = req.params;
+        const { chk_returnmed } = req.body;
+        const val = chk_returnmed === 1 ? 1 : (chk_returnmed === 0 ? 0 : null);
+        const loginname = req.user.loginname;
+
+        dflowConn = await getDflowConnection();
+        await dflowConn.query(
+            `INSERT INTO an_detail (an, chk_returnmed) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE chk_returnmed = VALUES(chk_returnmed)`,
+            [an, val]
+        );
+
+        await dflowConn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, val === 1 ? 'SET_RETURN_MED_YES' : (val === 0 ? 'SET_RETURN_MED_NO' : 'SET_RETURN_MED_NULL'), loginname]
+        );
+
+        try {
+            const { getIO } = require('../lib/socket');
+            getIO().emit('workflow:updated', { an, type: 'return_med_status', chk_returnmed: val });
+        } catch (e) {}
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Update return med status error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
     }
 });
 

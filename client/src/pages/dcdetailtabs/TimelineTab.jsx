@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Pill, Building2, Wallet, CheckCircle2 } from 'lucide-react';
+import { Activity, Pill, Building2, Wallet, CheckCircle2, Home } from 'lucide-react';
 
 export default function TimelineTab({ details }) {
   if (!details || !details.discharge_date) {
@@ -12,8 +12,9 @@ export default function TimelineTab({ details }) {
 
   const nodes = [];
 
-  // Node 1: Discharge
+  // 1. Discharge (หอผู้ป่วย)
   nodes.push({
+    key: 'discharge',
     label: 'Discharge',
     date: details.discharge_date,
     by: details.discharge_by_name || details.discharge_by,
@@ -21,84 +22,134 @@ export default function TimelineTab({ details }) {
     color: 'bg-blue-500'
   });
 
-  // Node 2: Pharmacy
-  if (details.sent_pharmacy_date) {
+  // 2. ศูนย์จำหน่ายเสร็จ
+  const isDcDone = !!details.dc_done_date;
+  const isDcCurrent = details.workflow_status === 'discharge_center';
+  const showDc = isDcDone || isDcCurrent || ['finance', 'pharmacy', 'ward_waiting', 'completed'].includes(details.workflow_status);
+
+  if (showDc) {
     nodes.push({
-      label: 'ส่งไปห้องยา',
-      date: details.sent_pharmacy_date,
-      by: details.sent_pharmacy_by_name || details.sent_pharmacy_by,
-      icon: Pill,
-      color: 'bg-green-500'
+      key: 'dc',
+      label: 'ศูนย์จำหน่ายเสร็จ',
+      date: details.dc_done_date || null,
+      by: details.dc_done_by_name || details.dc_done_by || null,
+      icon: Building2,
+      color: isDcDone ? 'bg-purple-500' : 'bg-purple-400'
     });
   }
 
-  // Node 3: Discharge Center
-  if (details.pharmacy_done_date) {
+  // 3. การเงินเสร็จ (แสดงเมื่อมียอดต้องชำระ)
+  const hasPayment = details.chk_payment === 1 || details.finance_done_date || details.sent_finance_date || details.workflow_status === 'finance';
+  const isFinanceDone = !!details.finance_done_date;
+  if (hasPayment) {
     nodes.push({
-      label: 'ห้องยาเสร็จสิ้น + ส่งไปศูนย์จำหน่าย',
-      date: details.pharmacy_done_date,
-      by: details.pharmacy_done_by_name || details.pharmacy_done_by,
-      icon: Building2,
-      color: 'bg-purple-500'
-    });
-  } else if (details.sent_dc_date && !details.sent_pharmacy_date) {
-    nodes.push({
-      label: 'ส่งไปศูนย์จำหน่าย',
-      date: details.sent_dc_date,
-      by: details.sent_dc_by_name || details.sent_dc_by,
-      icon: Building2,
-      color: 'bg-purple-500'
-    });
-  }
-
-  // Node 4: Finance
-  if (details.sent_finance_date) {
-    nodes.push({
-      label: 'ศูนย์จำหน่ายเสร็จสิ้น + ส่งไปการเงิน',
-      date: details.sent_finance_date,
-      by: details.sent_finance_by_name || details.sent_finance_by,
+      key: 'finance',
+      label: 'การเงินเสร็จ',
+      date: details.finance_done_date || null,
+      by: details.finance_done_by_name || details.finance_done_by || null,
       icon: Wallet,
-      color: 'bg-amber-500'
+      color: isFinanceDone ? 'bg-amber-500' : 'bg-amber-400'
     });
   }
 
-  // Node 5: Completed
-  if (details.finance_done_date) {
+  // 4. ห้องยาเสร็จ (แสดงเมื่อมียา HM)
+  const hasHm = details.chk_hm === 1 || details.pharmacy_done_date || details.sent_pharmacy_date || details.workflow_status === 'pharmacy';
+  const isPharmacyDone = !!details.pharmacy_done_date;
+  if (hasHm) {
     nodes.push({
-      label: 'เสร็จสิ้น (การเงิน)',
-      date: details.finance_done_date,
-      by: details.finance_done_by_name || details.finance_done_by,
-      icon: CheckCircle2,
-      color: 'bg-emerald-500'
-    });
-  } else if (details.dc_done_date && !details.sent_finance_date) {
-    nodes.push({
-      label: 'เสร็จสิ้น (ศูนย์จำหน่าย)',
-      date: details.dc_done_date,
-      by: details.dc_done_by_name || details.dc_done_by,
-      icon: CheckCircle2,
-      color: 'bg-emerald-500'
+      key: 'pharmacy',
+      label: 'ห้องยาเสร็จ',
+      date: details.pharmacy_done_date || null,
+      by: details.pharmacy_done_by_name || details.pharmacy_done_by || null,
+      icon: Pill,
+      color: isPharmacyDone ? 'bg-teal-500' : 'bg-teal-400'
     });
   }
 
-  const getDuration = (start, end) => {
+  // 5. คนไข้กลับบ้าน
+  const isCase1 = details.chk_hm === 0 && details.chk_payment === 0;
+  if (isCase1) {
+    if (details.ward_done_date) {
+      nodes.push({
+        key: 'home',
+        label: 'คนไข้กลับบ้าน',
+        date: details.ward_done_date,
+        by: details.ward_done_by_name || details.ward_done_by,
+        icon: Home,
+        color: 'bg-emerald-500'
+      });
+    } else {
+      nodes.push({
+        key: 'home',
+        label: 'คนไข้กลับบ้าน',
+        date: null,
+        by: details.workflow_status === 'ward_waiting' ? 'รอหอผู้ป่วยยืนยัน' : 'รอดำเนินการ',
+        icon: Home,
+        color: details.workflow_status === 'ward_waiting' ? 'bg-emerald-400' : 'bg-slate-300'
+      });
+    }
+  } else {
+    const isCompleted = details.workflow_status === 'completed';
+    const completedDate = details.pharmacy_done_date || details.finance_done_date || details.dc_done_date;
+    const completedBy = details.pharmacy_done_by_name || details.pharmacy_done_by || details.finance_done_by_name || details.finance_done_by || details.dc_done_by_name || details.dc_done_by;
+    nodes.push({
+      key: 'home',
+      label: 'คนไข้กลับบ้าน',
+      date: isCompleted ? completedDate : null,
+      by: isCompleted ? completedBy : 'รอดำเนินการ',
+      icon: isCompleted ? CheckCircle2 : Home,
+      color: isCompleted ? 'bg-emerald-500' : 'bg-slate-300'
+    });
+  }
+
+  const getDurationText = (start, end, nextNodeKey) => {
+    if (!start || !end) return null;
     const diff = new Date(end) - new Date(start);
-    if (diff < 0) return '-';
+    if (diff < 0) return null;
+    if (nextNodeKey === 'home' && diff === 0) return null;
+
     const mins = Math.floor(diff / 60000);
     const hours = Math.floor(mins / 60);
     const m = mins % 60;
-    if (hours > 0) return `${hours} ชม. ${m} นาที`;
-    return `${m} นาที`;
+    const timeStr = hours > 0 ? `${hours} ชม. ${m} นาที` : `${m} นาที`;
+
+    if (nextNodeKey === 'dc') return `ศูนย์จำหน่ายใช้เวลา ${timeStr}`;
+    if (nextNodeKey === 'finance') return `การเงินใช้เวลา ${timeStr}`;
+    if (nextNodeKey === 'pharmacy') return `ห้องยาใช้เวลา ${timeStr}`;
+    if (nextNodeKey === 'home') return `รอคนไข้กลับบ้าน ${timeStr}`;
+    return timeStr;
   };
+
+  const finalNode = nodes[nodes.length - 1];
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
-      <div className="px-5 py-4 border-b border-border bg-muted/30">
-        <h3 className="font-bold text-base flex items-center gap-2 text-slate-800">
-          <Activity className="w-5 h-5 text-blue-500" />
-          Timeline การส่งต่อแผนก
-        </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">แสดงลำดับเวลาและระยะเวลารอคอยในแต่ละขั้นตอน</p>
+      <div className="px-5 py-4 border-b border-border bg-muted/30 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+        <div>
+          <h3 className="font-bold text-base flex items-center gap-2 text-slate-800">
+            <Activity className="w-5 h-5 text-blue-500" />
+            Timeline การส่งต่อแผนก
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            แสดงลำดับเวลาและระยะเวลารอคอยในแต่ละขั้นตอน (Discharge → ศูนย์จำหน่ายเสร็จ → การเงินเสร็จ → ห้องยาเสร็จ → คนไข้กลับบ้าน)
+          </p>
+        </div>
+        {details.ward_done_date ? (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold self-start sm:self-auto">
+            <Home className="w-4 h-4 text-emerald-600" />
+            <span>คนไข้กลับบ้าน: {new Date(details.ward_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+          </div>
+        ) : details.workflow_status === 'completed' && finalNode?.date ? (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold self-start sm:self-auto">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>คนไข้กลับบ้าน: {new Date(finalNode.date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</span>
+          </div>
+        ) : details.workflow_status === 'ward_waiting' ? (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold self-start sm:self-auto">
+            <Home className="w-4 h-4 text-amber-600" />
+            <span>รอหอผู้ป่วยยืนยันคนไข้กลับบ้าน</span>
+          </div>
+        ) : null}
       </div>
       
       <div className="p-8 overflow-x-auto">
@@ -107,18 +158,18 @@ export default function TimelineTab({ details }) {
             const Icon = node.icon;
             const hasNext = index < nodes.length - 1;
             const nextNode = hasNext ? nodes[index + 1] : null;
-            const waitTime = hasNext ? getDuration(node.date, nextNode.date) : null;
+            const waitTime = hasNext ? getDurationText(node.date, nextNode?.date, nextNode?.key) : null;
 
             return (
-              <div key={index} className="flex-1 relative flex flex-col items-center min-w-[200px] group">
+              <div key={index} className="flex-1 relative flex flex-col items-center min-w-[220px] group">
                 {/* Connecting Line */}
                 {hasNext && (
                   <div className="absolute top-6 left-[50%] w-full h-1 bg-slate-300 z-0 group-hover:bg-blue-300 transition-colors"></div>
                 )}
                 
                 {/* Wait Time Badge */}
-                {hasNext && (
-                  <div className="absolute top-2 left-[100%] -translate-x-1/2 whitespace-nowrap text-xs font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200 z-10 group-hover:border-blue-300 group-hover:text-blue-600 transition-colors">
+                {hasNext && waitTime && (
+                  <div className="absolute top-1 left-[100%] -translate-x-1/2 whitespace-nowrap text-xs font-medium text-slate-700 bg-white px-2.5 py-1 rounded-full border border-slate-200 shadow-sm z-10 group-hover:border-blue-300 group-hover:text-blue-600 transition-colors">
                     {waitTime}
                   </div>
                 )}
@@ -131,13 +182,19 @@ export default function TimelineTab({ details }) {
                 {/* Node Info */}
                 <div className="mt-4 text-center px-4 w-full">
                   <h4 className="font-bold text-sm text-slate-800 break-words">{node.label}</h4>
-                  <p className="text-xs text-slate-500 mt-1.5">
-                    {new Date(node.date).toLocaleString('th-TH', { 
-                      day: '2-digit', month: '2-digit', year: '2-digit', 
-                      hour: '2-digit', minute: '2-digit' 
-                    })} น.
-                  </p>
-                  {node.by && (
+                  {node.date ? (
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      {new Date(node.date).toLocaleString('th-TH', { 
+                        day: '2-digit', month: '2-digit', year: '2-digit', 
+                        hour: '2-digit', minute: '2-digit' 
+                      })} น.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 font-medium mt-1.5">
+                      {node.by || 'รอดำเนินการ'}
+                    </p>
+                  )}
+                  {node.date && node.by && (
                     <p className="text-xs font-semibold text-slate-600 mt-1">โดย {node.by}</p>
                   )}
                 </div>
@@ -149,3 +206,4 @@ export default function TimelineTab({ details }) {
     </div>
   );
 }
+

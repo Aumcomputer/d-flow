@@ -162,6 +162,16 @@ export default function WardPage() {
     }
   }
 
+  const handleWardDone = async (an) => {
+    if (!confirm('ยืนยันคนไข้กลับบ้านแล้ว?')) return
+    try {
+      await api.post(`/workflow/${an}/ward-done`)
+      fetchPatients()
+    } catch (err) {
+      alert('ไม่สามารถทำรายการได้: ' + (err.response?.data?.error || err.message))
+    }
+  }
+
   const formatDate = (dateStr) => {
     if (!dateStr) return '-'
     return new Date(dateStr).toLocaleDateString('th-TH')
@@ -289,6 +299,9 @@ export default function WardPage() {
                     <th className="px-4 py-3 text-center">
                       สถานะ
                     </th>
+                    <th className="px-4 py-3 text-center min-w-[200px]">
+                      คำอธิบาย
+                    </th>
                   </>
                 )}
                 {activeTab === 'admitted' && (
@@ -304,13 +317,13 @@ export default function WardPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={activeTab === 'admitted' ? 11 : 11} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={activeTab === 'admitted' ? 11 : 12} className="px-4 py-8 text-center text-muted-foreground">
                     กำลังโหลดข้อมูล...
                   </td>
                 </tr>
               ) : sortedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'admitted' ? 12 : 11} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={activeTab === 'admitted' ? 12 : 12} className="px-4 py-8 text-center text-muted-foreground">
                     ไม่พบข้อมูลผู้ป่วย
                   </td>
                 </tr>
@@ -324,7 +337,9 @@ export default function WardPage() {
                     className={`border-t border-border transition-colors group cursor-pointer ${
                       activeTab === 'discharged' && p.workflow_status === 'completed'
                         ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
-                        : 'hover:bg-muted/30'
+                        : activeTab === 'discharged' && p.workflow_status === 'ward_waiting'
+                          ? 'bg-teal-50/70 hover:bg-teal-100/70'
+                          : 'hover:bg-muted/30'
                     }`}
                   >
                     <td className="px-4 py-3 font-medium">
@@ -381,26 +396,72 @@ export default function WardPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
-                          {p.finance_done_date 
-                            ? new Date(p.finance_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) 
-                            : p.dc_done_date && p.workflow_status === 'completed'
-                              ? new Date(p.dc_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-                              : '-'}
+                          {p.ward_done_date 
+                            ? new Date(p.ward_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) 
+                            : p.pharmacy_done_date && p.workflow_status === 'completed'
+                              ? new Date(p.pharmacy_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+                              : p.finance_done_date 
+                                ? new Date(p.finance_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) 
+                                : p.dc_done_date && p.workflow_status === 'completed'
+                                  ? new Date(p.dc_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+                                  : '-'}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                           p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
                           p.workflow_status === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
                           p.workflow_status === 'finance' ? 'bg-amber-100 text-amber-700' :
+                          p.workflow_status === 'ward_waiting' ? 'bg-teal-100 text-teal-700' :
                           p.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                           'bg-slate-100 text-slate-700'
                         }`}>
                           {p.workflow_status === 'pharmacy' ? 'ห้องยา' :
                            p.workflow_status === 'discharge_center' ? 'ศูนย์จำหน่าย' :
                            p.workflow_status === 'finance' ? 'การเงิน' :
+                           p.workflow_status === 'ward_waiting' ? 'รอกลับบ้าน' :
                            p.workflow_status === 'completed' ? 'เสร็จสิ้น' :
                            'รอดำเนินการ'}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {p.workflow_status === 'ward_waiting' ? (
+                          <div className="flex flex-col items-center gap-1.5 py-0.5">
+                            <span className="text-xs font-semibold text-teal-800 dark:text-teal-300">
+                              รอคนไข้กลับบ้าน
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleWardDone(p.an);
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors flex items-center gap-1 active:scale-95 cursor-pointer"
+                              title="คลิกเมื่อคนไข้กลับบ้านแล้ว เพื่อเปลี่ยนสถานะเป็นเสร็จสิ้น"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>คนไข้กลับบ้านแล้ว</span>
+                            </button>
+                          </div>
+                        ) : p.workflow_status === 'completed' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>คนไข้กลับบ้านแล้ว</span>
+                          </span>
+                        ) : p.workflow_status === 'finance' ? (
+                          <span className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg inline-block text-left">
+                            {p.chk_hm === 1
+                              ? 'ให้คนไข้ไปการเงิน แล้วนำใบเสร็จไปรับยาที่ห้องยา เสร็จแล้วกลับบ้านได้'
+                              : 'ให้คนไข้ไปการเงิน เสร็จแล้วกลับบ้านได้'}
+                          </span>
+                        ) : p.workflow_status === 'pharmacy' ? (
+                          <span className="text-xs font-medium text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg inline-block text-left">
+                            ให้คนไข้ไปห้องยา เสร็จแล้วกลับบ้านได้
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-500">
+                            รอศูนย์จำหน่ายดำเนินการ
+                          </span>
+                        )}
                       </td>
                       </>
                     )}

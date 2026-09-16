@@ -270,7 +270,7 @@ router.post('/grant/:an', authMiddleware, async (req, res) => {
     let dflowConn;
     try {
         const { an } = req.params;
-        const { pttype_code, pttype_name, is_other, other_text, asm_type } = req.body;
+        const { pttype_code, pttype_name, is_other, other_text, asm_type, comment } = req.body;
         const loginname = req.user?.loginname;
 
         if (is_other) {
@@ -305,6 +305,14 @@ router.post('/grant/:an', authMiddleware, async (req, res) => {
                 an
             ]
         );
+
+        // If comment was provided during grant, save it to pttype_comments
+        if (comment && comment.trim()) {
+            await dflowConn.query(
+                'INSERT INTO pttype_comments (an, comment, created_by, created_at) VALUES (?, ?, ?, NOW())',
+                [an, comment.trim(), loginname]
+            );
+        }
 
         // Record activity log
         await dflowConn.query(
@@ -550,6 +558,129 @@ router.get('/consults', authMiddleware, async (req, res) => {
     } finally {
         if (dflowConn) dflowConn.release();
         if (hisConn) hisConn.release();
+    }
+});
+
+// GET /api/pttype/comments/:an
+// Get list of comments for an AN
+router.get('/comments/:an', authMiddleware, async (req, res) => {
+    let dflowConn, hisConn;
+    try {
+        const { an } = req.params;
+        dflowConn = await getDflowConnection();
+        const rows = await dflowConn.query(
+            'SELECT id, an, comment, created_by, created_at FROM pttype_comments WHERE an = ? ORDER BY created_at ASC',
+            [an]
+        );
+
+        if (rows.length === 0) {
+            return res.json([]);
+        }
+
+        // Resolve names for created_by
+        const loginnames = [...new Set(rows.map(r => r.created_by).filter(Boolean))];
+        const userMap = {};
+
+        if (loginnames.length > 0) {
+            const { getRedisClient } = require('../lib/redis');
+            const redis = getRedisClient();
+            const missingNames = [];
+
+            try {
+                const keys = loginnames.map(u => `user:name:${u}`);
+                const cachedNames = await redis.mGet(keys);
+                loginnames.forEach((u, index) => {
+                    if (cachedNames[index]) userMap[u] = cachedNames[index];
+                    else missingNames.push(u);
+                });
+            } catch (err) {
+                console.error('Redis MGET Error:', err);
+                missingNames.push(...loginnames);
+            }
+
+            if (missingNames.length > 0) {
+                hisConn = await getHisConnection();
+                const placeholders = missingNames.map(() => '?').join(',');
+                const users = await hisConn.query(
+                    `SELECT loginname, name FROM opduser WHERE loginname IN (${placeholders})`,
+                    missingNames
+                );
+                const multi = redis.multi();
+                users.forEach(u => {
+                    userMap[u.loginname] = u.name;
+                    multi.setEx(`user:name:${u.loginname}`, 604800, u.name);
+                });
+                try {
+                    await multi.exec();
+                } catch (err) {
+                    console.error('Redis SETEX Error:', err);
+                }
+            }
+        }
+
+        const comments = rows.map(r => ({
+            id: r.id,
+            an: r.an,
+            comment: r.comment,
+            created_by: r.created_by,
+            created_by_name: userMap[r.created_by] || r.created_by || '-',
+            created_at: r.created_at
+        }));
+
+        res.json(comments);
+    } catch (error) {
+        console.error('Fetch pttype comments error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+        if (hisConn) hisConn.release();
+    }
+});
+
+// POST /api/pttype/comments/:an
+// Add a new comment for an AN
+router.post('/comments/:an', authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { an } = req.params;
+        const { comment } = req.body;
+        const loginname = req.user?.loginname;
+
+        if (!comment || !comment.trim()) {
+            return res.status(400).json({ error: 'กรุณากรอกข้อความความเห็น' });
+        }
+
+        dflowConn = await getDflowConnection();
+        const result = await dflowConn.query(
+            'INSERT INTO pttype_comments (an, comment, created_by, created_at) VALUES (?, ?, ?, NOW())',
+            [an, comment.trim(), loginname]
+        );
+
+        // Record activity log
+        await dflowConn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, 'ADD_PTTYPE_COMMENT', loginname]
+        );
+
+        // WebSocket notification
+        const { getIO } = require('../lib/socket');
+        try {
+            getIO().emit('pttype:comment_added', { an });
+            getIO().emit('workflow:updated', { an, type: 'pttype_comment_added' });
+        } catch (e) {
+            console.error('Socket emit error:', e);
+        }
+
+        res.json({
+            success: true,
+            id: Number(result.insertId),
+            message: 'บันทึกความเห็นเรียบร้อยแล้ว'
+        });
+    } catch (error) {
+        console.error('Add pttype comment error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
     }
 });
 
