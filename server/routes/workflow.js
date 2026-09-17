@@ -221,6 +221,102 @@ router.get('/finance/history', authMiddleware, async (req, res) => {
     }
 });
 
+// Get all patients discharged across all wards for a specific date (default today)
+router.get(['/all-discharged', '/pharmacy/all-discharged'], authMiddleware, async (req, res) => {
+    let hisConn, dflowConn;
+    try {
+        dflowConn = await getDflowConnection();
+        const dateStr = req.query.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+        // Find ANs discharged on specific date in D-Flow, along with return_drug_count
+        const anDetailRows = await dflowConn.query(
+            `SELECT a.*,
+                    (SELECT COUNT(*) FROM return_drugs rd WHERE rd.an COLLATE utf8mb4_unicode_ci = a.an COLLATE utf8mb4_unicode_ci AND rd.qty > 0) AS return_drug_count
+             FROM an_detail a
+             WHERE DATE(a.discharge_date) = ?`,
+            [dateStr]
+        );
+
+        const ans = anDetailRows.map(r => r.an);
+        const placeholders = ans.length > 0 ? ans.map(() => '?').join(',') : "''";
+
+        hisConn = await getHisConnection();
+        const query = `
+            SELECT 
+                i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                p.pname, p.fname, p.lname, p.birthday,
+                (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
+                w.name AS ward_name,
+                w.ward AS ward_code,
+                COALESCE(d.name, adm_d.name) AS doctor_name,
+                pt.name AS pttype_name,
+                iptb.bedno,
+                i.dchdate, i.dchtime, i.dchstts
+            FROM ipt i
+            LEFT JOIN patient p ON i.hn = p.hn
+            LEFT JOIN ward w ON i.ward = w.ward
+            LEFT JOIN doctor d ON i.dch_doctor = d.code
+            LEFT JOIN doctor adm_d ON i.admdoctor = adm_d.code
+            LEFT JOIN pttype pt ON i.pttype = pt.pttype
+            LEFT JOIN iptadm iptb ON i.an = iptb.an
+            WHERE (i.dchdate = ? ${ans.length > 0 ? `OR i.an IN (${placeholders})` : ''})
+            GROUP BY i.an
+            ORDER BY COALESCE(i.dchdate, DATE(i.regdate)) DESC, i.dchtime DESC
+        `;
+
+        const params = ans.length > 0 ? [dateStr, ...ans] : [dateStr];
+        const rows = await hisConn.query(query, params);
+
+        if (rows.length === 0) return res.json([]);
+
+        // If there are patients discharged in HIS on dateStr who don't have an_detail row yet in anDetailRows,
+        // fetch their an_detail to merge
+        const missingAns = rows.filter(r => !ans.includes(r.an)).map(r => r.an);
+        let extraAnDetails = [];
+        if (missingAns.length > 0) {
+            const extraPlaceholders = missingAns.map(() => '?').join(',');
+            extraAnDetails = await dflowConn.query(
+                `SELECT a.*,
+                        (SELECT COUNT(*) FROM return_drugs rd WHERE rd.an COLLATE utf8mb4_unicode_ci = a.an COLLATE utf8mb4_unicode_ci AND rd.qty > 0) AS return_drug_count
+                 FROM an_detail a
+                 WHERE a.an IN (${extraPlaceholders})`,
+                missingAns
+            );
+        }
+
+        const allDetailRows = [...anDetailRows, ...extraAnDetails];
+
+        const result = rows.map(row => {
+            const rowCopy = { ...row };
+            for (const key in rowCopy) {
+                if (typeof rowCopy[key] === 'bigint') {
+                    rowCopy[key] = Number(rowCopy[key]);
+                }
+            }
+            const detail = allDetailRows.find(d => d.an === rowCopy.an);
+            return {
+                ...rowCopy,
+                ...(detail || {})
+            };
+        });
+
+        // Sort by discharge_date desc, or dchtime desc
+        result.sort((a, b) => {
+            const dateA = new Date(a.discharge_date || a.dchdate || 0);
+            const dateB = new Date(b.discharge_date || b.dchdate || 0);
+            return dateB - dateA;
+        });
+
+        res.json(result);
+    } catch (err) {
+        console.error('Fetch all discharged patients error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
+    }
+});
+
 // Search drugs from HIS drugitems table
 router.get('/drugs/search', authMiddleware, async (req, res) => {
     let hisConn;

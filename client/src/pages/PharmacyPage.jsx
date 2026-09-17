@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   User, CheckCircle2, Pill, Search, Plus, Minus, Check, 
-  AlertCircle, X, ClipboardCheck, Trash2, RotateCcw, AlertTriangle, Building2
+  AlertCircle, X, ClipboardCheck, Trash2, RotateCcw, AlertTriangle, Building2,
+  Bed, Phone
 } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
@@ -12,10 +13,13 @@ export default function PharmacyPage() {
   const [patients, setPatients] = useState([])
   const [historyPatients, setHistoryPatients] = useState([])
   const [returnMedPatients, setReturnMedPatients] = useState([])
-  const [activeTab, setActiveTab] = useState('prepare') // 'prepare' | 'dispense' | 'return_audit' | 'history' | 'return_history'
+  const [allDischargedPatients, setAllDischargedPatients] = useState([])
+  const [activeTab, setActiveTab] = useState('prepare') // 'prepare' | 'dispense' | 'return_audit' | 'all_status' | 'history' | 'return_history'
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const [returnHistoryDate, setReturnHistoryDate] = useState(new Date().toISOString().split('T')[0])
+  const [allDischargeDate, setAllDischargeDate] = useState(new Date().toISOString().split('T')[0])
+  const [allStatusSortConfig, setAllStatusSortConfig] = useState({ key: 'discharge_date', direction: 'desc' })
   const [searchTerm, setSearchTerm] = useState('')
   const navigate = useNavigate()
   const { playAlert } = useSound()
@@ -42,7 +46,9 @@ export default function PharmacyPage() {
       (p.hn && p.hn.toLowerCase().includes(term)) || 
       (p.an && p.an.toLowerCase().includes(term)) ||
       (p.fname && p.fname.toLowerCase().includes(term)) ||
-      (p.lname && p.lname.toLowerCase().includes(term))
+      (p.lname && p.lname.toLowerCase().includes(term)) ||
+      (p.ward_name && p.ward_name.toLowerCase().includes(term)) ||
+      (p.ward_phone && p.ward_phone.toLowerCase().includes(term))
     )
   }
 
@@ -76,17 +82,47 @@ export default function PharmacyPage() {
 
   const pendingAuditCount = displayedReturnMeds.length
 
+  const handleAllStatusSort = (key) => {
+    let direction = 'asc'
+    if (allStatusSortConfig.key === key && allStatusSortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    setAllStatusSortConfig({ key, direction })
+  }
+
+  const sortedAllDischarged = [...filterPatients(allDischargedPatients)].sort((a, b) => {
+    let aVal = a[allStatusSortConfig.key]
+    let bVal = b[allStatusSortConfig.key]
+
+    if (allStatusSortConfig.key === 'fname') {
+      aVal = `${a.pname || ''}${a.fname || ''} ${a.lname || ''}`
+      bVal = `${b.pname || ''}${b.fname || ''} ${b.lname || ''}`
+    }
+
+    if (aVal === bVal) return 0
+    if (aVal === null || aVal === undefined) return 1
+    if (bVal === null || bVal === undefined) return -1
+
+    if (allStatusSortConfig.direction === 'asc') {
+      return aVal > bVal ? 1 : -1
+    } else {
+      return aVal < bVal ? 1 : -1
+    }
+  })
+
   const fetchPatients = async () => {
     setLoading(true)
     try {
-      const [pendingRes, historyRes, returnMedRes] = await Promise.all([
+      const [pendingRes, historyRes, returnMedRes, allDischargedRes] = await Promise.all([
         api.get('/workflow/pharmacy'),
         api.get(`/workflow/pharmacy/history?date=${historyDate}`),
-        api.get('/workflow/pharmacy/return-meds')
+        api.get('/workflow/pharmacy/return-meds'),
+        api.get(`/workflow/all-discharged?date=${allDischargeDate}`)
       ])
       setPatients(pendingRes.data || [])
       setHistoryPatients(historyRes.data || [])
       setReturnMedPatients(returnMedRes.data || [])
+      setAllDischargedPatients(allDischargedRes.data || [])
     } catch (err) {
       console.error('Fetch pharmacy patients error:', err)
     } finally {
@@ -107,7 +143,7 @@ export default function PharmacyPage() {
 
   useEffect(() => {
     fetchPatients()
-  }, [historyDate])
+  }, [historyDate, allDischargeDate])
 
   useEffect(() => {
     const onUpdate = (data) => {
@@ -121,7 +157,7 @@ export default function PharmacyPage() {
     return () => {
       socket.off('workflow:updated', onUpdate)
     }
-  }, [historyDate, playAlert])
+  }, [historyDate, allDischargeDate, playAlert])
 
   const handlePackDone = async (an) => {
     if (!confirm('ยืนยันเช็คยาเสร็จแล้วสำหรับ AN นี้? (ส่งต่อไปยังศูนย์จำหน่าย)')) return
@@ -355,6 +391,21 @@ export default function PharmacyPage() {
             )}
           </button>
           <button
+            onClick={() => setActiveTab('all_status')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'all_status'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <span>สถานะผู้ป่วยทั้งหมด</span>
+            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+              allDischargedPatients.length > 0 ? 'bg-emerald-100 text-emerald-700 font-bold' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {allDischargedPatients.length}
+            </span>
+          </button>
+          <button
             onClick={() => setActiveTab('history')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'history'
@@ -377,6 +428,18 @@ export default function PharmacyPage() {
           </button>
         </div>
         
+        {activeTab === 'all_status' && (
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">วันที่ Discharge:</span>
+            <input 
+              type="date" 
+              value={allDischargeDate}
+              onChange={(e) => setAllDischargeDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-card"
+            />
+          </div>
+        )}
+
         {activeTab === 'history' && (
           <div className="px-2">
             <input 
@@ -632,6 +695,192 @@ export default function PharmacyPage() {
                             <ClipboardCheck className="w-4 h-4" />
                             <span>ตรวจสอบยาคืน</span>
                           </button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          ) : activeTab === 'all_status' ? (
+            /* TAB: สถานะผู้ป่วยทั้งหมด (All Discharged Patients) */
+            <table className="w-full text-sm text-left">
+              <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
+                <tr>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('bedno')}>
+                    เตียง {allStatusSortConfig.key === 'bedno' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('ward_name')}>
+                    หอผู้ป่วย {allStatusSortConfig.key === 'ward_name' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3">เบอร์โทรหอผู้ป่วย</th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('an')}>
+                    AN / HN {allStatusSortConfig.key === 'an' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('fname')}>
+                    ชื่อ-สกุล {allStatusSortConfig.key === 'fname' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('pttype_name')}>
+                    สิทธิ์การรักษา {allStatusSortConfig.key === 'pttype_name' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('doctor_name')}>
+                    แพทย์เจ้าของไข้ {allStatusSortConfig.key === 'doctor_name' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-center cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('discharge_date')}>
+                    เวลาที่ Discharge {allStatusSortConfig.key === 'discharge_date' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-center">มี HM</th>
+                  <th className="px-4 py-3 text-center">มียาคืน</th>
+                  <th className="px-4 py-3 text-center">การเงิน</th>
+                  <th className="px-4 py-3 text-center">สถานะ</th>
+                  <th className="px-4 py-3 text-center min-w-[200px]">คำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
+                      กำลังโหลดข้อมูล...
+                    </td>
+                  </tr>
+                ) : sortedAllDischarged.length === 0 ? (
+                  <tr>
+                    <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีข้อมูลผู้ป่วยที่จำหน่ายในวันที่เลือก'}
+                    </td>
+                  </tr>
+                ) : (
+                  sortedAllDischarged.map((p) => {
+                    const hasPayment = p.chk_payment === 1 || p.sent_finance_date || p.finance_done_date || p.workflow_status === 'finance'
+                    const hasReturnMed = p.chk_returnmed === 1 || Number(p.return_drug_count || 0) > 0
+                    return (
+                      <tr
+                        key={p.an}
+                        onClick={() => navigate(`/dcdetail/${p.an}?tab=timeline`)}
+                        className={`border-t border-border transition-colors group cursor-pointer ${
+                          p.workflow_status === 'completed'
+                            ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
+                            : p.workflow_status === 'ward_waiting'
+                              ? 'bg-teal-50/70 hover:bg-teal-100/70'
+                              : 'hover:bg-muted/30'
+                        }`}
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <Bed className="w-4 h-4 text-blue-500 shrink-0" />
+                            <span>{p.bedno || '-'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 font-medium text-foreground">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{p.ward_name || '-'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          {p.ward_phone ? (
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span>{p.ward_phone}</span>
+                            </div>
+                          ) : (
+                            <span>-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-blue-600">{p.an}</div>
+                          <div className="text-xs text-muted-foreground">HN: {p.hn}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{p.pname}{p.fname} {p.lname}</div>
+                          <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+                            อายุ {p.age_y ? `${p.age_y} ปี` : '-'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          <div className="line-clamp-1" title={p.pttype_name}>{p.pttype_name || '-'}</div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {p.doctor_name || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
+                          {p.discharge_date 
+                            ? new Date(p.discharge_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) 
+                            : p.dchtime || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {p.chk_hm === 1 ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" title="มี HM (ยากลับบ้าน)" />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {hasReturnMed ? (
+                            <CheckCircle2 className="w-5 h-5 text-amber-500 mx-auto" title="มียาคืน" />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {hasPayment ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" title="ต้องไปการเงิน" />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            p.workflow_status === 'pharmacy_prepare' ? 'bg-cyan-100 text-cyan-700' :
+                            p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
+                            p.workflow_status === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
+                            p.workflow_status === 'finance' ? 'bg-amber-100 text-amber-700' :
+                            p.workflow_status === 'ward_waiting' ? 'bg-teal-100 text-teal-700' :
+                            p.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>
+                            {p.workflow_status === 'pharmacy_prepare' ? 'รอจัดยา' :
+                             p.workflow_status === 'pharmacy' ? 'รอจ่ายยา' :
+                             p.workflow_status === 'discharge_center' ? 'ศูนย์จำหน่าย' :
+                             p.workflow_status === 'finance' ? 'การเงิน' :
+                             p.workflow_status === 'ward_waiting' ? 'รอกลับบ้าน' :
+                             p.workflow_status === 'completed' ? 'เสร็จสิ้น' :
+                             'รอดำเนินการ'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {p.workflow_status === 'ward_waiting' ? (
+                            <span className="text-xs font-semibold text-teal-800 dark:text-teal-300">
+                              รอคนไข้กลับบ้าน
+                            </span>
+                          ) : p.workflow_status === 'completed' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>คนไข้กลับบ้านแล้ว</span>
+                            </span>
+                          ) : p.workflow_status === 'finance' ? (
+                            <span className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg inline-block text-left">
+                              {p.chk_hm === 1
+                                ? 'ให้คนไข้ไปการเงิน แล้วนำใบเสร็จไปรับยาที่ห้องยา เสร็จแล้วกลับบ้านได้'
+                                : 'ให้คนไข้ไปการเงิน เสร็จแล้วกลับบ้านได้'}
+                            </span>
+                          ) : p.workflow_status === 'pharmacy' ? (
+                            <span className="text-xs font-medium text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg inline-block text-left">
+                              ให้คนไข้ไปห้องยาเพื่อรับยา เสร็จแล้วกลับบ้านได้
+                            </span>
+                          ) : p.workflow_status === 'pharmacy_prepare' ? (
+                            <span className="text-xs font-medium text-cyan-800 bg-cyan-50 border border-cyan-200 px-2.5 py-1 rounded-lg inline-block text-left">
+                              รอห้องยาจัดยา
+                            </span>
+                          ) : p.workflow_status === 'discharge_center' ? (
+                            <span className="text-xs text-slate-500">
+                              รอศูนย์จำหน่ายดำเนินการ
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-500">
+                              รอดำเนินการ
+                            </span>
+                          )}
                         </td>
                       </tr>
                     )
