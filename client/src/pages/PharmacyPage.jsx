@@ -107,6 +107,11 @@ export default function PharmacyPage() {
       bVal = `${b.pname || ''}${b.fname || ''} ${b.lname || ''}`
     }
 
+    if (allStatusSortConfig.key === 'age_y') {
+      aVal = Number(a.age_y || 0)
+      bVal = Number(b.age_y || 0)
+    }
+
     if (aVal === bVal) return 0
     if (aVal === null || aVal === undefined) return 1
     if (bVal === null || bVal === undefined) return -1
@@ -825,13 +830,19 @@ export default function PharmacyPage() {
                   </th>
                   <th className="px-4 py-3">เบอร์โทรหอผู้ป่วย</th>
                   <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('an')}>
-                    AN / HN {allStatusSortConfig.key === 'an' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                    AN {allStatusSortConfig.key === 'an' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('hn')}>
+                    HN {allStatusSortConfig.key === 'hn' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
                   <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('bedno')}>
                     เตียง {allStatusSortConfig.key === 'bedno' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
                   <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('fname')}>
                     ชื่อ-สกุล {allStatusSortConfig.key === 'fname' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-center cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('age_y')}>
+                    อายุ {allStatusSortConfig.key === 'age_y' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
                   <th className="px-4 py-3 text-center cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('discharge_date')}>
                     เวลาที่ Discharge {allStatusSortConfig.key === 'discharge_date' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
@@ -846,13 +857,13 @@ export default function PharmacyPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="11" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : sortedAllDischarged.length === 0 ? (
                   <tr>
-                    <td colSpan="11" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
                       {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีข้อมูลผู้ป่วยที่จำหน่ายในวันที่เลือก'}
                     </td>
                   </tr>
@@ -873,14 +884,14 @@ export default function PharmacyPage() {
                         }`}
                       >
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 font-medium text-foreground">
+                          <div className="flex items-center gap-1.5 text-xs text-foreground font-normal">
                             <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span>{p.ward_name || '-'}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                           {p.ward_phone ? (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 text-xs">
                               <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                               <span>{p.ward_phone}</span>
                             </div>
@@ -888,9 +899,11 @@ export default function PharmacyPage() {
                             <span>-</span>
                           )}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-blue-600">{p.an}</div>
-                          <div className="text-xs text-muted-foreground">HN: {p.hn}</div>
+                        <td className="px-4 py-3 font-medium text-blue-600 whitespace-nowrap">
+                          {p.an}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          {p.hn}
                         </td>
                         <td className="px-4 py-3 font-medium">
                           <div className="flex items-center gap-1.5">
@@ -899,10 +912,10 @@ export default function PharmacyPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="font-medium">{p.pname}{p.fname} {p.lname}</div>
-                          <div className="text-xs text-muted-foreground truncate max-w-[180px]">
-                            อายุ {p.age_y ? `${p.age_y} ปี` : '-'}
-                          </div>
+                          <div className="font-medium whitespace-nowrap">{p.pname}{p.fname} {p.lname}</div>
+                        </td>
+                        <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
+                          {p.age_y ? `${p.age_y} ปี` : '-'}
                         </td>
                         <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
                           {p.discharge_date 
