@@ -1536,9 +1536,6 @@ export default function PharmacyPage() {
                       <span>จ่ายยา</span>
                     </button>
                   </div>
-                  <p className="text-2xs text-muted-foreground mt-1.5 flex items-center gap-1">
-                    <span>💡 รองรับทั้งยิงจากปืนบาร์โค้ดและพิมพ์ HN แล้วกด Enter (จ่ายยาทันทีโดยไม่ต้องถามยืนยัน)</span>
-                  </p>
                 </div>
               </form>
 
