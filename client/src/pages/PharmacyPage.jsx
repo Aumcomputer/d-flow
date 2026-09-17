@@ -46,7 +46,7 @@ export default function PharmacyPage() {
     )
   }
 
-  // ผู้ป่วยรอจัดยา (หอผู้ป่วยส่งมา)
+  // ผู้ป่วยรอเช็คยา (หอผู้ป่วยส่งมา)
   const displayedPrepare = filterPatients(patients).filter(
     p => p.workflow_status === 'pharmacy_prepare' || (p.workflow_status === 'pharmacy' && !p.dc_done_date && !p.pharmacy_pack_date)
   )
@@ -124,7 +124,7 @@ export default function PharmacyPage() {
   }, [historyDate, playAlert])
 
   const handlePackDone = async (an) => {
-    if (!confirm('ยืนยันจัดยาเสร็จแล้วสำหรับ AN นี้? (ส่งต่อไปยังศูนย์จำหน่าย)')) return
+    if (!confirm('ยืนยันเช็คยาเสร็จแล้วสำหรับ AN นี้? (ส่งต่อไปยังศูนย์จำหน่าย)')) return
     try {
       await api.post(`/workflow/${an}/pharmacy-pack-done`)
       setPatients(prev => prev.filter(p => p.an !== an))
@@ -287,7 +287,7 @@ export default function PharmacyPage() {
               ห้องยา
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              รอจัดยา {displayedPrepare.length} ราย | รอจ่ายยา {displayedDispense.length} ราย | รอตรวจสอบยาคืน {displayedReturnMeds.length} ราย | ประวัติยาคืน {displayedReturnHistory.length} ราย
+              รอเช็คยา {displayedPrepare.length} ราย | รอจ่ายยา {displayedDispense.length} ราย | รอตรวจสอบยาคืน {displayedReturnMeds.length} ราย | ประวัติยาคืน {displayedReturnHistory.length} ราย
             </p>
           </div>
         </div>
@@ -313,7 +313,7 @@ export default function PharmacyPage() {
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
             }`}
           >
-            <span>รอจัดยา</span>
+            <span>รอเช็คยา</span>
             <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
               displayedPrepare.length > 0 ? 'bg-blue-100 text-blue-700 font-bold' : 'bg-slate-100 text-slate-600'
             }`}>
@@ -422,7 +422,7 @@ export default function PharmacyPage() {
       <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
         <div className="overflow-x-auto">
           {activeTab === 'prepare' ? (
-            /* TAB: รอจัดยา (Waiting for Packing) */
+            /* TAB: รอเช็คยา (Waiting for Check) */
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
                 <tr>
@@ -435,7 +435,7 @@ export default function PharmacyPage() {
                   <th className="px-4 py-3">เบอร์โทรศัพท์</th>
                   <th className="px-4 py-3">สิทธิ์การรักษา</th>
                   <th className="px-4 py-3">แพทย์</th>
-                  <th className="px-4 py-3 text-center rounded-tr-lg">จัดยา</th>
+                  <th className="px-4 py-3 text-center rounded-tr-lg">เช็คยา</th>
                 </tr>
               </thead>
               <tbody>
@@ -448,7 +448,7 @@ export default function PharmacyPage() {
                 ) : displayedPrepare.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
-                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีผู้ป่วยรอจัดยา'}
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีผู้ป่วยรอเช็คยา'}
                     </td>
                   </tr>
                 ) : (
@@ -482,7 +482,7 @@ export default function PharmacyPage() {
                           className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-medium rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 mx-auto"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>จัดยาเสร็จแล้ว</span>
+                          <span>เช็คยาเสร็จแล้ว</span>
                         </button>
                       </td>
                     </tr>
