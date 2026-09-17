@@ -720,12 +720,6 @@ export default function PharmacyPage() {
                   <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('fname')}>
                     ชื่อ-สกุล {allStatusSortConfig.key === 'fname' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('pttype_name')}>
-                    สิทธิ์การรักษา {allStatusSortConfig.key === 'pttype_name' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('doctor_name')}>
-                    แพทย์เจ้าของไข้ {allStatusSortConfig.key === 'doctor_name' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
                   <th className="px-4 py-3 text-center cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('discharge_date')}>
                     เวลาที่ Discharge {allStatusSortConfig.key === 'discharge_date' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
@@ -739,13 +733,13 @@ export default function PharmacyPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="11" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : sortedAllDischarged.length === 0 ? (
                   <tr>
-                    <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan="11" className="px-4 py-8 text-center text-muted-foreground">
                       {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีข้อมูลผู้ป่วยที่จำหน่ายในวันที่เลือก'}
                     </td>
                   </tr>
@@ -796,12 +790,6 @@ export default function PharmacyPage() {
                           <div className="text-xs text-muted-foreground truncate max-w-[180px]">
                             อายุ {p.age_y ? `${p.age_y} ปี` : '-'}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          <div className="line-clamp-1" title={p.pttype_name}>{p.pttype_name || '-'}</div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {p.doctor_name || '-'}
                         </td>
                         <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
                           {p.discharge_date 
