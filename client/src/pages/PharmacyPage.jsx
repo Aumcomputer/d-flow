@@ -707,15 +707,15 @@ export default function PharmacyPage() {
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
                 <tr>
-                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('bedno')}>
-                    เตียง {allStatusSortConfig.key === 'bedno' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
                   <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('ward_name')}>
                     หอผู้ป่วย {allStatusSortConfig.key === 'ward_name' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
                   <th className="px-4 py-3">เบอร์โทรหอผู้ป่วย</th>
                   <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('an')}>
                     AN / HN {allStatusSortConfig.key === 'an' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('bedno')}>
+                    เตียง {allStatusSortConfig.key === 'bedno' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
                   <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('fname')}>
                     ชื่อ-สกุล {allStatusSortConfig.key === 'fname' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
@@ -759,12 +759,6 @@ export default function PharmacyPage() {
                               : 'hover:bg-muted/30'
                         }`}
                       >
-                        <td className="px-4 py-3 font-medium">
-                          <div className="flex items-center gap-1.5">
-                            <Bed className="w-4 h-4 text-blue-500 shrink-0" />
-                            <span>{p.bedno || '-'}</span>
-                          </div>
-                        </td>
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                           <div className="flex items-center gap-1.5 font-medium text-foreground">
                             <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -784,6 +778,12 @@ export default function PharmacyPage() {
                         <td className="px-4 py-3">
                           <div className="font-medium text-blue-600">{p.an}</div>
                           <div className="text-xs text-muted-foreground">HN: {p.hn}</div>
+                        </td>
+                        <td className="px-4 py-3 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <Bed className="w-4 h-4 text-blue-500 shrink-0" />
+                            <span>{p.bedno || '-'}</span>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="font-medium">{p.pname}{p.fname} {p.lname}</div>
