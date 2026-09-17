@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, CheckCircle2, ClipboardList, Send, AlertTriangle } from 'lucide-react'
+import { 
+  User, CheckCircle2, ClipboardList, Send, AlertTriangle, 
+  Building2, Bed, Phone 
+} from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
 import { useAuth } from '../contexts/AuthContext'
@@ -9,9 +12,13 @@ import { useSound } from '../contexts/SoundContext'
 export default function DischargeCenterPage() {
   const [patients, setPatients] = useState([])
   const [historyPatients, setHistoryPatients] = useState([])
+  const [allDischargedPatients, setAllDischargedPatients] = useState([])
   const [activeTab, setActiveTab] = useState('pending')
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
+  const [allDischargeDate, setAllDischargeDate] = useState(new Date().toISOString().split('T')[0])
+  const [allStatusSortConfig, setAllStatusSortConfig] = useState({ key: 'discharge_date', direction: 'desc' })
+  const [searchTerm, setSearchTerm] = useState('')
   const navigate = useNavigate()
   const POLL_INTERVAL = Number(import.meta.env.VITE_POLL_INTERVAL || 6)
   const [waitingPatient, setWaitingPatient] = useState(null)
@@ -25,18 +32,69 @@ export default function DischargeCenterPage() {
   const fetchPatients = async () => {
     setLoading(true)
     try {
-      const [pendingRes, historyRes] = await Promise.all([
+      const [pendingRes, historyRes, allDischargedRes] = await Promise.all([
         api.get('/workflow/discharge-center'),
-        api.get(`/workflow/discharge-center/history?date=${historyDate}`)
+        api.get(`/workflow/discharge-center/history?date=${historyDate}`),
+        api.get(`/workflow/all-discharged?date=${allDischargeDate}`)
       ])
-      setPatients(pendingRes.data)
-      setHistoryPatients(historyRes.data)
+      setPatients(pendingRes.data || [])
+      setHistoryPatients(historyRes.data || [])
+      setAllDischargedPatients(allDischargedRes.data || [])
     } catch (err) {
       console.error('Fetch discharge center patients error:', err)
     } finally {
       setLoading(false)
     }
   }
+
+  const filterPatients = (list) => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return list || []
+    return (list || []).filter(p => 
+      (p.hn && p.hn.toLowerCase().includes(term)) || 
+      (p.an && p.an.toLowerCase().includes(term)) ||
+      (p.fname && p.fname.toLowerCase().includes(term)) ||
+      (p.lname && p.lname.toLowerCase().includes(term)) ||
+      (p.ward_name && p.ward_name.toLowerCase().includes(term)) ||
+      (p.ward_phone && p.ward_phone.toLowerCase().includes(term))
+    )
+  }
+
+  const displayedPending = filterPatients(patients)
+  const displayedHistory = filterPatients(historyPatients)
+
+  const handleAllStatusSort = (key) => {
+    let direction = 'asc'
+    if (allStatusSortConfig.key === key && allStatusSortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    setAllStatusSortConfig({ key, direction })
+  }
+
+  const sortedAllDischarged = [...filterPatients(allDischargedPatients)].sort((a, b) => {
+    let aVal = a[allStatusSortConfig.key]
+    let bVal = b[allStatusSortConfig.key]
+
+    if (allStatusSortConfig.key === 'fname') {
+      aVal = `${a.pname || ''}${a.fname || ''} ${a.lname || ''}`
+      bVal = `${b.pname || ''}${b.fname || ''} ${b.lname || ''}`
+    }
+
+    if (allStatusSortConfig.key === 'age_y') {
+      aVal = Number(a.age_y || 0)
+      bVal = Number(b.age_y || 0)
+    }
+
+    if (aVal === bVal) return 0
+    if (aVal === null || aVal === undefined) return 1
+    if (bVal === null || bVal === undefined) return -1
+
+    if (allStatusSortConfig.direction === 'asc') {
+      return aVal > bVal ? 1 : -1
+    } else {
+      return aVal < bVal ? 1 : -1
+    }
+  })
 
   const getWaitTime = (start, end) => {
     if (!start || !end) return '-'
@@ -51,7 +109,7 @@ export default function DischargeCenterPage() {
 
   useEffect(() => {
     fetchPatients()
-  }, [historyDate])
+  }, [historyDate, allDischargeDate])
 
   useEffect(() => {
     socket.emit('get:locks', (locks) => {
@@ -81,7 +139,7 @@ export default function DischargeCenterPage() {
       socket.off('case:locked', onLocked)
       socket.off('case:unlocked', onUnlocked)
     }
-  }, [historyDate, playAlert])
+  }, [historyDate, allDischargeDate, playAlert])
 
   const handleRowClick = (an) => {
     if (lockedCases[an] && lockedCases[an] !== user?.name) {
@@ -158,35 +216,73 @@ export default function DischargeCenterPage() {
             <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-amber-600">
               ศูนย์จำหน่าย
             </h1>
-            <p className="text-muted-foreground mt-1">ผู้ป่วยที่ศูนย์จำหน่าย จำนวน {patients.length} ราย</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              รอดำเนินการ {displayedPending.length} ราย | สถานะผู้ป่วยทั้งหมด {allDischargedPatients.length} ราย
+            </p>
           </div>
+        </div>
+        <div className="w-full md:w-72">
+          <input
+            type="text"
+            placeholder="ค้นหา HN, AN หรือชื่อคนไข้"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-card"
+          />
         </div>
       </div>
 
       <div className="flex justify-between items-center border-b border-border">
-        <div className="flex space-x-1">
+        <div className="flex space-x-1 overflow-x-auto">
           <button
             onClick={() => setActiveTab('pending')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'pending'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-orange-600 text-orange-600'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
             }`}
           >
-            รอดำเนินการ ({patients.length})
+            รอดำเนินการ ({displayedPending.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('all_status')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'all_status'
+                ? 'border-orange-600 text-orange-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <span>สถานะผู้ป่วยทั้งหมด</span>
+            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+              allDischargedPatients.length > 0 ? 'bg-orange-100 text-orange-700 font-bold' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {allDischargedPatients.length}
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'history'
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-orange-600 text-orange-600'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
             }`}
           >
-            ประวัติย้อนหลัง ({historyPatients.length})
+            ประวัติย้อนหลัง ({displayedHistory.length})
           </button>
         </div>
         
+        {activeTab === 'all_status' && (
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">วันที่ Discharge:</span>
+            <input 
+              type="date" 
+              value={allDischargeDate}
+              onChange={(e) => setAllDischargeDate(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 bg-card"
+            />
+          </div>
+        )}
+
         {activeTab === 'history' && (
           <div className="px-2">
             <input 
@@ -222,14 +318,14 @@ export default function DischargeCenterPage() {
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
-                ) : patients.length === 0 ? (
+                ) : displayedPending.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="px-4 py-8 text-center text-muted-foreground">
-                      ไม่มีผู้ป่วยที่ศูนย์จำหน่าย
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา' : 'ไม่มีผู้ป่วยที่ศูนย์จำหน่าย'}
                     </td>
                   </tr>
                 ) : (
-                  patients.map((p) => (
+                  displayedPending.map((p) => (
                     <tr 
                       key={p.an} 
                       onClick={() => handleRowClick(p.an)}
@@ -270,6 +366,168 @@ export default function DischargeCenterPage() {
                 )}
               </tbody>
             </table>
+          ) : activeTab === 'all_status' ? (
+            /* TAB: สถานะผู้ป่วยทั้งหมด (All Discharged Patients) */
+            <table className="w-full text-sm text-left">
+              <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
+                <tr>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('ward_name')}>
+                    หอผู้ป่วย {allStatusSortConfig.key === 'ward_name' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3">เบอร์โทรหอผู้ป่วย</th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('an')}>
+                    AN {allStatusSortConfig.key === 'an' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('hn')}>
+                    HN {allStatusSortConfig.key === 'hn' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('bedno')}>
+                    เตียง {allStatusSortConfig.key === 'bedno' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('fname')}>
+                    ชื่อ-สกุล {allStatusSortConfig.key === 'fname' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-center cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('age_y')}>
+                    อายุ {allStatusSortConfig.key === 'age_y' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-center cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => handleAllStatusSort('discharge_date')}>
+                    เวลาที่ Discharge {allStatusSortConfig.key === 'discharge_date' && (allStatusSortConfig.direction === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-center">มี HM</th>
+                  <th className="px-4 py-3 text-center">มียาคืน</th>
+                  <th className="px-4 py-3 text-center">การเงิน</th>
+                  <th className="px-4 py-3 text-center">สถานะ</th>
+                  <th className="px-4 py-3 text-center min-w-[200px]">คำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
+                      กำลังโหลดข้อมูล...
+                    </td>
+                  </tr>
+                ) : sortedAllDischarged.length === 0 ? (
+                  <tr>
+                    <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีข้อมูลผู้ป่วยที่จำหน่ายในวันที่เลือก'}
+                    </td>
+                  </tr>
+                ) : (
+                  sortedAllDischarged.map((p) => {
+                    const hasPayment = p.chk_payment === 1 || p.sent_finance_date || p.finance_done_date || p.workflow_status === 'finance'
+                    const hasReturnMed = p.chk_returnmed === 1 || Number(p.return_drug_count || 0) > 0
+                    return (
+                      <tr
+                        key={p.an}
+                        onClick={() => navigate(`/dcdetail/${p.an}?tab=timeline`)}
+                        className={`border-t border-border transition-colors group cursor-pointer ${
+                          p.workflow_status === 'completed'
+                            ? 'bg-emerald-50/70 hover:bg-emerald-100/70'
+                            : p.workflow_status === 'ward_waiting'
+                              ? 'bg-teal-50/70 hover:bg-teal-100/70'
+                              : 'hover:bg-muted/30'
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 text-xs text-foreground font-normal">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{p.ward_name || '-'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          {p.ward_phone ? (
+                            <div className="flex items-center gap-1 text-xs">
+                              <Phone className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span>{p.ward_phone}</span>
+                            </div>
+                          ) : (
+                            <span>-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-blue-600 whitespace-nowrap">
+                          {p.an}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          {p.hn}
+                        </td>
+                        <td className="px-4 py-3 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <Bed className="w-4 h-4 text-blue-500 shrink-0" />
+                            <span>{p.bedno || '-'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium whitespace-nowrap">{p.pname}{p.fname} {p.lname}</div>
+                        </td>
+                        <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
+                          {p.age_y ? `${p.age_y} ปี` : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
+                          {p.discharge_date 
+                            ? new Date(p.discharge_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) 
+                            : p.dchtime || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {p.chk_hm === 1 ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" title="มี HM (ยากลับบ้าน)" />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {hasReturnMed ? (
+                            <CheckCircle2 className="w-5 h-5 text-amber-500 mx-auto" title="มียาคืน" />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {hasPayment ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" title="ต้องไปการเงิน" />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            p.workflow_status === 'pharmacy_prepare' ? 'bg-cyan-100 text-cyan-700' :
+                            p.workflow_status === 'pharmacy' ? 'bg-purple-100 text-purple-700' :
+                            p.workflow_status === 'discharge_center' ? 'bg-amber-100 text-amber-700' :
+                            p.workflow_status === 'finance' ? 'bg-orange-100 text-orange-700' :
+                            p.workflow_status === 'ward_waiting' ? 'bg-teal-100 text-teal-700' :
+                            p.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>
+                            {p.workflow_status === 'pharmacy_prepare' ? 'รอจัดยา' :
+                             p.workflow_status === 'pharmacy' ? 'รอจ่ายยา' :
+                             p.workflow_status === 'discharge_center' ? 'ศูนย์จำหน่าย' :
+                             p.workflow_status === 'finance' ? 'การเงิน' :
+                             p.workflow_status === 'ward_waiting' ? 'รอกลับบ้าน' :
+                             p.workflow_status === 'completed' ? 'เสร็จสิ้น' : p.workflow_status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {p.workflow_status === 'ward_waiting' ? (
+                            <span className="text-teal-700 font-medium">รอคนไข้กลับบ้าน (ไม่มีรายการยา HM / ค่าใช้จ่าย)</span>
+                          ) : p.workflow_status === 'completed' ? (
+                            <span className="text-emerald-700 font-medium">คนไข้กลับบ้านแล้ว / เสร็จสิ้นกระบวนการ</span>
+                          ) : p.workflow_status === 'finance' ? (
+                            <span className="text-orange-700">ส่งการเงินแล้ว (รอการเงินบันทึก)</span>
+                          ) : p.workflow_status === 'discharge_center' ? (
+                            <span className="text-amber-700">อยู่ที่ศูนย์จำหน่าย (รอเจ้าหน้าที่ดำเนินการ)</span>
+                          ) : p.workflow_status === 'pharmacy_prepare' ? (
+                            <span className="text-cyan-700">ส่งห้องยาแล้ว (รอห้องยาจัดยา)</span>
+                          ) : p.workflow_status === 'pharmacy' ? (
+                            <span className="text-purple-700">อยู่ที่ห้องยา (รอจ่ายยา)</span>
+                          ) : '-'}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
           ) : (
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
@@ -293,14 +551,14 @@ export default function DischargeCenterPage() {
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
-                ) : historyPatients.length === 0 ? (
+                ) : displayedHistory.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
-                      ไม่มีประวัติผู้ป่วย
+                      {searchTerm ? 'ไม่พบประวัติผู้ป่วยที่ค้นหา' : 'ไม่มีประวัติผู้ป่วย'}
                     </td>
                   </tr>
                 ) : (
-                  historyPatients.map((p) => (
+                  displayedHistory.map((p) => (
                     <tr 
                       key={p.an} 
                       onClick={() => handleRowClick(p.an)}
