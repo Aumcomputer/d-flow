@@ -31,7 +31,7 @@ async function getWorkflowPatients(status, historyOf = null, reqDate = null) {
             }
             params.push(filterDate);
         } else if (status === 'pharmacy') {
-            queryStr += ` AND chk_hm = 1 AND pharmacy_done_by IS NULL AND workflow_status != 'completed' AND (discharge_by IS NOT NULL OR sent_dc_by IS NOT NULL OR sent_pharmacy_by IS NOT NULL)`;
+            queryStr += ` AND workflow_status IN ('pharmacy', 'pharmacy_prepare')`;
         } else {
             queryStr += ` AND workflow_status = ?`;
             params.push(status);
@@ -535,7 +535,7 @@ router.post('/:an/send-pharmacy', authMiddleware, async (req, res) => {
     if (hm !== undefined) { setClause += ', chk_hm = ?'; values.push(hm ? 1 : 0); }
     if (returnmed !== undefined) { setClause += ', chk_returnmed = ?'; values.push(returnmed ? 1 : 0); }
     
-    await updateWorkflowStatus(req, res, setClause, values, 'pharmacy', 'SEND_PHARMACY');
+    await updateWorkflowStatus(req, res, setClause, values, 'pharmacy_prepare', 'SEND_PHARMACY_PREPARE');
 });
 
 router.post('/:an/send-dc', authMiddleware, async (req, res) => {
@@ -584,6 +584,16 @@ router.post('/:an/pharmacy-check', authMiddleware, async (req, res) => {
     } finally {
         if (conn) conn.release();
     }
+});
+
+router.post('/:an/pharmacy-pack-done', authMiddleware, async (req, res) => {
+    await updateWorkflowStatus(
+        req, res,
+        'pharmacy_pack_by = ?, pharmacy_pack_date = NOW(), sent_dc_by = ?, sent_dc_date = NOW()',
+        [req.user.loginname, req.user.loginname],
+        'discharge_center',
+        'PHARMACY_PACK_DONE'
+    );
 });
 
 router.post('/:an/pharmacy-done', authMiddleware, async (req, res) => {

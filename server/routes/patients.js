@@ -144,7 +144,7 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
         const loginnames = [
             detail.chk_right, detail.chk_nurse, detail.chk_bed, 
             detail.chk_lab_dup, detail.chk_cost_dup, detail.chk_opnote,
-            detail.discharge_by, detail.sent_pharmacy_by, detail.pharmacy_done_by,
+            detail.discharge_by, detail.sent_pharmacy_by, detail.pharmacy_pack_by, detail.pharmacy_done_by,
             detail.sent_dc_by, detail.dc_done_by, detail.sent_finance_by, detail.finance_done_by,
             detail.ward_done_by,
             detail.discount_by, detail.consult_pttype_by, detail.grant_pttype_by
@@ -199,6 +199,7 @@ router.get('/:an/detail', authMiddleware, async (req, res) => {
 
             detail.discharge_by_name = userMap[detail.discharge_by] || null;
             detail.sent_pharmacy_by_name = userMap[detail.sent_pharmacy_by] || null;
+            detail.pharmacy_pack_by_name = userMap[detail.pharmacy_pack_by] || null;
             detail.pharmacy_done_by_name = userMap[detail.pharmacy_done_by] || null;
             detail.sent_dc_by_name = userMap[detail.sent_dc_by] || null;
             detail.dc_done_by_name = userMap[detail.dc_done_by] || null;

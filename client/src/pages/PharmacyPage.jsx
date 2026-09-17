@@ -12,7 +12,7 @@ export default function PharmacyPage() {
   const [patients, setPatients] = useState([])
   const [historyPatients, setHistoryPatients] = useState([])
   const [returnMedPatients, setReturnMedPatients] = useState([])
-  const [activeTab, setActiveTab] = useState('pending') // 'pending' | 'return_audit' | 'history' | 'return_history'
+  const [activeTab, setActiveTab] = useState('prepare') // 'prepare' | 'dispense' | 'return_audit' | 'history' | 'return_history'
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const [returnHistoryDate, setReturnHistoryDate] = useState(new Date().toISOString().split('T')[0])
@@ -46,7 +46,16 @@ export default function PharmacyPage() {
     )
   }
 
-  const displayedPending = filterPatients(patients).filter(p => p.chk_hm === 1)
+  // ผู้ป่วยรอจัดยา (หอผู้ป่วยส่งมา)
+  const displayedPrepare = filterPatients(patients).filter(
+    p => p.workflow_status === 'pharmacy_prepare' || (p.workflow_status === 'pharmacy' && !p.dc_done_date && !p.pharmacy_pack_date)
+  )
+
+  // ผู้ป่วยรอจ่ายยา (ผ่านศูนย์จำหน่ายแล้ว)
+  const displayedDispense = filterPatients(patients).filter(
+    p => p.workflow_status === 'pharmacy' && (p.dc_done_date || p.pharmacy_pack_date)
+  )
+
   const displayedHistory = filterPatients(historyPatients)
 
   // Tab 2: ตรวจสอบยาคืน (แสดงเฉพาะคนที่มียาคืน และ "ยังไม่ได้ตรวจสอบ")
@@ -103,7 +112,7 @@ export default function PharmacyPage() {
   useEffect(() => {
     const onUpdate = (data) => {
       fetchPatients()
-      if (data && (data.status === 'pharmacy' || data.status === 'discharge_center')) {
+      if (data && (data.status === 'pharmacy' || data.status === 'pharmacy_prepare' || data.status === 'discharge_center')) {
         playAlert()
       }
     }
@@ -113,6 +122,17 @@ export default function PharmacyPage() {
       socket.off('workflow:updated', onUpdate)
     }
   }, [historyDate, playAlert])
+
+  const handlePackDone = async (an) => {
+    if (!confirm('ยืนยันจัดยาเสร็จแล้วสำหรับ AN นี้? (ส่งต่อไปยังศูนย์จำหน่าย)')) return
+    try {
+      await api.post(`/workflow/${an}/pharmacy-pack-done`)
+      setPatients(prev => prev.filter(p => p.an !== an))
+      fetchPatients()
+    } catch (err) {
+      alert('ไม่สามารถทำรายการได้')
+    }
+  }
 
   const handleDone = async (an) => {
     if (!confirm('ยืนยันจ่ายยาแล้วสำหรับ AN นี้?')) return
@@ -267,7 +287,7 @@ export default function PharmacyPage() {
               ห้องยา
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              รอจ่ายยา {displayedPending.length} ราย | รอตรวจสอบยาคืน {displayedReturnMeds.length} ราย | ประวัติยาคืน {displayedReturnHistory.length} ราย
+              รอจัดยา {displayedPrepare.length} ราย | รอจ่ายยา {displayedDispense.length} ราย | รอตรวจสอบยาคืน {displayedReturnMeds.length} ราย | ประวัติยาคืน {displayedReturnHistory.length} ราย
             </p>
           </div>
         </div>
@@ -286,14 +306,34 @@ export default function PharmacyPage() {
       <div className="flex justify-between items-center border-b border-border">
         <div className="flex space-x-1 overflow-x-auto">
           <button
-            onClick={() => setActiveTab('pending')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'pending'
+            onClick={() => setActiveTab('prepare')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'prepare'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <span>รอจัดยา</span>
+            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+              displayedPrepare.length > 0 ? 'bg-blue-100 text-blue-700 font-bold' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {displayedPrepare.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('dispense')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'dispense'
                 ? 'border-emerald-600 text-emerald-600'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
             }`}
           >
-            รอจ่ายยา ({displayedPending.length})
+            <span>รอจ่ายยา</span>
+            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+              displayedDispense.length > 0 ? 'bg-emerald-100 text-emerald-700 font-bold' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {displayedDispense.length}
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('return_audit')}
@@ -381,8 +421,77 @@ export default function PharmacyPage() {
       {/* Main Table */}
       <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
         <div className="overflow-x-auto">
-          {activeTab === 'pending' ? (
-            /* TAB 1: รอจ่ายยา (Pending HM) */
+          {activeTab === 'prepare' ? (
+            /* TAB: รอจัดยา (Waiting for Packing) */
+            <table className="w-full text-sm text-left">
+              <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
+                <tr>
+                  <th className="px-4 py-3">วันเวลาที่ส่ง</th>
+                  <th className="px-4 py-3">AN</th>
+                  <th className="px-4 py-3">HN</th>
+                  <th className="px-4 py-3">ชื่อ-สกุล</th>
+                  <th className="px-4 py-3">อายุ</th>
+                  <th className="px-4 py-3">หอผู้ป่วย</th>
+                  <th className="px-4 py-3">เบอร์โทรศัพท์</th>
+                  <th className="px-4 py-3">สิทธิ์การรักษา</th>
+                  <th className="px-4 py-3">แพทย์</th>
+                  <th className="px-4 py-3 text-center rounded-tr-lg">จัดยา</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                      กำลังโหลดข้อมูล...
+                    </td>
+                  </tr>
+                ) : displayedPrepare.length === 0 ? (
+                  <tr>
+                    <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
+                      {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีผู้ป่วยรอจัดยา'}
+                    </td>
+                  </tr>
+                ) : (
+                  displayedPrepare.map((p) => (
+                    <tr 
+                      key={p.an} 
+                      onClick={() => navigate(`/dcdetail/${p.an}`)}
+                      className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
+                    >
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {(p.sent_pharmacy_date || p.discharge_date) ? new Date(p.sent_pharmacy_date || p.discharge_date).toLocaleString('th-TH', { 
+                          year: 'numeric', month: '2-digit', day: '2-digit',
+                          hour: '2-digit', minute: '2-digit' 
+                        }) : '-'} น.
+                      </td>
+                      <td className="px-4 py-3 font-medium text-blue-700">{p.an}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.hn}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-foreground">{p.pname}{p.fname} {p.lname}</div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{p.age_y ? p.age_y + ' ปี' : '-'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.ward_name || '-'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.ward_phone || '-'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        <div className="line-clamp-1">{p.pttype_name || '-'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.doctor_name || '-'}</td>
+                      <td className="px-4 py-3 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                        <button 
+                          onClick={() => handlePackDone(p.an)}
+                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-medium rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 mx-auto"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>จัดยาเสร็จแล้ว</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : activeTab === 'dispense' ? (
+            /* TAB: รอจ่ายยา (Waiting for Dispensing) */
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
                 <tr>
@@ -405,21 +514,21 @@ export default function PharmacyPage() {
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
-                ) : displayedPending.length === 0 ? (
+                ) : displayedDispense.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       {searchTerm ? 'ไม่พบผู้ป่วยที่ค้นหา (กรุณาพิมพ์ให้ครบ)' : 'ไม่มีผู้ป่วยรอจ่ายยา'}
                     </td>
                   </tr>
                 ) : (
-                  displayedPending.map((p) => (
+                  displayedDispense.map((p) => (
                     <tr 
                       key={p.an} 
                       onClick={() => navigate(`/dcdetail/${p.an}`)}
                       className="border-t border-border hover:bg-muted/30 transition-colors group cursor-pointer"
                     >
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        {(p.sent_pharmacy_date || p.sent_dc_date || p.discharge_date) ? new Date(p.sent_pharmacy_date || p.sent_dc_date || p.discharge_date).toLocaleString('th-TH', { 
+                        {(p.sent_pharmacy_date || p.dc_done_date || p.finance_done_date || p.discharge_date) ? new Date(p.sent_pharmacy_date || p.dc_done_date || p.finance_done_date || p.discharge_date).toLocaleString('th-TH', { 
                           year: 'numeric', month: '2-digit', day: '2-digit',
                           hour: '2-digit', minute: '2-digit' 
                         }) : '-'} น.

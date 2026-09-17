@@ -22,23 +22,38 @@ export default function TimelineTab({ details }) {
     color: 'bg-blue-500'
   });
 
-  // 2. ศูนย์จำหน่ายเสร็จ
+  const hasHm = details.chk_hm === 1 || details.pharmacy_pack_date || details.pharmacy_done_date || details.sent_pharmacy_date || details.workflow_status === 'pharmacy_prepare' || details.workflow_status === 'pharmacy';
+
+  // 2. จัดยาเสร็จ (แสดงเฉพาะกรณีมียา HM)
+  if (hasHm) {
+    const isPackDone = !!details.pharmacy_pack_date;
+    nodes.push({
+      key: 'pharmacy_pack',
+      label: 'จัดยาเสร็จ',
+      date: details.pharmacy_pack_date || null,
+      by: details.pharmacy_pack_by_name || details.pharmacy_pack_by || (details.workflow_status === 'pharmacy_prepare' ? 'กำลังดำเนินการ' : null),
+      icon: Pill,
+      color: isPackDone ? 'bg-cyan-600' : (details.workflow_status === 'pharmacy_prepare' ? 'bg-cyan-400' : 'bg-slate-300')
+    });
+  }
+
+  // 3. ศูนย์จำหน่ายเสร็จ
   const isDcDone = !!details.dc_done_date;
   const isDcCurrent = details.workflow_status === 'discharge_center';
-  const showDc = isDcDone || isDcCurrent || ['finance', 'pharmacy', 'ward_waiting', 'completed'].includes(details.workflow_status);
+  const showDc = isDcDone || isDcCurrent || ['finance', 'pharmacy', 'ward_waiting', 'completed'].includes(details.workflow_status) || hasHm;
 
   if (showDc) {
     nodes.push({
       key: 'dc',
       label: 'ศูนย์จำหน่ายเสร็จ',
       date: details.dc_done_date || null,
-      by: details.dc_done_by_name || details.dc_done_by || null,
+      by: details.dc_done_by_name || details.dc_done_by || (isDcCurrent ? 'กำลังดำเนินการ' : null),
       icon: Building2,
-      color: isDcDone ? 'bg-purple-500' : 'bg-purple-400'
+      color: isDcDone ? 'bg-purple-500' : (isDcCurrent ? 'bg-purple-400' : 'bg-slate-300')
     });
   }
 
-  // 3. การเงินเสร็จ (แสดงเมื่อมียอดต้องชำระ)
+  // 4. การเงินเสร็จ (แสดงเมื่อมียอดต้องชำระ)
   const hasPayment = details.chk_payment === 1 || details.finance_done_date || details.sent_finance_date || details.workflow_status === 'finance';
   const isFinanceDone = !!details.finance_done_date;
   if (hasPayment) {
@@ -46,27 +61,26 @@ export default function TimelineTab({ details }) {
       key: 'finance',
       label: 'การเงินเสร็จ',
       date: details.finance_done_date || null,
-      by: details.finance_done_by_name || details.finance_done_by || null,
+      by: details.finance_done_by_name || details.finance_done_by || (details.workflow_status === 'finance' ? 'กำลังดำเนินการ' : null),
       icon: Wallet,
-      color: isFinanceDone ? 'bg-amber-500' : 'bg-amber-400'
+      color: isFinanceDone ? 'bg-amber-500' : (details.workflow_status === 'finance' ? 'bg-amber-400' : 'bg-slate-300')
     });
   }
 
-  // 4. ห้องยาเสร็จ (แสดงเมื่อมียา HM)
-  const hasHm = details.chk_hm === 1 || details.pharmacy_done_date || details.sent_pharmacy_date || details.workflow_status === 'pharmacy';
-  const isPharmacyDone = !!details.pharmacy_done_date;
+  // 5. จ่ายยาเสร็จ (แสดงเมื่อมียา HM)
   if (hasHm) {
+    const isPharmacyDone = !!details.pharmacy_done_date;
     nodes.push({
       key: 'pharmacy',
-      label: 'ห้องยาเสร็จ',
+      label: 'จ่ายยาเสร็จ',
       date: details.pharmacy_done_date || null,
-      by: details.pharmacy_done_by_name || details.pharmacy_done_by || null,
+      by: details.pharmacy_done_by_name || details.pharmacy_done_by || (details.workflow_status === 'pharmacy' ? 'กำลังดำเนินการ' : null),
       icon: Pill,
-      color: isPharmacyDone ? 'bg-teal-500' : 'bg-teal-400'
+      color: isPharmacyDone ? 'bg-teal-500' : (details.workflow_status === 'pharmacy' ? 'bg-teal-400' : 'bg-slate-300')
     });
   }
 
-  // 5. คนไข้กลับบ้าน
+  // 6. คนไข้กลับบ้าน
   const isCase1 = details.chk_hm === 0 && details.chk_payment === 0;
   if (isCase1) {
     if (details.ward_done_date) {
@@ -113,9 +127,10 @@ export default function TimelineTab({ details }) {
     const m = mins % 60;
     const timeStr = hours > 0 ? `${hours} ชม. ${m} นาที` : `${m} นาที`;
 
+    if (nextNodeKey === 'pharmacy_pack') return `ห้องยาจัดยาใช้เวลา ${timeStr}`;
     if (nextNodeKey === 'dc') return `ศูนย์จำหน่ายใช้เวลา ${timeStr}`;
     if (nextNodeKey === 'finance') return `การเงินใช้เวลา ${timeStr}`;
-    if (nextNodeKey === 'pharmacy') return `ห้องยาใช้เวลา ${timeStr}`;
+    if (nextNodeKey === 'pharmacy') return `ห้องยาจ่ายยาใช้เวลา ${timeStr}`;
     if (nextNodeKey === 'home') return `รอคนไข้กลับบ้าน ${timeStr}`;
     return timeStr;
   };
@@ -131,7 +146,7 @@ export default function TimelineTab({ details }) {
             Timeline การส่งต่อแผนก
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            แสดงลำดับเวลาและระยะเวลารอคอยในแต่ละขั้นตอน (Discharge → ศูนย์จำหน่ายเสร็จ → การเงินเสร็จ → ห้องยาเสร็จ → คนไข้กลับบ้าน)
+            แสดงลำดับเวลาและระยะเวลารอคอยในแต่ละขั้นตอน {hasHm ? '(Discharge → จัดยาเสร็จ → ศูนย์จำหน่ายเสร็จ → การเงินเสร็จ → จ่ายยาเสร็จ → คนไข้กลับบ้าน)' : '(Discharge → ศูนย์จำหน่ายเสร็จ → การเงินเสร็จ → คนไข้กลับบ้าน)'}
           </p>
         </div>
         {details.ward_done_date ? (

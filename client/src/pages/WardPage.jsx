@@ -408,6 +408,7 @@ export default function WardPage() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          p.workflow_status === 'pharmacy_prepare' ? 'bg-cyan-100 text-cyan-700' :
                           p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
                           p.workflow_status === 'discharge_center' ? 'bg-purple-100 text-purple-700' :
                           p.workflow_status === 'finance' ? 'bg-amber-100 text-amber-700' :
@@ -415,7 +416,8 @@ export default function WardPage() {
                           p.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                           'bg-slate-100 text-slate-700'
                         }`}>
-                          {p.workflow_status === 'pharmacy' ? 'ห้องยา' :
+                          {p.workflow_status === 'pharmacy_prepare' ? 'รอจัดยา' :
+                           p.workflow_status === 'pharmacy' ? 'รอจ่ายยา' :
                            p.workflow_status === 'discharge_center' ? 'ศูนย์จำหน่าย' :
                            p.workflow_status === 'finance' ? 'การเงิน' :
                            p.workflow_status === 'ward_waiting' ? 'รอกลับบ้าน' :
@@ -455,11 +457,19 @@ export default function WardPage() {
                           </span>
                         ) : p.workflow_status === 'pharmacy' ? (
                           <span className="text-xs font-medium text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg inline-block text-left">
-                            ให้คนไข้ไปห้องยา เสร็จแล้วกลับบ้านได้
+                            ให้คนไข้ไปห้องยาเพื่อรับยา เสร็จแล้วกลับบ้านได้
+                          </span>
+                        ) : p.workflow_status === 'pharmacy_prepare' ? (
+                          <span className="text-xs font-medium text-cyan-800 bg-cyan-50 border border-cyan-200 px-2.5 py-1 rounded-lg inline-block text-left">
+                            รอห้องยาจัดยา
+                          </span>
+                        ) : p.workflow_status === 'discharge_center' ? (
+                          <span className="text-xs text-slate-500">
+                            รอศูนย์จำหน่ายดำเนินการ
                           </span>
                         ) : (
                           <span className="text-xs text-slate-500">
-                            รอศูนย์จำหน่ายดำเนินการ
+                            รอดำเนินการ
                           </span>
                         )}
                       </td>
