@@ -228,17 +228,19 @@ router.get(['/all-discharged', '/pharmacy/all-discharged'], authMiddleware, asyn
         dflowConn = await getDflowConnection();
         const dateStr = req.query.date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-        // Find ANs discharged on specific date in D-Flow, along with return_drug_count
+        // Find ANs discharged on specific date strictly in D-Flow, along with return_drug_count
         const anDetailRows = await dflowConn.query(
             `SELECT a.*,
                     (SELECT COUNT(*) FROM return_drugs rd WHERE rd.an COLLATE utf8mb4_unicode_ci = a.an COLLATE utf8mb4_unicode_ci AND rd.qty > 0) AS return_drug_count
              FROM an_detail a
-             WHERE DATE(a.discharge_date) = ?`,
+             WHERE a.discharge_date IS NOT NULL AND DATE(a.discharge_date) = ?`,
             [dateStr]
         );
 
+        if (anDetailRows.length === 0) return res.json([]);
+
         const ans = anDetailRows.map(r => r.an);
-        const placeholders = ans.length > 0 ? ans.map(() => '?').join(',') : "''";
+        const placeholders = ans.map(() => '?').join(',');
 
         hisConn = await getHisConnection();
         const query = `
@@ -259,32 +261,14 @@ router.get(['/all-discharged', '/pharmacy/all-discharged'], authMiddleware, asyn
             LEFT JOIN doctor adm_d ON i.admdoctor = adm_d.code
             LEFT JOIN pttype pt ON i.pttype = pt.pttype
             LEFT JOIN iptadm iptb ON i.an = iptb.an
-            WHERE (i.dchdate = ? ${ans.length > 0 ? `OR i.an IN (${placeholders})` : ''})
+            WHERE i.an IN (${placeholders})
             GROUP BY i.an
-            ORDER BY COALESCE(i.dchdate, DATE(i.regdate)) DESC, i.dchtime DESC
+            ORDER BY i.dchdate DESC, i.dchtime DESC
         `;
 
-        const params = ans.length > 0 ? [dateStr, ...ans] : [dateStr];
-        const rows = await hisConn.query(query, params);
+        const rows = await hisConn.query(query, ans);
 
         if (rows.length === 0) return res.json([]);
-
-        // If there are patients discharged in HIS on dateStr who don't have an_detail row yet in anDetailRows,
-        // fetch their an_detail to merge
-        const missingAns = rows.filter(r => !ans.includes(r.an)).map(r => r.an);
-        let extraAnDetails = [];
-        if (missingAns.length > 0) {
-            const extraPlaceholders = missingAns.map(() => '?').join(',');
-            extraAnDetails = await dflowConn.query(
-                `SELECT a.*,
-                        (SELECT COUNT(*) FROM return_drugs rd WHERE rd.an COLLATE utf8mb4_unicode_ci = a.an COLLATE utf8mb4_unicode_ci AND rd.qty > 0) AS return_drug_count
-                 FROM an_detail a
-                 WHERE a.an IN (${extraPlaceholders})`,
-                missingAns
-            );
-        }
-
-        const allDetailRows = [...anDetailRows, ...extraAnDetails];
 
         const result = rows.map(row => {
             const rowCopy = { ...row };
@@ -293,17 +277,17 @@ router.get(['/all-discharged', '/pharmacy/all-discharged'], authMiddleware, asyn
                     rowCopy[key] = Number(rowCopy[key]);
                 }
             }
-            const detail = allDetailRows.find(d => d.an === rowCopy.an);
+            const detail = anDetailRows.find(d => d.an === rowCopy.an);
             return {
                 ...rowCopy,
                 ...(detail || {})
             };
         });
 
-        // Sort by discharge_date desc, or dchtime desc
+        // Sort by discharge_date desc
         result.sort((a, b) => {
-            const dateA = new Date(a.discharge_date || a.dchdate || 0);
-            const dateB = new Date(b.discharge_date || b.dchdate || 0);
+            const dateA = new Date(a.discharge_date || 0);
+            const dateB = new Date(b.discharge_date || 0);
             return dateB - dateA;
         });
 
