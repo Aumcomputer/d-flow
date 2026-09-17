@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   User, CheckCircle2, Pill, Search, Plus, Minus, Check, 
   AlertCircle, X, ClipboardCheck, Trash2, RotateCcw, AlertTriangle, Building2,
-  Bed, Phone
+  Bed, Phone, Barcode
 } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
@@ -38,6 +38,14 @@ export default function PharmacyPage() {
   const [newDrugQty, setNewDrugQty] = useState(1)
   const [newDrugRemark, setNewDrugRemark] = useState('')
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+
+  // Scan Barcode Modal States
+  const [showScanModal, setShowScanModal] = useState(false)
+  const [scanHn, setScanHn] = useState('')
+  const [scanLoading, setScanLoading] = useState(false)
+  const [scanStatus, setScanStatus] = useState(null)
+  const [scannedHistory, setScannedHistory] = useState([])
+  const scanInputRef = useRef(null)
 
   const filterPatients = (list) => {
     const term = searchTerm.trim().toLowerCase()
@@ -178,6 +186,94 @@ export default function PharmacyPage() {
       fetchPatients()
     } catch (err) {
       alert('ไม่สามารถทำรายการได้')
+    }
+  }
+
+  const playScanBeep = (isSuccess = true) => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      if (isSuccess) {
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(880, ctx.currentTime)
+        gain.gain.setValueAtTime(0.25, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
+        osc.start(ctx.currentTime)
+        osc.stop(ctx.currentTime + 0.15)
+      } else {
+        osc.type = 'sawtooth'
+        osc.frequency.setValueAtTime(220, ctx.currentTime)
+        gain.gain.setValueAtTime(0.25, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25)
+        osc.start(ctx.currentTime)
+        osc.stop(ctx.currentTime + 0.25)
+      }
+    } catch (e) {
+      // Ignore audio errors
+    }
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showScanModal) {
+        setShowScanModal(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showScanModal])
+
+  useEffect(() => {
+    if (showScanModal) {
+      const timer = setTimeout(() => {
+        scanInputRef.current?.focus()
+      }, 80)
+      return () => clearTimeout(timer)
+    }
+  }, [showScanModal])
+
+  const handleScanSubmit = async (e) => {
+    if (e) e.preventDefault()
+    const input = scanHn.trim()
+    if (!input || scanLoading) return
+
+    setScanLoading(true)
+    setScanStatus(null)
+
+    try {
+      const res = await api.post('/workflow/pharmacy/dispense-by-barcode', { hn: input })
+      if (res.data && res.data.success) {
+        const p = res.data.patient
+        playScanBeep(true)
+        setScanStatus({
+          type: 'success',
+          message: `จ่ายยาสำเร็จ: ${p.pname || ''}${p.fname} ${p.lname} (HN: ${p.hn})`,
+          patient: p
+        })
+        setScannedHistory(prev => [
+          { ...p, timestamp: p.time || new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+          ...prev.slice(0, 9)
+        ])
+        setPatients(prev => prev.filter(item => item.an !== p.an))
+        fetchPatients()
+        setScanHn('')
+      }
+    } catch (err) {
+      playScanBeep(false)
+      const errMsg = err.response?.data?.error || 'เกิดข้อผิดพลาดในการจ่ายยา'
+      setScanStatus({
+        type: 'error',
+        message: errMsg
+      })
+    } finally {
+      setScanLoading(false)
+      setTimeout(() => {
+        scanInputRef.current?.focus()
+        scanInputRef.current?.select()
+      }, 50)
     }
   }
 
@@ -327,14 +423,31 @@ export default function PharmacyPage() {
             </p>
           </div>
         </div>
-        <div className="w-full md:w-72">
-          <input
-            type="text"
-            placeholder="ค้นหา HN, AN หรือชื่อคนไข้"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-card"
-          />
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          {activeTab === 'dispense' && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowScanModal(true)
+                setScanHn('')
+                setScanStatus(null)
+              }}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-semibold rounded-xl shadow-xs transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer"
+              title="ยิงบาร์โค้ดเพื่อจ่ายยาทันที"
+            >
+              <Barcode className="w-4 h-4" />
+              <span>Scan Barcode</span>
+            </button>
+          )}
+          <div className="w-full md:w-72">
+            <input
+              type="text"
+              placeholder="ค้นหา HN, AN หรือชื่อคนไข้"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-card"
+            />
+          </div>
         </div>
       </div>
 
@@ -1352,6 +1465,149 @@ export default function PharmacyPage() {
                   <CheckCircle2 className="w-4 h-4" />
                 )}
                 <span>บันทึกผลการตรวจสอบ</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scan Barcode Modal */}
+      {showScanModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setShowScanModal(false)}
+        >
+          <div 
+            className="bg-card border border-border rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-500/10 text-emerald-600 rounded-xl">
+                  <Barcode className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">
+                    สแกนบาร์โค้ดจ่ายยา (Scan Barcode)
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ยิงบาร์โค้ด หรือพิมพ์ HN แล้วกด Enter เพื่อบันทึกจ่ายยาทันที
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowScanModal(false)}
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <form onSubmit={handleScanSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+                    เลขที่ HN หรือ AN ผู้ป่วย
+                  </label>
+                  <div className="relative flex items-center">
+                    <input
+                      ref={scanInputRef}
+                      type="text"
+                      value={scanHn}
+                      onChange={(e) => setScanHn(e.target.value)}
+                      placeholder="ยิงบาร์โค้ด หรือใส่ HN..."
+                      disabled={scanLoading}
+                      className="w-full pl-4 pr-28 py-3.5 text-lg font-mono tracking-wider font-semibold border-2 border-emerald-500/60 focus:border-emerald-600 rounded-xl focus:outline-none focus:ring-4 focus:ring-emerald-500/20 bg-background transition-all"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      disabled={scanLoading || !scanHn.trim()}
+                      className="absolute right-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      {scanLoading ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4" />
+                      )}
+                      <span>จ่ายยา</span>
+                    </button>
+                  </div>
+                  <p className="text-2xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                    <span>💡 รองรับทั้งยิงจากปืนบาร์โค้ดและพิมพ์ HN แล้วกด Enter (จ่ายยาทันทีโดยไม่ต้องถามยืนยัน)</span>
+                  </p>
+                </div>
+              </form>
+
+              {/* Status Message */}
+              {scanStatus && (
+                <div className={`p-4 rounded-xl border flex items-start gap-3 animate-in fade-in duration-150 ${
+                  scanStatus.type === 'success' 
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200' 
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-200'
+                }`}>
+                  {scanStatus.type === 'success' ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 text-sm">
+                    <div className="font-semibold">{scanStatus.message}</div>
+                    {scanStatus.patient && (
+                      <div className="text-xs mt-1 text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+                        <span>AN: <strong className="text-foreground">{scanStatus.patient.an}</strong></span>
+                        <span>หอผู้ป่วย: <strong className="text-foreground">{scanStatus.patient.ward_name || '-'}</strong></span>
+                        <span>เวลา: <strong className="text-foreground">{scanStatus.patient.time}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Scan History in this session */}
+              {scannedHistory.length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center justify-between">
+                    <span>ประวัติการยิงจ่ายยาในรอบนี้ ({scannedHistory.length})</span>
+                    <span className="text-2xs text-emerald-600 font-medium">จ่ายยาแล้ว</span>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                    {scannedHistory.map((item, idx) => (
+                      <div 
+                        key={item.an + '-' + idx} 
+                        className="text-xs p-2 rounded-lg bg-muted/40 border border-border flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-medium text-foreground">{item.pname || ''}{item.fname} {item.lname}</span>
+                            <span className="text-muted-foreground ml-1.5">(HN: {item.hn})</span>
+                          </div>
+                        </div>
+                        <div className="text-2xs text-muted-foreground whitespace-nowrap">
+                          {item.ward_name ? `${item.ward_name} · ` : ''}{item.timestamp || item.time}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-t border-border bg-muted/20">
+              <span className="text-xs text-muted-foreground">
+                กด <kbd className="px-1.5 py-0.5 bg-muted rounded border border-border text-2xs font-mono">Esc</kbd> เพื่อปิด
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowScanModal(false)}
+                className="px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer"
+              >
+                เสร็จสิ้น / ปิดหน้าต่าง
               </button>
             </div>
           </div>

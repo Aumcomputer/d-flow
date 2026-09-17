@@ -606,6 +606,151 @@ async function updateWorkflowStatus(req, res, setClause, values, newStatus, acti
     }
 }
 
+router.post(['/pharmacy/dispense-by-barcode', '/pharmacy/dispense-by-hn'], authMiddleware, async (req, res) => {
+    let hisConn, dflowConn;
+    try {
+        const rawInput = req.body.hn || req.body.barcode || req.body.an;
+        if (!rawInput || !String(rawInput).trim()) {
+            return res.status(400).json({ error: 'กรุณาระบุ HN หรือ AN' });
+        }
+
+        const cleanInput = String(rawInput).replace(/^(hn|an):?\s*/i, '').trim();
+        const strippedInput = cleanInput.replace(/^0+/, '');
+
+        dflowConn = await getDflowConnection();
+        hisConn = await getHisConnection();
+
+        // 1. ดึงผู้ป่วยทั้งหมดที่อยู่ในสถานะรอจ่ายยา (ผ่านศูนย์จำหน่ายหรือเช็คยาแล้ว)
+        const pendingRows = await dflowConn.query(
+            `SELECT an, workflow_status, dc_done_date, pharmacy_pack_date 
+             FROM an_detail 
+             WHERE workflow_status = 'pharmacy' 
+               AND (dc_done_date IS NOT NULL OR pharmacy_pack_date IS NOT NULL)`
+        );
+
+        if (pendingRows.length > 0) {
+            const ans = pendingRows.map(r => r.an);
+            const placeholders = ans.map(() => '?').join(',');
+
+            const matchQuery = `
+                SELECT i.an, i.hn, p.pname, p.fname, p.lname, w.name as ward_name
+                FROM ipt i
+                JOIN patient p ON i.hn = p.hn
+                LEFT JOIN ward w ON i.ward = w.ward
+                WHERE i.an IN (${placeholders})
+                  AND (
+                    i.hn = ? 
+                    OR TRIM(LEADING '0' FROM i.hn) = ?
+                    OR i.an = ?
+                    OR TRIM(LEADING '0' FROM i.an) = ?
+                  )
+                LIMIT 1
+            `;
+
+            const matched = await hisConn.query(matchQuery, [
+                ...ans,
+                cleanInput,
+                strippedInput,
+                cleanInput,
+                strippedInput
+            ]);
+
+            if (matched.length > 0) {
+                const patient = matched[0];
+                const targetAn = patient.an;
+                const loginname = req.user.loginname;
+
+                // อัปเดตสถานะเป็น completed (จ่ายยาแล้ว)
+                await dflowConn.query(
+                    `UPDATE an_detail 
+                     SET pharmacy_done_by = ?, 
+                         pharmacy_done_date = NOW(), 
+                         phar_chk_hm = 1, 
+                         phar_chk_hm_date = NOW(), 
+                         workflow_status = 'completed' 
+                     WHERE an = ?`,
+                    [loginname, targetAn]
+                );
+
+                // บันทึก activity log
+                await dflowConn.query(
+                    'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+                    [targetAn, 'PHARMACY_DONE', loginname]
+                );
+
+                // ส่ง Socket broadcast
+                const { getIO } = require('../lib/socket');
+                getIO().emit('workflow:updated', { an: targetAn, status: 'completed' });
+
+                return res.json({
+                    success: true,
+                    patient: {
+                        an: patient.an,
+                        hn: patient.hn,
+                        pname: patient.pname,
+                        fname: patient.fname,
+                        lname: patient.lname,
+                        ward_name: patient.ward_name,
+                        time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    }
+                });
+            }
+        }
+
+        // หากไม่พบในรายการรอจ่ายยา ให้ตรวจสอบสถานะจริงของผู้ป่วยเพื่อส่งข้อความแจ้งเตือนที่ชัดเจน
+        const hisCheck = await hisConn.query(
+            `SELECT i.an, i.hn, p.pname, p.fname, p.lname, w.name as ward_name
+             FROM ipt i
+             JOIN patient p ON i.hn = p.hn
+             LEFT JOIN ward w ON i.ward = w.ward
+             WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ? OR i.an = ? OR TRIM(LEADING '0' FROM i.an) = ?)
+             ORDER BY i.an DESC
+             LIMIT 1`,
+            [cleanInput, strippedInput, cleanInput, strippedInput]
+        );
+
+        if (hisCheck.length > 0) {
+            const p = hisCheck[0];
+            const dflowCheck = await dflowConn.query('SELECT * FROM an_detail WHERE an = ?', [p.an]);
+            if (dflowCheck.length > 0) {
+                const d = dflowCheck[0];
+                if (d.pharmacy_done_date || d.workflow_status === 'completed') {
+                    const timeStr = d.pharmacy_done_date ? new Date(d.pharmacy_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+                    return res.status(400).json({
+                        error: `ผู้ป่วย ${p.pname}${p.fname} ${p.lname} (HN: ${p.hn}) จ่ายยาเรียบร้อยแล้ว${timeStr ? ` เมื่อ ${timeStr} น.` : ''}`
+                    });
+                } else if (d.workflow_status === 'pharmacy_prepare' || (d.workflow_status === 'pharmacy' && !d.dc_done_date && !d.pharmacy_pack_date)) {
+                    return res.status(400).json({
+                        error: `ผู้ป่วย ${p.pname}${p.fname} ${p.lname} (HN: ${p.hn}) ยังอยู่ในสถานะ "รอเช็คยา" (ยังไม่ผ่านศูนย์จำหน่าย)`
+                    });
+                } else if (d.workflow_status === 'discharge_center') {
+                    return res.status(400).json({
+                        error: `ผู้ป่วย ${p.pname}${p.fname} ${p.lname} (HN: ${p.hn}) ยังอยู่ที่ "ศูนย์จำหน่าย"`
+                    });
+                } else if (d.workflow_status === 'finance') {
+                    return res.status(400).json({
+                        error: `ผู้ป่วย ${p.pname}${p.fname} ${p.lname} (HN: ${p.hn}) ยังอยู่ที่ "ห้องการเงิน"`
+                    });
+                }
+            }
+            return res.status(400).json({
+                error: `ผู้ป่วย ${p.pname}${p.fname} ${p.lname} (HN: ${p.hn}) ไม่อยู่ในรายการรอจ่ายยา`
+            });
+        }
+
+        return res.status(404).json({
+            error: `ไม่พบข้อมูลผู้ป่วยสำหรับรหัส "${cleanInput}"`
+        });
+
+    } catch (err) {
+        console.error('Dispense by barcode error:', err);
+        return res.status(500).json({ error: 'เกิดข้อผิดพลาดในการจ่ายยา' });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
+    }
+});
+
 router.post('/:an/send-pharmacy', authMiddleware, async (req, res) => {
     const { phone, hm, returnmed } = req.body;
     let setClause = 'sent_pharmacy_by = ?, sent_pharmacy_date = NOW()';
