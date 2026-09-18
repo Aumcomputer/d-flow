@@ -499,7 +499,7 @@ export default function DischargeCenterPage() {
                             p.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                             'bg-slate-100 text-slate-700'
                           }`}>
-                            {p.workflow_status === 'pharmacy_prepare' ? 'รอจัดยา' :
+                            {p.workflow_status === 'pharmacy_prepare' ? 'รอเช็คยา' :
                              p.workflow_status === 'pharmacy' ? 'รอจ่ายยา' :
                              p.workflow_status === 'discharge_center' ? 'ศูนย์จำหน่าย' :
                              p.workflow_status === 'finance' ? 'การเงิน' :
@@ -517,7 +517,7 @@ export default function DischargeCenterPage() {
                           ) : p.workflow_status === 'discharge_center' ? (
                             <span className="text-amber-700">อยู่ที่ศูนย์จำหน่าย (รอเจ้าหน้าที่ดำเนินการ)</span>
                           ) : p.workflow_status === 'pharmacy_prepare' ? (
-                            <span className="text-cyan-700">ส่งห้องยาแล้ว (รอห้องยาจัดยา)</span>
+                            <span className="text-cyan-700">ส่งห้องยาแล้ว (รอห้องยาเช็คยา)</span>
                           ) : p.workflow_status === 'pharmacy' ? (
                             <span className="text-purple-700">อยู่ที่ห้องยา (รอจ่ายยา)</span>
                           ) : '-'}

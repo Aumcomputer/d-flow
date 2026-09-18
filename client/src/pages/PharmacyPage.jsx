@@ -953,7 +953,7 @@ export default function PharmacyPage() {
                             p.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                             'bg-slate-100 text-slate-700'
                           }`}>
-                            {p.workflow_status === 'pharmacy_prepare' ? 'รอจัดยา' :
+                            {p.workflow_status === 'pharmacy_prepare' ? 'รอเช็คยา' :
                              p.workflow_status === 'pharmacy' ? 'รอจ่ายยา' :
                              p.workflow_status === 'discharge_center' ? 'ศูนย์จำหน่าย' :
                              p.workflow_status === 'finance' ? 'การเงิน' :
@@ -984,7 +984,7 @@ export default function PharmacyPage() {
                             </span>
                           ) : p.workflow_status === 'pharmacy_prepare' ? (
                             <span className="text-xs font-medium text-cyan-800 bg-cyan-50 border border-cyan-200 px-2.5 py-1 rounded-lg inline-block text-left">
-                              รอห้องยาจัดยา
+                              รอห้องยาเช็คยา
                             </span>
                           ) : p.workflow_status === 'discharge_center' ? (
                             <span className="text-xs text-slate-500">

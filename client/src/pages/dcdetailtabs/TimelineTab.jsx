@@ -24,12 +24,12 @@ export default function TimelineTab({ details }) {
 
   const hasHm = details.chk_hm === 1 || details.pharmacy_pack_date || details.pharmacy_done_date || details.sent_pharmacy_date || details.workflow_status === 'pharmacy_prepare' || details.workflow_status === 'pharmacy';
 
-  // 2. จัดยาเสร็จ (แสดงเฉพาะกรณีมียา HM)
+  // 2. เช็คยาเสร็จ (แสดงเฉพาะกรณีมียา HM)
   if (hasHm) {
     const isPackDone = !!details.pharmacy_pack_date;
     nodes.push({
       key: 'pharmacy_pack',
-      label: 'จัดยาเสร็จ',
+      label: 'เช็คยาเสร็จ',
       date: details.pharmacy_pack_date || null,
       by: details.pharmacy_pack_by_name || details.pharmacy_pack_by || (details.workflow_status === 'pharmacy_prepare' ? 'กำลังดำเนินการ' : null),
       icon: Pill,
@@ -127,7 +127,7 @@ export default function TimelineTab({ details }) {
     const m = mins % 60;
     const timeStr = hours > 0 ? `${hours} ชม. ${m} นาที` : `${m} นาที`;
 
-    if (nextNodeKey === 'pharmacy_pack') return `ห้องยาจัดยาใช้เวลา ${timeStr}`;
+    if (nextNodeKey === 'pharmacy_pack') return `ห้องยาเช็คยาใช้เวลา ${timeStr}`;
     if (nextNodeKey === 'dc') return `ศูนย์จำหน่ายใช้เวลา ${timeStr}`;
     if (nextNodeKey === 'finance') return `การเงินใช้เวลา ${timeStr}`;
     if (nextNodeKey === 'pharmacy') return `ห้องยาจ่ายยาใช้เวลา ${timeStr}`;
@@ -146,7 +146,7 @@ export default function TimelineTab({ details }) {
             Timeline การส่งต่อแผนก
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            แสดงลำดับเวลาและระยะเวลารอคอยในแต่ละขั้นตอน {hasHm ? '(Discharge → จัดยาเสร็จ → ศูนย์จำหน่ายเสร็จ → การเงินเสร็จ → จ่ายยาเสร็จ → คนไข้กลับบ้าน)' : '(Discharge → ศูนย์จำหน่ายเสร็จ → การเงินเสร็จ → คนไข้กลับบ้าน)'}
+            แสดงลำดับเวลาและระยะเวลารอคอยในแต่ละขั้นตอน {hasHm ? '(Discharge → เช็คยาเสร็จ → ศูนย์จำหน่ายเสร็จ → การเงินเสร็จ → จ่ายยาเสร็จ → คนไข้กลับบ้าน)' : '(Discharge → ศูนย์จำหน่ายเสร็จ → การเงินเสร็จ → คนไข้กลับบ้าน)'}
           </p>
         </div>
         {details.ward_done_date ? (

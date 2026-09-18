@@ -385,7 +385,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                       workflowStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                       'bg-slate-100 text-slate-700'
                     }`}>
-                      {workflowStatus === 'pharmacy_prepare' ? 'รอจัดยา (ห้องยา)' :
+                      {workflowStatus === 'pharmacy_prepare' ? 'รอเช็คยา (ห้องยา)' :
                        workflowStatus === 'pharmacy' ? 'รอจ่ายยา (ห้องยา)' :
                        workflowStatus === 'discharge_center' ? 'ศูนย์จำหน่าย' :
                        workflowStatus === 'finance' ? 'การเงิน' :
@@ -666,7 +666,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                       onClick={async () => {
                         if(!wardPhone.trim()) { alert('กรุณาระบุหมายเลขโทรศัพท์หอผู้ป่วย'); return; }
                         if(chkHm === null || chkReturnMed === null) { alert('กรุณาระบุ Homemed และ ยาคืน'); return; }
-                        const confirmMsg = chkHm === 1 ? 'ยืนยันส่งห้องยา (เพื่อจัดยา)?' : 'ยืนยันส่งศูนย์จำหน่าย?';
+                        const confirmMsg = chkHm === 1 ? 'ยืนยันส่งห้องยา (เพื่อเช็คยา)?' : 'ยืนยันส่งศูนย์จำหน่าย?';
                         if(!confirm(confirmMsg)) return;
                         try {
                           const returnDrugList = Object.entries(returnDrugQtys).map(([icode, qty]) => ({ icode, qty }));
