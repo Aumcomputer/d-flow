@@ -367,6 +367,15 @@ router.post('/:an/checklist', authMiddleware, async (req, res) => {
 
         conn = await getDflowConnection();
         
+        // Check if workflow is already forwarded
+        const statusRows = await conn.query('SELECT workflow_status FROM an_detail WHERE an = ?', [an]);
+        if (statusRows.length > 0) {
+            const currentStatus = statusRows[0].workflow_status;
+            if (['pharmacy_prepare', 'pharmacy', 'discharge_center', 'finance', 'completed', 'ward_waiting'].includes(currentStatus)) {
+                return res.status(400).json({ error: 'ไม่สามารถแก้ไขรายการตรวจสอบได้เนื่องจากส่งต่อแผนกแล้ว' });
+            }
+        }
+
         const updateValue = checked ? loginname : null;
         
         await conn.query(

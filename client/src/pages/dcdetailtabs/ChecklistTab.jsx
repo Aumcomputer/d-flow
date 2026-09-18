@@ -184,14 +184,15 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
     .every(item => details && details[item.id] && details[item.id] !== 'updating...')
 
   const handleToggle = async (field, currentValue) => {
+    if (isWorkflowLocked) return
     try {
       const newValue = !currentValue
       setDetails(prev => ({ ...prev, [field]: newValue ? 'updating...' : null }))
       await api.post(`/patients/${an}/checklist`, { field, checked: newValue })
       const dRes = await api.get(`/patients/${an}/detail`)
       setDetails(dRes.data)
-    } catch {
-      alert('ไม่สามารถบันทึกข้อมูลได้')
+    } catch (err) {
+      alert(err.response?.data?.error || 'ไม่สามารถบันทึกข้อมูลได้')
       fetchData()
     }
   }
@@ -321,7 +322,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
               Logs
             </button>
           </div>
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-2.5">
             {checklistItems.map(item => {
               const isChecked = !!(details && details[item.id])
               const checkedBy = isChecked && details[item.id] !== 'updating...' ? (details[item.id + '_name'] || details[item.id]) : null
@@ -329,24 +330,31 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
               return (
                 <div
                   key={item.id}
-                  onClick={() => handleToggle(item.id, isChecked)}
-                  className={`flex items-center gap-4 p-3.5 rounded-xl border-2 transition-all cursor-pointer select-none group
-                    ${isChecked ? 'border-emerald-500 bg-emerald-50/50' : 'border-border bg-card hover:border-blue-300 hover:bg-slate-50'}`}
+                  onClick={() => !isWorkflowLocked && handleToggle(item.id, isChecked)}
+                  className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all select-none group
+                    ${isWorkflowLocked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}
+                    ${isChecked 
+                      ? (isWorkflowLocked ? 'border-emerald-400 bg-emerald-50/40' : 'border-emerald-500 bg-emerald-50/50')
+                      : (isWorkflowLocked ? 'border-border bg-slate-50/60' : 'border-border bg-card hover:border-blue-300 hover:bg-slate-50')
+                    }`}
+                  title={isWorkflowLocked ? 'ส่งต่อแผนกแล้ว ไม่สามารถแก้ไขได้' : undefined}
                 >
-                  <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors
-                    ${isChecked ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 group-hover:border-blue-400'}`}>
-                    {isChecked && <CheckCircle2 className="w-4 h-4 text-white" />}
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0
+                    ${isChecked 
+                      ? (isWorkflowLocked ? 'bg-emerald-500 border-emerald-500 opacity-90' : 'bg-emerald-500 border-emerald-500') 
+                      : (isWorkflowLocked ? 'border-slate-300 bg-slate-100' : 'border-slate-300 group-hover:border-blue-400')}`}>
+                    {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                   </div>
-                  <div className="flex-1">
-                    <p className={`font-medium ${isChecked ? 'text-emerald-900' : 'text-foreground'}`}>{item.label}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium leading-snug ${isChecked ? 'text-emerald-900' : 'text-foreground'}`}>{item.label}</p>
                   </div>
                   {checkedBy && (
-                    <div className="text-xs text-muted-foreground text-right">
+                    <div className="text-xs text-muted-foreground text-right flex-shrink-0">
                       <span>ตรวจสอบโดย</span>
                       <span className="font-semibold text-slate-500 ml-1">{checkedBy}</span>
                     </div>
                   )}
-                  {!isChecked && <Icon className="w-5 h-5 text-muted-foreground/30 group-hover:text-blue-300 transition-colors" />}
+                  {!isChecked && <Icon className="w-4 h-4 text-muted-foreground/30 group-hover:text-blue-300 transition-colors flex-shrink-0" />}
                 </div>
               )
             })}
