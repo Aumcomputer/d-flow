@@ -90,11 +90,11 @@ export default function ReceiptsTab({ an }) {
                       </td>
                       <td className="px-4 py-3 font-mono text-sm text-slate-500">{r.finance_number}</td>
                       <td className="px-4 py-3 font-mono text-sm font-medium text-blue-600">{r.rcpno || '-'}</td>
-                      <td className="px-4 py-3 text-right">{formatMoney(r.total_amount)}</td>
+                      <td className="px-4 py-3 text-right">{formatMoney(r.bill_amount)}</td>
                       <td className={`px-4 py-3 text-right ${Number(r.discount) > 0 ? 'text-green-600' : ''}`}>
                         {formatMoney(r.discount)}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium">{formatMoney(r.bill_amount)}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatMoney(r.total_amount)}</td>
                       <td className="px-4 py-3 text-sm">{r.pttype_name || '-'}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">{r.staff_name || '-'}</td>
                       <td className="px-4 py-3 text-center">
@@ -144,7 +144,7 @@ export default function ReceiptsTab({ an }) {
                 {/* Grand Total */}
                 <tr className="border-t-2 border-border bg-muted/30 font-semibold">
                   <td colSpan="6" className="px-4 py-3 text-right text-blue-600">
-                    ชำระแล้ว {formatMoney(grandBillAmount)} บาท
+                    ชำระแล้ว {formatMoney(grandTotalAmount)} บาท
                   </td>
                   <td colSpan="3"></td>
                 </tr>

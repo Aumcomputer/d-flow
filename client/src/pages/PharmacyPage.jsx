@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   User, CheckCircle2, Pill, Search, Plus, Minus, Check, 
   AlertCircle, X, ClipboardCheck, Trash2, RotateCcw, AlertTriangle, Building2,
@@ -9,20 +9,50 @@ import api from '../services/api'
 import socket from '../services/socket'
 import { useSound } from '../contexts/SoundContext'
 
+const VALID_PHARMACY_TABS = ['prepare', 'dispense', 'return_audit', 'all_status', 'history', 'return_history']
+
 export default function PharmacyPage() {
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { playAlert } = useSound()
+
   const [patients, setPatients] = useState([])
   const [historyPatients, setHistoryPatients] = useState([])
   const [returnMedPatients, setReturnMedPatients] = useState([])
   const [allDischargedPatients, setAllDischargedPatients] = useState([])
-  const [activeTab, setActiveTab] = useState('prepare') // 'prepare' | 'dispense' | 'return_audit' | 'all_status' | 'history' | 'return_history'
+
+  const [activeTab, setActiveTabState] = useState(() => {
+    const urlTab = searchParams.get('tab')
+    if (urlTab && VALID_PHARMACY_TABS.includes(urlTab)) return urlTab
+    const savedTab = sessionStorage.getItem('pharmacy_activeTab')
+    if (savedTab && VALID_PHARMACY_TABS.includes(savedTab)) return savedTab
+    return 'prepare'
+  })
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab)
+    sessionStorage.setItem('pharmacy_activeTab', tab)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', tab)
+      return next
+    }, { replace: true })
+  }
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab')
+    if (tabFromUrl && VALID_PHARMACY_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTabState(tabFromUrl)
+      sessionStorage.setItem('pharmacy_activeTab', tabFromUrl)
+    }
+  }, [searchParams])
+
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const [returnHistoryDate, setReturnHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const [allDischargeDate, setAllDischargeDate] = useState(new Date().toISOString().split('T')[0])
   const [allStatusSortConfig, setAllStatusSortConfig] = useState({ key: 'discharge_date', direction: 'desc' })
   const [searchTerm, setSearchTerm] = useState('')
-  const navigate = useNavigate()
-  const { playAlert } = useSound()
 
   // Audit Modal States
   const [selectedAuditPatient, setSelectedAuditPatient] = useState(null)

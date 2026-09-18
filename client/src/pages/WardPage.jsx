@@ -1,16 +1,47 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Bed, User, FileCheck, CheckCircle2, XCircle, Building2, RotateCcw, X, AlertCircle } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
 import { useAuth } from '../contexts/AuthContext'
 
+const VALID_WARD_TABS = ['admitted', 'discharged']
+
 export default function WardPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [wards, setWards] = useState([])
   const [selectedWard, setSelectedWard] = useState(localStorage.getItem('lastWardCode') || '')
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState('admitted')
+
+  const [activeTab, setActiveTabState] = useState(() => {
+    const urlTab = searchParams.get('tab')
+    if (urlTab && VALID_WARD_TABS.includes(urlTab)) return urlTab
+    const savedTab = sessionStorage.getItem('ward_activeTab')
+    if (savedTab && VALID_WARD_TABS.includes(savedTab)) return savedTab
+    return 'admitted'
+  })
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab)
+    sessionStorage.setItem('ward_activeTab', tab)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', tab)
+      return next
+    }, { replace: true })
+  }
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab')
+    if (tabFromUrl && VALID_WARD_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTabState(tabFromUrl)
+      sessionStorage.setItem('ward_activeTab', tabFromUrl)
+    }
+  }, [searchParams])
+
   const [patients, setPatients] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
@@ -23,8 +54,6 @@ export default function WardPage() {
   
   // Sorting state
   const [sortConfig, setSortConfig] = useState({ key: 'bedno', direction: 'asc' })
-
-  const navigate = useNavigate()
 
   useEffect(() => {
     fetchWards()

@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment, useCallback } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard, Phone, Receipt, Tag } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { Badge } from '../components/ui/badge'
@@ -44,13 +44,29 @@ export default function DischargeDetailPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const queryParams = new URLSearchParams(location.search)
-  const defaultTab = queryParams.get('tab') || 'checklist'
+  const [searchParams, setSearchParams] = useSearchParams()
+  const defaultTab = searchParams.get('tab') || 'checklist'
 
   const [patient, setPatient] = useState(null)
   const [details, setDetails] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState(defaultTab)
+  const [activeTab, setActiveTabState] = useState(defaultTab)
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', tab)
+      return next
+    }, { replace: true })
+  }
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab')
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      setActiveTabState(tabFromUrl)
+    }
+  }, [searchParams])
   const [imgError, setImgError] = useState(false)
   const [isFilterActive, setIsFilterActive] = useState(false)
 

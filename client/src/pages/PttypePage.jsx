@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   ShieldCheck, 
   ShieldAlert, 
@@ -21,10 +21,38 @@ import api from '../services/api'
 import socket from '../services/socket'
 import { useSound } from '../contexts/SoundContext'
 
+const VALID_PTTYPE_TABS = ['approve', 'check']
+
 export default function PttypePage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { playAlert } = useSound()
-  const [activeTab, setActiveTab] = useState('approve') // 'approve' | 'check'
+
+  const [activeTab, setActiveTabState] = useState(() => {
+    const urlTab = searchParams.get('tab')
+    if (urlTab && VALID_PTTYPE_TABS.includes(urlTab)) return urlTab
+    const savedTab = sessionStorage.getItem('pttype_activeTab')
+    if (savedTab && VALID_PTTYPE_TABS.includes(savedTab)) return savedTab
+    return 'approve'
+  })
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab)
+    sessionStorage.setItem('pttype_activeTab', tab)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', tab)
+      return next
+    }, { replace: true })
+  }
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab')
+    if (tabFromUrl && VALID_PTTYPE_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTabState(tabFromUrl)
+      sessionStorage.setItem('pttype_activeTab', tabFromUrl)
+    }
+  }, [searchParams])
   
   // Tab 1: Unverified patients state
   const [patients, setPatients] = useState([])

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   User, CheckCircle2, ClipboardList, Send, AlertTriangle, 
   Building2, Bed, Phone 
@@ -9,17 +9,47 @@ import socket from '../services/socket'
 import { useAuth } from '../contexts/AuthContext'
 import { useSound } from '../contexts/SoundContext'
 
+const VALID_DC_TABS = ['pending', 'all_status', 'history']
+
 export default function DischargeCenterPage() {
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [patients, setPatients] = useState([])
   const [historyPatients, setHistoryPatients] = useState([])
   const [allDischargedPatients, setAllDischargedPatients] = useState([])
-  const [activeTab, setActiveTab] = useState('pending')
+
+  const [activeTab, setActiveTabState] = useState(() => {
+    const urlTab = searchParams.get('tab')
+    if (urlTab && VALID_DC_TABS.includes(urlTab)) return urlTab
+    const savedTab = sessionStorage.getItem('dc_activeTab')
+    if (savedTab && VALID_DC_TABS.includes(savedTab)) return savedTab
+    return 'pending'
+  })
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab)
+    sessionStorage.setItem('dc_activeTab', tab)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', tab)
+      return next
+    }, { replace: true })
+  }
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab')
+    if (tabFromUrl && VALID_DC_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTabState(tabFromUrl)
+      sessionStorage.setItem('dc_activeTab', tabFromUrl)
+    }
+  }, [searchParams])
+
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const [allDischargeDate, setAllDischargeDate] = useState(new Date().toISOString().split('T')[0])
   const [allStatusSortConfig, setAllStatusSortConfig] = useState({ key: 'discharge_date', direction: 'desc' })
   const [searchTerm, setSearchTerm] = useState('')
-  const navigate = useNavigate()
   const POLL_INTERVAL = Number(import.meta.env.VITE_POLL_INTERVAL || 6)
   const [waitingPatient, setWaitingPatient] = useState(null)
   const [countdown, setCountdown] = useState(POLL_INTERVAL)

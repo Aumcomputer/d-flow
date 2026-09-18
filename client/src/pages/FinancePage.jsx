@@ -1,19 +1,49 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { User, CheckCircle2, Wallet } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
 import { useSound } from '../contexts/SoundContext'
 
+const VALID_FINANCE_TABS = ['pending', 'history']
+
 export default function FinancePage() {
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { playAlert } = useSound()
+
   const [patients, setPatients] = useState([])
   const [historyPatients, setHistoryPatients] = useState([])
-  const [activeTab, setActiveTab] = useState('pending')
+
+  const [activeTab, setActiveTabState] = useState(() => {
+    const urlTab = searchParams.get('tab')
+    if (urlTab && VALID_FINANCE_TABS.includes(urlTab)) return urlTab
+    const savedTab = sessionStorage.getItem('finance_activeTab')
+    if (savedTab && VALID_FINANCE_TABS.includes(savedTab)) return savedTab
+    return 'pending'
+  })
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab)
+    sessionStorage.setItem('finance_activeTab', tab)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', tab)
+      return next
+    }, { replace: true })
+  }
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab')
+    if (tabFromUrl && VALID_FINANCE_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTabState(tabFromUrl)
+      sessionStorage.setItem('finance_activeTab', tabFromUrl)
+    }
+  }, [searchParams])
+
   const [loading, setLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const [searchTerm, setSearchTerm] = useState('')
-  const navigate = useNavigate()
-  const { playAlert } = useSound()
 
   const filterPatients = (list) => {
     const term = searchTerm.trim()
