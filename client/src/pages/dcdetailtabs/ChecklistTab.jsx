@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X, Calendar, RotateCcw, Lock, Plus, Minus } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export default function ChecklistTab({ an, details, setDetails, fetchData, patient, setActiveTab, setIsFilterActive }) {
   const { user } = useAuth()
+  const isUserModifiedDrugs = useRef(false)
   const [audit, setAudit] = useState(null)
   const [loadingAudit, setLoadingAudit] = useState(true)
   const [workflowStatus, setWorkflowStatus] = useState(details?.workflow_status || null)
@@ -67,7 +68,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
 
   useEffect(() => {
     // initialize from details if available, although we might want to fetch it explicitly
-    if (details?.workflow_status) {
+    if (details?.workflow_status !== undefined) {
       setWorkflowStatus(details.workflow_status)
     }
     if (details?.chk_hm !== undefined && details.chk_hm !== null) setChkHm(details.chk_hm)
@@ -81,7 +82,9 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
 
     socket.on('workflow:updated', (data) => {
       if (data.an === an) {
-        setWorkflowStatus(data.status)
+        if (data.status !== undefined) {
+          setWorkflowStatus(data.status)
+        }
       }
     })
 
@@ -104,7 +107,9 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
   const fetchDetail = async () => {
     try {
       const res = await api.get(`/patients/${an}/detail`)
-      setWorkflowStatus(res.data.workflow_status)
+      if (res.data.workflow_status !== undefined) {
+        setWorkflowStatus(res.data.workflow_status)
+      }
       if (res.data.ward_phone) setWardPhone(res.data.ward_phone)
       if (res.data.chk_payment !== undefined && res.data.chk_payment !== null) setChkPayment(res.data.chk_payment)
     } catch (err) { console.error(err) }
@@ -130,6 +135,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
   }, [an])
 
   const handleQtyChange = (icode, newQty) => {
+    isUserModifiedDrugs.current = true
     const qty = Math.max(0, parseInt(newQty, 10) || 0)
     setReturnDrugQtys(prev => ({
       ...prev,
@@ -137,20 +143,22 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
     }))
   }
 
-  // Auto-save return drugs with debounce when in ward mode
+  // Auto-save return drugs with debounce when in ward mode and modified by user
   useEffect(() => {
-    if (!an || chkReturnMed !== 1 || Object.keys(returnDrugQtys).length === 0) return
-    if (['pharmacy', 'discharge_center', 'finance', 'completed'].includes(workflowStatus)) return
+    if (!an || chkReturnMed !== 1 || !isUserModifiedDrugs.current || Object.keys(returnDrugQtys).length === 0) return
+    if (isWorkflowLocked) return
 
     const timer = setTimeout(() => {
       const itemsToSave = Object.entries(returnDrugQtys).map(([icode, qty]) => ({ icode, qty }))
-      api.post(`/patients/${an}/return-drugs`, { items: itemsToSave }).catch(e => {
+      api.post(`/patients/${an}/return-drugs`, { items: itemsToSave }).then(() => {
+        isUserModifiedDrugs.current = false
+      }).catch(e => {
         console.error('Auto-save return drugs error:', e)
       })
     }, 800)
 
     return () => clearTimeout(timer)
-  }, [an, chkReturnMed, returnDrugQtys, workflowStatus])
+  }, [an, chkReturnMed, returnDrugQtys, isWorkflowLocked])
 
   useEffect(() => {
     if (chkReturnMed === 1) {
@@ -685,6 +693,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                             returnmed: chkReturnMed,
                             return_drugs: chkReturnMed === 1 ? returnDrugList : []
                           });
+                          isUserModifiedDrugs.current = false;
                           setWorkflowStatus(chkHm === 1 ? 'pharmacy_prepare' : 'discharge_center');
                           if (fetchData) fetchData();
                           fetchDetail();

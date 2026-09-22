@@ -75,7 +75,7 @@ export default function DischargeDetailPage() {
   // Removed useEffect for isFilterActive reset
 
   useEffect(() => {
-    fetchData()
+    fetchData(true)
   }, [an])
 
   useEffect(() => {
@@ -87,8 +87,8 @@ export default function DischargeDetailPage() {
     }
   }, [an, user])
 
-  const fetchData = async () => {
-    setLoading(true)
+  const fetchData = async (showLoading = false) => {
+    if (showLoading) setLoading(true)
     try {
       const [pRes, dRes] = await Promise.all([
         api.get(`/patients/${an}`),
@@ -99,7 +99,7 @@ export default function DischargeDetailPage() {
     } catch (err) {
       console.error('Fetch data error:', err)
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
   }
 
