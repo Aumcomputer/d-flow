@@ -34,14 +34,51 @@ export default function DocumentsPage() {
   const [imgError, setImgError] = useState(false)
   const [copiedCid, setCopiedCid] = useState(false)
 
-  const handleCopyCid = async () => {
-    if (!patient?.cid) return
+  const copyToClipboard = async (text) => {
+    if (!text) return false
+
+    // 1. Try modern navigator.clipboard if in secure context (HTTPS / localhost)
+    if (navigator?.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch (err) {
+        console.warn('navigator.clipboard failed, attempting fallback...', err)
+      }
+    }
+
+    // 2. Reliable fallback for HTTP/intranet LAN using textarea + document.execCommand
     try {
-      await navigator.clipboard.writeText(patient.cid)
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      textArea.style.top = '-9999px'
+      textArea.setAttribute('readonly', '')
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      const successful = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      return successful
+    } catch (fallbackErr) {
+      console.error('Copy fallback failed:', fallbackErr)
+      return false
+    }
+  }
+
+  const handleCopyCid = async (e) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    const cidToCopy = String(patient?.cid || '').trim()
+    if (!cidToCopy) return
+
+    const success = await copyToClipboard(cidToCopy)
+    if (success) {
       setCopiedCid(true)
       setTimeout(() => setCopiedCid(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy CID:', err)
     }
   }
 
@@ -309,7 +346,13 @@ export default function DocumentsPage() {
                   {patient.cid && (
                     <div className="flex items-center gap-1.5 text-sm text-slate-600">
                       <CreditCard className="w-4 h-4 text-blue-500 shrink-0" />
-                      <span className="font-mono">CID: <strong className="text-slate-800">{patient.cid}</strong></span>
+                      <span 
+                        onClick={handleCopyCid}
+                        title="คลิกเพื่อคัดลอก CID"
+                        className="font-mono cursor-pointer hover:text-blue-600 select-all transition-colors"
+                      >
+                        CID: <strong className="text-slate-800 hover:text-blue-700">{patient.cid}</strong>
+                      </span>
                       <button
                         type="button"
                         onClick={handleCopyCid}
