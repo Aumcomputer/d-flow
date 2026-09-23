@@ -15,7 +15,11 @@ import {
   Shield, 
   CreditCard, 
   Building2, 
-  AlertCircle 
+  AlertCircle,
+  AlertTriangle,
+  LogOut,
+  Copy,
+  Check
 } from 'lucide-react'
 
 export default function DocumentsPage() {
@@ -28,11 +32,55 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [imgError, setImgError] = useState(false)
+  const [copiedCid, setCopiedCid] = useState(false)
 
-  const fetchPatientData = useCallback(async (anToFetch) => {
-    const an = anToFetch.trim()
-    if (!an) return
+  const handleCopyCid = async () => {
+    if (!patient?.cid) return
+    try {
+      await navigator.clipboard.writeText(patient.cid)
+      setCopiedCid(true)
+      setTimeout(() => setCopiedCid(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy CID:', err)
+    }
+  }
 
+  const validateQuery = (rawInput) => {
+    const trimmed = String(rawInput || '').trim()
+    if (!trimmed) {
+      return { isValid: false, error: 'กรุณากรอกหมายเลข HN หรือ AN' }
+    }
+
+    const clean = trimmed.replace(/^(hn|an):?\s*/i, '').trim()
+
+    if (!clean) {
+      return { isValid: false, error: 'กรุณากรอกหมายเลข HN หรือ AN' }
+    }
+
+    if (!/^\d+$/.test(clean)) {
+      return { isValid: false, error: 'หมายเลข HN หรือ AN ต้องเป็นตัวเลขเท่านั้น' }
+    }
+
+    if (clean.length !== 7 && clean.length !== 9) {
+      return { 
+        isValid: false, 
+        error: `ข้อมูลไม่ถูกต้อง: HN ต้องเป็นตัวเลข 7 หลัก หรือ AN เป็นตัวเลข 9 หลัก (ปัจจุบันคุณระบุ ${clean.length} หลัก)` 
+      }
+    }
+
+    return { isValid: true, cleanValue: clean }
+  }
+
+  const fetchPatientData = useCallback(async (queryToFetch) => {
+    const validation = validateQuery(queryToFetch)
+    if (!validation.isValid) {
+      setError(validation.error)
+      setPatient(null)
+      setDetails(null)
+      return
+    }
+
+    const cleanQuery = validation.cleanValue
     setLoading(true)
     setError('')
     setPatient(null)
@@ -40,15 +88,25 @@ export default function DocumentsPage() {
     setImgError(false)
 
     try {
+      // 1. ตรวจสอบและดึง AN (หากค้นหาด้วย HN จะอนุญาตเฉพาะรายที่ Admit; ค้นหาด้วย AN อนุญาตทั้งหมด)
+      const lookupRes = await api.get(`/patients/admitted/lookup?q=${encodeURIComponent(cleanQuery)}`)
+      const resolvedAn = lookupRes.data.an
+      setSearchAN(resolvedAn)
+      setSearchParams({ an: resolvedAn }, { replace: true })
+
+      // 2. ดึงข้อมูลผู้ป่วยและรายละเอียดเอกสาร
       const [pRes, dRes] = await Promise.all([
-        api.get(`/patients/${an}`),
-        api.get(`/patients/${an}/detail`)
+        api.get(`/patients/${resolvedAn}`),
+        api.get(`/patients/${resolvedAn}/detail`)
       ])
+
       setPatient(pRes.data)
       setDetails(dRes.data)
     } catch (err) {
-      if (err.response?.status === 404) {
-        setError(`ไม่พบข้อมูลผู้ป่วย AN: ${an}`)
+      if (err.response?.data?.error) {
+        setError(err.response.data.error)
+      } else if (err.response?.status === 404) {
+        setError(`ไม่พบข้อมูลผู้ป่วยสำหรับรหัส "${cleanQuery}"`)
       } else {
         setError('เกิดข้อผิดพลาดในการค้นหาข้อมูลผู้ป่วย')
       }
@@ -57,7 +115,7 @@ export default function DocumentsPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [setSearchParams])
 
   useEffect(() => {
     if (initialAn) {
@@ -67,10 +125,7 @@ export default function DocumentsPage() {
 
   const handleSearch = (e) => {
     e?.preventDefault()
-    const an = searchAN.trim()
-    if (!an) return
-    setSearchParams({ an }, { replace: true })
-    fetchPatientData(an)
+    fetchPatientData(searchAN)
   }
 
   const fetchDetails = async () => {
@@ -128,9 +183,12 @@ export default function DocumentsPage() {
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input
-              placeholder="ค้นหาด้วย AN..."
+              placeholder="ค้นหาด้วย HN หรือ AN..."
               value={searchAN}
-              onChange={(e) => setSearchAN(e.target.value)}
+              onChange={(e) => {
+                setSearchAN(e.target.value)
+                if (error) setError('')
+              }}
               className="pl-9 rounded-xl shadow-xs border-slate-200 focus:border-blue-500"
             />
           </div>
@@ -175,7 +233,26 @@ export default function DocumentsPage() {
       {!loading && patient ? (
         <div className="space-y-6">
           {/* Patient Info Bar */}
-          <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
+          <div className={`bg-card rounded-2xl p-5 shadow-sm border ${
+            patient.dchdate ? 'border-amber-300 ring-1 ring-amber-200' : 'border-border'
+          }`}>
+            {/* Warning Banner if Discharged */}
+            {patient.dchdate && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-sm font-medium animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>
+                    ผู้ป่วยรายนี้ <strong className="text-amber-900 font-bold underline underline-offset-2">Discharge (จำหน่าย) แล้ว</strong> เมื่อ {formatDateTime(patient.dchdate, patient.dchtime)}
+                  </span>
+                </div>
+                {patient.dchstts_name && (
+                  <span className="text-xs bg-amber-100/90 text-amber-900 px-2.5 py-1 rounded-lg border border-amber-300 font-semibold">
+                    สถานะ: {patient.dchstts_name}
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col md:flex-row items-start md:items-center gap-5">
               {/* Photo */}
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-inner shrink-0">
@@ -210,6 +287,12 @@ export default function DocumentsPage() {
                     <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold border border-blue-100">
                       HN: {patient.hn}
                     </span>
+                    {patient.dchdate && (
+                      <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 font-bold border border-amber-300 flex items-center gap-1">
+                        <LogOut className="w-3.5 h-3.5 text-amber-600" />
+                        Discharge แล้ว
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -224,9 +307,30 @@ export default function DocumentsPage() {
                     <span>เตียง: <strong className="text-slate-800">{patient.bedno || '-'}</strong></span>
                   </div>
                   {patient.cid && (
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="font-mono">CID: {patient.cid.replace(/(\d{1})(\d{4})(\d{5})(\d{2})(\d{1})/, '$1-$2-$3-$4-$5')}</span>
+                    <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                      <CreditCard className="w-4 h-4 text-blue-500 shrink-0" />
+                      <span className="font-mono">CID: <strong className="text-slate-800">{patient.cid}</strong></span>
+                      <button
+                        type="button"
+                        onClick={handleCopyCid}
+                        title={copiedCid ? "คัดลอกแล้ว" : "คัดลอกเลข CID"}
+                        className={`p-1 rounded-md transition-all inline-flex items-center justify-center ${
+                          copiedCid 
+                            ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-300' 
+                            : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'
+                        }`}
+                      >
+                        {copiedCid ? (
+                          <Check className="w-3.5 h-3.5 animate-in zoom-in-75 duration-150" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      {copiedCid && (
+                        <span className="text-[11px] text-emerald-600 font-medium animate-in fade-in duration-150">
+                          คัดลอกแล้ว
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -237,6 +341,12 @@ export default function DocumentsPage() {
                     <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
                     <span className="truncate">Admit: <strong className="text-slate-800">{formatDateTime(patient.regdate, patient.regtime)}</strong></span>
                   </div>
+                  {patient.dchdate && (
+                    <div className="flex items-center gap-1.5 text-amber-700">
+                      <LogOut className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="truncate">Discharge: <strong className="text-amber-900">{formatDateTime(patient.dchdate, patient.dchtime)}</strong></span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1.5">
                     <Stethoscope className="w-4 h-4 text-blue-500 shrink-0" />
                     <span className="truncate">แพทย์: <strong className="text-slate-800">{patient.doctor_name || '-'}</strong></span>
@@ -272,9 +382,9 @@ export default function DocumentsPage() {
           <div className="w-20 h-20 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-4 shadow-inner">
             <Search className="w-10 h-10 opacity-60" />
           </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-1">กรุณาค้นหา AN เพื่อดูข้อมูลผู้ป่วย</h3>
+          <h3 className="text-lg font-bold text-slate-800 mb-1">กรุณาค้นหา HN หรือ AN เพื่อดูข้อมูลผู้ป่วย</h3>
           <p className="text-sm text-muted-foreground max-w-md">
-            ระบุหมายเลข AN ในช่องค้นหาด้านบน เพื่อจัดการเอกสาร สแกนบัตร/A4 และส่งปรึกษาสิทธิการรักษา
+            ระบุหมายเลข HN หรือ AN ในช่องค้นหาด้านบน เพื่อจัดการเอกสาร
           </p>
         </div>
       )}

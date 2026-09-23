@@ -5,6 +5,124 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
+// Lookup patient by AN or HN (AN allows both admitted & discharged; HN allows only currently admitted)
+router.get('/admitted/lookup', authMiddleware, async (req, res) => {
+    let conn;
+    try {
+        const query = req.query.q || req.query.an || req.query.hn;
+        if (!query || !String(query).trim()) {
+            return res.status(400).json({ error: 'กรุณาระบุ HN หรือ AN' });
+        }
+
+        const raw = String(query).trim();
+        const clean = raw.replace(/^(hn|an):?\s*/i, '').trim();
+        const stripped = clean.replace(/^0+/, '');
+
+        if (!/^\d+$/.test(clean)) {
+            return res.status(400).json({ error: 'หมายเลข HN หรือ AN ต้องเป็นตัวเลขเท่านั้น' });
+        }
+
+        if (clean.length !== 7 && clean.length !== 9) {
+            return res.status(400).json({ 
+                error: `ข้อมูลไม่ถูกต้อง: HN ต้องเป็นตัวเลข 7 หลัก หรือ AN เป็นตัวเลข 9 หลัก (ระบุมา ${clean.length} หลัก)` 
+            });
+        }
+
+        conn = await getHisConnection();
+
+        // 1. ตรวจสอบว่าตรงกับหมายเลข AN หรือไม่ (ค้นหาด้วย AN อนุญาตทั้งเคสที่ Admit อยู่ และเคสที่ Discharge แล้ว)
+        const anSql = `
+            SELECT i.an, i.hn, i.regdate, i.dchdate, i.dchstts
+            FROM ipt i
+            WHERE i.an = ? OR TRIM(LEADING '0' FROM i.an) = ?
+            LIMIT 1
+        `;
+        const anRows = await conn.query(anSql, [clean, stripped]);
+        if (anRows.length > 0) {
+            const row = anRows[0];
+            const isAdmitted = !row.dchdate && !row.dchstts;
+            return res.json({ 
+                found: true,
+                search_by: 'an',
+                an: row.an,
+                hn: row.hn,
+                is_admitted: isAdmitted
+            });
+        }
+
+        // 2. หากไม่ใช่ AN ให้ตรวจสอบในฐานะ HN (แสดงเฉพาะเคสที่ยัง Admit อยู่เท่านั้น)
+        const hnAdmittedSql = `
+            SELECT i.an, i.hn, i.regdate, i.dchdate, i.dchstts
+            FROM ipt i
+            WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?)
+              AND i.dchdate IS NULL
+              AND i.dchstts IS NULL
+            ORDER BY i.regdate DESC, i.regtime DESC
+            LIMIT 1
+        `;
+        const hnAdmittedRows = await conn.query(hnAdmittedSql, [clean, stripped]);
+        if (hnAdmittedRows.length > 0) {
+            const row = hnAdmittedRows[0];
+            return res.json({ 
+                found: true,
+                search_by: 'hn',
+                an: row.an,
+                hn: row.hn,
+                is_admitted: true
+            });
+        }
+
+        // 3. หากค้นหาด้วย HN แล้วไม่พบเคสที่ Admit อยู่ ให้ตรวจประวัติใน ipt ว่าจำหน่ายแล้วหรือไม่
+        const hnPastSql = `
+            SELECT i.an, i.hn, i.regdate, i.dchdate, i.dchstts,
+                   p.pname, p.fname, p.lname
+            FROM ipt i
+            JOIN patient p ON i.hn = p.hn
+            WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?)
+            ORDER BY i.regdate DESC, i.regtime DESC
+            LIMIT 1
+        `;
+        const hnPastRows = await conn.query(hnPastSql, [clean, stripped]);
+        if (hnPastRows.length > 0) {
+            const p = hnPastRows[0];
+            return res.status(400).json({
+                error: `ผู้ป่วย ${p.pname || ''}${p.fname} ${p.lname} (HN: ${p.hn}) Discharge แล้ว การค้นหาด้วย HN จะแสดงเฉพาะผู้ป่วยที่ Admit อยู่เท่านั้น (หากต้องการดูเคสนี้กรุณาค้นหาด้วย AN: ${p.an})`,
+                is_admitted: false,
+                an: p.an,
+                hn: p.hn
+            });
+        }
+
+        // 4. ตรวจสอบว่ามี HN นี้ในฐานข้อมูลคนไข้หรือไม่
+        const patientSql = `
+            SELECT hn, pname, fname, lname
+            FROM patient
+            WHERE hn = ? OR TRIM(LEADING '0' FROM hn) = ?
+            LIMIT 1
+        `;
+        const pRows = await conn.query(patientSql, [clean, stripped]);
+        if (pRows.length > 0) {
+            const p = pRows[0];
+            return res.status(400).json({
+                error: `ผู้ป่วย ${p.pname || ''}${p.fname} ${p.lname} (HN: ${p.hn}) ไม่ได้ Admit อยู่ในโรงพยาบาล`,
+                is_admitted: false,
+                hn: p.hn
+            });
+        }
+
+        return res.status(404).json({
+            error: `ไม่พบข้อมูลผู้ป่วยสำหรับรหัส "${raw}"`,
+            found: false
+        });
+
+    } catch (error) {
+        console.error('Admitted lookup error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
 router.get('/:an', authMiddleware, async (req, res) => {
     let conn;
     try {
