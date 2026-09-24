@@ -512,23 +512,6 @@ export default function DocumentsPage() {
       {!loading && patient ? (
         /* Patient Information Card & DocumentsTab */
         <div className="space-y-6">
-          {/* Back to list banner */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-blue-50/80 border border-blue-200 px-4 py-3 rounded-2xl">
-            <div className="flex items-center gap-2 text-sm text-blue-900 font-medium">
-              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>กำลังเปิดดูเอกสารผู้ป่วย:</span>
-              <strong className="text-blue-950 font-bold">{patient.fullname}</strong>
-              <span className="text-blue-700">(AN: {patient.an}, HN: {patient.hn})</span>
-            </div>
-            <button
-              onClick={handleClearPatient}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-white hover:bg-blue-100/60 rounded-xl border border-blue-200 transition-colors shadow-xs"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              กลับสู่รายการผู้ป่วย
-            </button>
-          </div>
-
           {/* Patient Info Bar */}
           <div className={`bg-card rounded-2xl p-5 shadow-sm border ${
             patient.dchdate ? 'border-amber-300 ring-1 ring-amber-200' : 'border-border'
@@ -550,7 +533,16 @@ export default function DocumentsPage() {
               </div>
             )}
 
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-5">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+              {/* Back Button like in /dcdetail/ */}
+              <button 
+                onClick={handleClearPatient} 
+                className="p-2.5 hover:bg-muted rounded-full transition-colors shrink-0 text-slate-600 hover:text-slate-900 border border-transparent hover:border-border"
+                title="ย้อนกลับไปรายการผู้ป่วย"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+
               {/* Photo */}
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-inner shrink-0">
                 {!imgError && patient.hn ? (
