@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
-const { getDflowConnection } = require('../config/database');
+const { getDflowConnection, getHisConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parsePdf } = require('../services/pdfClassifier');
 const { resizeImage } = require('../services/imageResizer');
@@ -84,6 +84,101 @@ router.get('/types', async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (conn) conn.release();
+    }
+});
+
+// GET /api/documents/inpatients
+// Get current inpatients categorized by document completeness:
+// - no_docs: patients with 0 required documents
+// - incomplete: patients with 1 or 2 required documents (out of 3: บัตรประชาชน, ใบตรวจสอบสิทธิ์, Authen Code)
+router.get('/inpatients', async (req, res) => {
+    let hisConn, dflowConn;
+    try {
+        hisConn = await getHisConnection();
+        dflowConn = await getDflowConnection();
+
+        // 1. Fetch all admitted inpatients in the hospital (dchstts IS NULL)
+        const hisQuery = `
+            SELECT 
+                i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                p.pname, p.fname, p.lname, p.birthday,
+                (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
+                w.name AS ward_name,
+                w.ward AS ward_code,
+                COALESCE(d.name, d2.name) AS doctor_name,
+                pt.name AS pttype_name,
+                pt.pttype AS pttype_code,
+                iptb.bedno,
+                COALESCE(aa.income, 0) AS total_income
+            FROM ipt i
+            LEFT JOIN patient p ON i.hn = p.hn
+            LEFT JOIN ward w ON i.ward = w.ward
+            LEFT JOIN doctor d ON i.incharge_doctor = d.code
+            LEFT JOIN doctor d2 ON i.admdoctor = d2.code
+            LEFT JOIN pttype pt ON i.pttype = pt.pttype
+            LEFT JOIN iptadm iptb ON i.an = iptb.an
+            LEFT JOIN an_stat aa ON aa.an = i.an
+            WHERE i.dchstts IS NULL
+            GROUP BY i.an
+            ORDER BY w.name ASC, iptb.bedno ASC, i.regdate DESC
+        `;
+        const hisPatients = await hisConn.query(hisQuery);
+
+        if (!hisPatients || hisPatients.length === 0) {
+            return res.json({ no_docs: [], incomplete: [], no_docs_count: 0, incomplete_count: 0 });
+        }
+
+        // 2. Fetch documents for these admitted ANs
+        const ans = hisPatients.map(p => p.an);
+        const placeholders = ans.map(() => '?').join(',');
+        const docs = await dflowConn.query(
+            `SELECT an, doc_type_id FROM documents WHERE is_deleted = 0 AND an IN (${placeholders})`,
+            ans
+        );
+
+        const docMap = new Map();
+        docs.forEach(d => {
+            if (!docMap.has(d.an)) docMap.set(d.an, new Set());
+            if (d.doc_type_id) docMap.get(d.an).add(d.doc_type_id);
+        });
+
+        const no_docs = [];
+        const incomplete = [];
+
+        hisPatients.forEach(p => {
+            const docSet = docMap.get(p.an) || new Set();
+            const has_id_card = docSet.has(1);
+            const has_pttype_check = docSet.has(2);
+            const has_authen_code = docSet.has(3);
+            const doc_count = (has_id_card ? 1 : 0) + (has_pttype_check ? 1 : 0) + (has_authen_code ? 1 : 0);
+
+            const item = {
+                ...p,
+                has_id_card,
+                has_pttype_check,
+                has_authen_code,
+                doc_count
+            };
+
+            if (doc_count === 0) {
+                no_docs.push(item);
+            } else if (doc_count < 3) {
+                incomplete.push(item);
+            }
+        });
+
+        res.json({
+            no_docs,
+            incomplete,
+            no_docs_count: no_docs.length,
+            incomplete_count: incomplete.length
+        });
+    } catch (error) {
+        console.error('Fetch inpatients document status error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
     }
 });
 
@@ -185,6 +280,12 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
         const newId = result.insertId ? Number(result.insertId) : null;
 
+        try {
+            const { getIO } = require('../lib/socket');
+            getIO().emit('documents:updated', { an, type: 'upload' });
+            getIO().emit('workflow:updated', { an, type: 'document_uploaded' });
+        } catch (sErr) {}
+
         if (!finalDocTypeId) {
             return res.json({
                 needsClassification: true,
@@ -226,6 +327,13 @@ router.patch('/:id/classify', async (req, res) => {
             'UPDATE documents SET doc_type_id = ? WHERE id = ?',
             [doc_type_id, id]
         );
+
+        try {
+            const { getIO } = require('../lib/socket');
+            getIO().emit('documents:updated', { id, type: 'classify' });
+            getIO().emit('workflow:updated', { type: 'document_classified' });
+        } catch (sErr) {}
+
         res.json({ success: true });
     } catch (error) {
         console.error('Classify document error:', error);
@@ -244,6 +352,13 @@ router.delete('/:id', async (req, res) => {
             'UPDATE documents SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id = ?',
             [req.user.loginname, id]
         );
+
+        try {
+            const { getIO } = require('../lib/socket');
+            getIO().emit('documents:updated', { id, type: 'delete' });
+            getIO().emit('workflow:updated', { type: 'document_deleted' });
+        } catch (sErr) {}
+
         res.json({ success: true });
     } catch (error) {
         console.error('Delete document error:', error);
