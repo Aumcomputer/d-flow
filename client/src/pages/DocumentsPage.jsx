@@ -418,10 +418,10 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* Controls & Tabs */}
-      <div className="space-y-4">
-        {/* Controls: Ward filter, List search, Refresh (Shown when viewing list tables) */}
-        {!patient && (
+      {/* Controls & Tabs (แสดงเฉพาะเมื่ออยู่หน้ารายการผู้ป่วย เมื่อไม่ได้เลือกคนไข้) */}
+      {!patient && (
+        <div className="space-y-4">
+          {/* Controls: Ward filter, List search, Refresh */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-2xl border border-border shadow-xs">
             <div className="flex flex-wrap items-center gap-3 flex-1">
               {/* Ward filter */}
@@ -462,64 +462,51 @@ export default function DocumentsPage() {
               <RefreshCw className={`w-4 h-4 ${loadingInpatients ? 'animate-spin text-blue-600' : ''}`} />
             </button>
           </div>
-        )}
 
-        {/* Tabs */}
-        <div className="flex space-x-2 border-b border-border">
-          {/* Tab 1: ยังไม่มีเอกสารสิทธิ์ */}
-          <button
-            onClick={() => handleTabClick('no_docs')}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
-              !patient && activeTab === 'no_docs'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-            }`}
-          >
-            <FileX className="w-4 h-4" />
-            <span>ยังไม่มีเอกสารสิทธิ์</span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-              noDocsPatients.length > 0 
-                ? 'bg-rose-500 text-white' 
-                : 'bg-muted text-muted-foreground'
-            }`}>
-              {noDocsPatients.length}
-            </span>
-          </button>
-
-          {/* Tab 2: เอกสารสิทธิ์ไม่ครบ */}
-          <button
-            onClick={() => handleTabClick('incomplete')}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
-              !patient && activeTab === 'incomplete'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-            }`}
-          >
-            <FileClock className="w-4 h-4" />
-            <span>เอกสารสิทธิ์ไม่ครบ</span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-              incompletePatients.length > 0 
-                ? 'bg-amber-500 text-white' 
-                : 'bg-muted text-muted-foreground'
-            }`}>
-              {incompletePatients.length}
-            </span>
-          </button>
-
-          {/* Tab 3: แสดงเมื่อกำลังเปิดดูผู้ป่วยเฉพาะราย */}
-          {patient && (
+          {/* Tabs */}
+          <div className="flex space-x-2 border-b border-border">
+            {/* Tab 1: ยังไม่มีเอกสารสิทธิ์ */}
             <button
-              className="flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-xl"
+              onClick={() => handleTabClick('no_docs')}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+                activeTab === 'no_docs'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              }`}
             >
-              <FileText className="w-4 h-4" />
-              <span>จัดการเอกสาร: {patient.fullname}</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">
-                AN: {patient.an}
+              <FileX className="w-4 h-4" />
+              <span>ยังไม่มีเอกสารสิทธิ์</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                noDocsPatients.length > 0 
+                  ? 'bg-rose-500 text-white' 
+                  : 'bg-muted text-muted-foreground'
+              }`}>
+                {noDocsPatients.length}
               </span>
             </button>
-          )}
+
+            {/* Tab 2: เอกสารสิทธิ์ไม่ครบ */}
+            <button
+              onClick={() => handleTabClick('incomplete')}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+                activeTab === 'incomplete'
+                  ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+              }`}
+            >
+              <FileClock className="w-4 h-4" />
+              <span>เอกสารสิทธิ์ไม่ครบ</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                incompletePatients.length > 0 
+                  ? 'bg-amber-500 text-white' 
+                  : 'bg-muted text-muted-foreground'
+              }`}>
+                {incompletePatients.length}
+              </span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content Area */}
       {!loading && patient ? (
