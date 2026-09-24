@@ -56,7 +56,6 @@ export default function DocumentsPage() {
   const [loadingInpatients, setLoadingInpatients] = useState(false)
 
   // Filters & Search for Table
-  const [searchQuery, setSearchQuery] = useState('')
   const [selectedWard, setSelectedWard] = useState(() => {
     return localStorage.getItem('doc_selectedWard') || 'all'
   })
@@ -89,7 +88,6 @@ export default function DocumentsPage() {
       }, { replace: true })
     }
     setActiveTab(tab)
-    setSearchQuery('')
   }
 
   const handleClearPatient = () => {
@@ -328,7 +326,7 @@ export default function DocumentsPage() {
       const matchesWard = selectedWard === 'all' || p.ward_name === selectedWard
       if (!matchesWard) return false
 
-      const q = searchQuery.trim().toLowerCase()
+      const q = (searchAN || '').trim().toLowerCase()
       if (!q) return true
 
       return (
@@ -341,7 +339,7 @@ export default function DocumentsPage() {
         (p.bedno && String(p.bedno).toLowerCase().includes(q))
       )
     })
-  }, [currentList, selectedWard, searchQuery])
+  }, [currentList, selectedWard, searchAN])
 
   const handleRefresh = () => {
     fetchInpatients()
@@ -352,10 +350,10 @@ export default function DocumentsPage() {
 
   return (
     <div className="container mx-auto p-4 sm:p-6 w-full max-w-7xl animate-fade-in space-y-6">
-      {/* Top Bar: Title + Search by HN/AN */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-2xl border border-border shadow-sm">
+      {/* Top Bar: Title + Controls on top right */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-2xl border border-border shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-xl text-white shadow-sm">
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-xl text-white shadow-sm shrink-0">
             <FileText className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
           <div>
@@ -368,27 +366,61 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSearch} className="flex gap-2 w-full sm:w-auto sm:min-w-[320px]">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input
-              placeholder="ค้นหาด้วย HN หรือ AN..."
-              value={searchAN}
+        {/* Top Right Controls: Ward filter + Search HN/AN + Refresh */}
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Ward filter (ค้นหาหอผู้ป่วย) */}
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+            <select
+              value={selectedWard}
               onChange={(e) => {
-                setSearchAN(e.target.value)
-                if (error) setError('')
+                handleWardChange(e.target.value)
+                if (patient) {
+                  handleClearPatient()
+                }
               }}
-              className="pl-9 rounded-xl shadow-xs border-slate-200 focus:border-blue-500"
-            />
+              className="px-3 py-2 text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            >
+              <option value="all">ทุกหอผู้ป่วย ({currentList.length})</option>
+              {wards.map(w => (
+                <option key={w} value={w}>{w}</option>
+              ))}
+            </select>
           </div>
-          <Button 
-            type="submit" 
-            disabled={loading || !searchAN.trim()} 
-            className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-xs"
+
+          {/* Search by HN or AN */}
+          <form onSubmit={handleSearch} className="flex gap-2 flex-1 sm:flex-initial sm:min-w-[260px]">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="ค้นหาด้วย HN หรือ AN..."
+                value={searchAN}
+                onChange={(e) => {
+                  setSearchAN(e.target.value)
+                  if (error) setError('')
+                }}
+                className="pl-9 rounded-xl shadow-xs border-slate-200 focus:border-blue-500 text-sm"
+              />
+            </div>
+            <Button 
+              type="submit" 
+              disabled={loading || !searchAN.trim()} 
+              className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium shadow-xs"
+            >
+              {loading ? 'กำลังค้นหา...' : 'ค้นหา'}
+            </Button>
+          </form>
+
+          {/* Refresh button */}
+          <button
+            onClick={handleRefresh}
+            disabled={loadingInpatients || loading}
+            className="p-2.5 border border-input rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            title="รีเฟรชข้อมูล"
           >
-            {loading ? 'กำลังค้นหา...' : 'ค้นหา'}
-          </Button>
-        </form>
+            <RefreshCw className={`w-4 h-4 ${(loadingInpatients || loading) ? 'animate-spin text-blue-600' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -418,93 +450,48 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* Controls & Tabs (แสดงเฉพาะเมื่ออยู่หน้ารายการผู้ป่วย เมื่อไม่ได้เลือกคนไข้) */}
+      {/* Tabs (แสดงเฉพาะเมื่ออยู่หน้ารายการผู้ป่วย เมื่อไม่ได้เลือกคนไข้) */}
       {!patient && (
-        <div className="space-y-4">
-          {/* Controls: Ward filter, List search, Refresh */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-2xl border border-border shadow-xs">
-            <div className="flex flex-wrap items-center gap-3 flex-1">
-              {/* Ward filter */}
-              <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-muted-foreground" />
-                <select
-                  value={selectedWard}
-                  onChange={(e) => handleWardChange(e.target.value)}
-                  className="px-3 py-2 text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                >
-                  <option value="all">ทุกหอผู้ป่วย ({currentList.length})</option>
-                  {wards.map(w => (
-                    <option key={w} value={w}>{w}</option>
-                  ))}
-                </select>
-              </div>
+        <div className="flex space-x-2 border-b border-border">
+          {/* Tab 1: ยังไม่มีเอกสารสิทธิ์ */}
+          <button
+            onClick={() => handleTabClick('no_docs')}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+              activeTab === 'no_docs'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <FileX className="w-4 h-4" />
+            <span>ยังไม่มีเอกสารสิทธิ์</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+              noDocsPatients.length > 0 
+                ? 'bg-rose-500 text-white' 
+                : 'bg-muted text-muted-foreground'
+            }`}>
+              {noDocsPatients.length}
+            </span>
+          </button>
 
-              {/* Table search filter */}
-              <div className="relative flex-1 min-w-[200px] max-w-md">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="ค้นหา AN, HN, ชื่อ, สิทธิ์, แพทย์, เตียง..."
-                  className="w-full pl-9 pr-4 py-2 text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                />
-              </div>
-            </div>
-
-            {/* Refresh button */}
-            <button
-              onClick={handleRefresh}
-              disabled={loadingInpatients}
-              className="p-2.5 border border-input rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              title="รีเฟรชข้อมูล"
-            >
-              <RefreshCw className={`w-4 h-4 ${loadingInpatients ? 'animate-spin text-blue-600' : ''}`} />
-            </button>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex space-x-2 border-b border-border">
-            {/* Tab 1: ยังไม่มีเอกสารสิทธิ์ */}
-            <button
-              onClick={() => handleTabClick('no_docs')}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
-                activeTab === 'no_docs'
-                  ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              }`}
-            >
-              <FileX className="w-4 h-4" />
-              <span>ยังไม่มีเอกสารสิทธิ์</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                noDocsPatients.length > 0 
-                  ? 'bg-rose-500 text-white' 
-                  : 'bg-muted text-muted-foreground'
-              }`}>
-                {noDocsPatients.length}
-              </span>
-            </button>
-
-            {/* Tab 2: เอกสารสิทธิ์ไม่ครบ */}
-            <button
-              onClick={() => handleTabClick('incomplete')}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
-                activeTab === 'incomplete'
-                  ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              }`}
-            >
-              <FileClock className="w-4 h-4" />
-              <span>เอกสารสิทธิ์ไม่ครบ</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                incompletePatients.length > 0 
-                  ? 'bg-amber-500 text-white' 
-                  : 'bg-muted text-muted-foreground'
-              }`}>
-                {incompletePatients.length}
-              </span>
-            </button>
-          </div>
+          {/* Tab 2: เอกสารสิทธิ์ไม่ครบ */}
+          <button
+            onClick={() => handleTabClick('incomplete')}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+              activeTab === 'incomplete'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <FileClock className="w-4 h-4" />
+            <span>เอกสารสิทธิ์ไม่ครบ</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+              incompletePatients.length > 0 
+                ? 'bg-amber-500 text-white' 
+                : 'bg-muted text-muted-foreground'
+            }`}>
+              {incompletePatients.length}
+            </span>
+          </button>
         </div>
       )}
 
@@ -708,14 +695,14 @@ export default function DocumentsPage() {
                           <CheckCircle2 className="w-8 h-8" />
                         </div>
                         <div className="text-base font-semibold text-slate-700">
-                          {searchQuery || selectedWard !== 'all' 
+                          {searchAN || selectedWard !== 'all' 
                             ? 'ไม่พบข้อมูลที่ตรงกับเงื่อนไขการค้นหา' 
                             : activeTab === 'no_docs'
                               ? 'ไม่มีผู้ป่วยที่ยังไม่มีเอกสารสิทธิ์ในขณะนี้'
                               : 'ไม่มีผู้ป่วยที่เอกสารสิทธิ์ไม่ครบในขณะนี้'}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {searchQuery || selectedWard !== 'all'
+                          {searchAN || selectedWard !== 'all'
                             ? 'ลองเปลี่ยนคำค้นหาหรือตัวกรองหอผู้ป่วย'
                             : 'ผู้ป่วยทุกคนมีเอกสารสิทธิ์ครบถ้วนแล้ว'}
                         </p>
