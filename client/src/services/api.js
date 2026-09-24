@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { checkServerVersion } from './version'
 
 const api = axios.create({
   baseURL: '/api',
@@ -6,8 +7,19 @@ const api = axios.create({
 })
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const serverVersion = response.headers?.['x-app-version']
+    if (serverVersion) {
+      checkServerVersion(serverVersion)
+    }
+    return response
+  },
   (error) => {
+    const serverVersion = error.response?.headers?.['x-app-version']
+    if (serverVersion) {
+      checkServerVersion(serverVersion)
+    }
+
     if (error.response && error.response.status === 401) {
       const isAuthMe = error.config && error.config.url === '/auth/me'
       const isAlreadyOnLogin = window.location.pathname === '/login'

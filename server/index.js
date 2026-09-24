@@ -15,6 +15,7 @@ const authRoutes = require('./routes/auth');
 const patientRoutes = require('./routes/patients');
 const documentRoutes = require('./routes/documents');
 const wardRoutes = require('./routes/wards');
+const { getAppVersion } = require('./lib/version');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -23,6 +24,15 @@ app.use(cors({
     origin: 'http://localhost:5173',
     credentials: true
 }));
+
+// Attach X-App-Version to all responses
+app.use((req, res, next) => {
+    const appVersion = getAppVersion();
+    res.setHeader('X-App-Version', appVersion);
+    res.setHeader('Access-Control-Expose-Headers', 'X-App-Version');
+    next();
+});
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -42,6 +52,10 @@ app.use('/api/workflow', require('./routes/workflow'));
 app.use('/api/pttype', require('./routes/pttype'));
 
 // System routes
+app.get('/api/system/version', (req, res) => {
+    res.json({ version: getAppVersion() });
+});
+
 app.post('/api/system/force-refresh', (req, res) => {
     try {
         const { getIO } = require('./lib/socket');
