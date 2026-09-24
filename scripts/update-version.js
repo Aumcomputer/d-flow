@@ -36,6 +36,13 @@ function updateVersion() {
 
   for (const file of filesToUpdate) {
     try {
+      if (!isPreCommit && fs.existsSync(file)) {
+        const existing = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (existing.version === versionData.version) {
+          // Version is already up to date, skip writing to avoid dirty working tree
+          continue;
+        }
+      }
       const dir = path.dirname(file);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
