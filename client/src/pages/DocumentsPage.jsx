@@ -26,7 +26,10 @@ import {
   FileClock,
   CheckCircle2,
   XCircle,
-  ArrowLeft
+  ArrowLeft,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react'
 
 export default function DocumentsPage() {
@@ -63,6 +66,28 @@ export default function DocumentsPage() {
   const handleWardChange = (ward) => {
     setSelectedWard(ward)
     localStorage.setItem('doc_selectedWard', ward)
+  }
+
+  // Sorting state for table
+  const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' })
+
+  const handleSort = (key) => {
+    let direction = 'asc'
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    setSortConfig({ key, direction })
+  }
+
+  const renderSortIcon = (key) => {
+    if (sortConfig.key !== key) {
+      return <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    }
+    return sortConfig.direction === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 text-blue-600 font-bold shrink-0" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 text-blue-600 font-bold shrink-0" />
+    )
   }
 
   const setActiveTab = (tab) => {
@@ -320,9 +345,9 @@ export default function DocumentsPage() {
     return Array.from(wardMap.values()).sort()
   }, [currentList, selectedWard])
 
-  // Filtered patients for the active tab
+  // Filtered & Sorted patients for the active tab
   const filteredPatients = useMemo(() => {
-    return currentList.filter(p => {
+    let items = currentList.filter(p => {
       const matchesWard = selectedWard === 'all' || p.ward_name === selectedWard
       if (!matchesWard) return false
 
@@ -339,7 +364,46 @@ export default function DocumentsPage() {
         (p.bedno && String(p.bedno).toLowerCase().includes(q))
       )
     })
-  }, [currentList, selectedWard, searchAN])
+
+    if (sortConfig.key) {
+      items.sort((a, b) => {
+        let aVal = a[sortConfig.key]
+        let bVal = b[sortConfig.key]
+
+        // Date sorting
+        if (sortConfig.key === 'admit_date') {
+          const aTime = aVal ? new Date(aVal).getTime() : 0
+          const bTime = bVal ? new Date(bVal).getTime() : 0
+          return sortConfig.direction === 'asc' ? aTime - bTime : bTime - aTime
+        }
+
+        // Numeric doc_count sorting
+        if (sortConfig.key === 'doc_count') {
+          const aNum = Number(aVal || 0)
+          const bNum = Number(bVal || 0)
+          return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum
+        }
+
+        // Bed sorting with natural alphanumeric compare (e.g. 1, 2, 10 instead of 1, 10, 2)
+        if (sortConfig.key === 'bedno') {
+          const aStr = String(aVal || '')
+          const bStr = String(bVal || '')
+          return sortConfig.direction === 'asc'
+            ? aStr.localeCompare(bStr, undefined, { numeric: true })
+            : bStr.localeCompare(aStr, undefined, { numeric: true })
+        }
+
+        // Thai / String compare
+        const aStr = String(aVal || '')
+        const bStr = String(bVal || '')
+        return sortConfig.direction === 'asc'
+          ? aStr.localeCompare(bStr, 'th')
+          : bStr.localeCompare(aStr, 'th')
+      })
+    }
+
+    return items
+  }, [currentList, selectedWard, searchAN, sortConfig])
 
   const handleRefresh = () => {
     fetchInpatients()
@@ -665,16 +729,80 @@ export default function DocumentsPage() {
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground border-b border-border uppercase text-xs font-semibold">
                 <tr>
-                  <th className="px-4 py-3.5 w-32">หอผู้ป่วย</th>
-                  <th className="px-4 py-3.5 w-24">เตียง</th>
-                  <th className="px-4 py-3.5 w-40">AN / HN</th>
-                  <th className="px-4 py-3.5 min-w-[200px]">ชื่อ-สกุล</th>
-                  <th className="px-4 py-3.5 min-w-[180px]">สิทธิ์การรักษา</th>
+                  <th 
+                    onClick={() => handleSort('ward_name')}
+                    className="px-4 py-3.5 w-36 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>หอผู้ป่วย</span>
+                      {renderSortIcon('ward_name')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('bedno')}
+                    className="px-4 py-3.5 w-24 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>เตียง</span>
+                      {renderSortIcon('bedno')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('an')}
+                    className="px-4 py-3.5 w-40 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>AN / HN</span>
+                      {renderSortIcon('an')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('fname')}
+                    className="px-4 py-3.5 min-w-[200px] cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>ชื่อ-สกุล</span>
+                      {renderSortIcon('fname')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('pttype_name')}
+                    className="px-4 py-3.5 min-w-[180px] cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>สิทธิ์การรักษา</span>
+                      {renderSortIcon('pttype_name')}
+                    </div>
+                  </th>
                   {activeTab === 'incomplete' && (
-                    <th className="px-4 py-3.5 min-w-[260px]">สถานะเอกสาร</th>
+                    <th 
+                      onClick={() => handleSort('doc_count')}
+                      className="px-4 py-3.5 min-w-[260px] cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span>สถานะเอกสาร</span>
+                        {renderSortIcon('doc_count')}
+                      </div>
+                    </th>
                   )}
-                  <th className="px-4 py-3.5 w-32">วันที่ Admit</th>
-                  <th className="px-4 py-3.5 min-w-[180px]">แพทย์เจ้าของไข้</th>
+                  <th 
+                    onClick={() => handleSort('admit_date')}
+                    className="px-4 py-3.5 w-36 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>วันที่ Admit</span>
+                      {renderSortIcon('admit_date')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('doctor_name')}
+                    className="px-4 py-3.5 min-w-[180px] cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>แพทย์เจ้าของไข้</span>
+                      {renderSortIcon('doctor_name')}
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
