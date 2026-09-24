@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { User, Lock, ClipboardList } from 'lucide-react'
+import { APP_VERSION } from '../services/version'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -45,9 +46,12 @@ export default function LoginPage() {
               <text x="170" y="90" fontFamily="'Segoe UI', Roboto, sans-serif" fontWeight="900" fontSize="56" fill="#0f172a" fontStyle="italic">flow</text>
             </svg>
           </div>
-          <div className="text-right mt-[-10px] sm:pr-2">
-            <span className="font-semibold text-[11px] text-slate-500 tracking-[0.2em]">
+          <div className="flex items-center justify-between mt-[-10px] sm:pr-2">
+            <span className="font-semibold text-[11px] text-slate-500 tracking-[0.15em]">
               DISCHARGE MANAGEMENT SYSTEM
+            </span>
+            <span className="font-mono font-medium text-[11px] text-slate-500 bg-slate-100/90 border border-slate-200/80 px-2 py-0.5 rounded-full select-none">
+              v{APP_VERSION}
             </span>
           </div>
         </div>
@@ -90,6 +94,10 @@ export default function LoginPage() {
           <Button type="submit" className="w-full text-md py-6 rounded-xl" disabled={loading}>
             {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </Button>
+
+          <div className="pt-1 text-center text-[11px] text-slate-400 font-mono select-none">
+            D-Flow • v{APP_VERSION}
+          </div>
         </form>
       </div>
     </div>
