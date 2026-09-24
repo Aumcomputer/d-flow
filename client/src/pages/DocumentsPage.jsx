@@ -384,8 +384,8 @@ export default function DocumentsPage() {
           return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum
         }
 
-        // Bed sorting with natural alphanumeric compare (e.g. 1, 2, 10 instead of 1, 10, 2)
-        if (sortConfig.key === 'bedno') {
+        // AN / HN / Bed sorting with natural alphanumeric compare (e.g. 1, 2, 10 instead of 1, 10, 2)
+        if (sortConfig.key === 'an' || sortConfig.key === 'hn' || sortConfig.key === 'bedno') {
           const aStr = String(aVal || '')
           const bStr = String(bVal || '')
           return sortConfig.direction === 'asc'
@@ -739,21 +739,21 @@ export default function DocumentsPage() {
                     </div>
                   </th>
                   <th 
-                    onClick={() => handleSort('bedno')}
-                    className="px-4 py-3.5 w-24 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                    onClick={() => handleSort('an')}
+                    className="px-4 py-3.5 w-32 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span>เตียง</span>
-                      {renderSortIcon('bedno')}
+                      <span>AN</span>
+                      {renderSortIcon('an')}
                     </div>
                   </th>
                   <th 
-                    onClick={() => handleSort('an')}
-                    className="px-4 py-3.5 w-40 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                    onClick={() => handleSort('hn')}
+                    className="px-4 py-3.5 w-28 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span>AN / HN</span>
-                      {renderSortIcon('an')}
+                      <span>HN</span>
+                      {renderSortIcon('hn')}
                     </div>
                   </th>
                   <th 
@@ -853,18 +853,14 @@ export default function DocumentsPage() {
                         </div>
                       </td>
 
-                      {/* เตียง */}
-                      <td className="px-4 py-3.5">
-                        <div className="inline-flex items-center gap-1 font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md text-xs">
-                          <Bed className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{p.bedno || '-'}</span>
-                        </div>
+                      {/* AN */}
+                      <td className="px-4 py-3.5 font-semibold text-blue-600 group-hover:underline whitespace-nowrap">
+                        {p.an}
                       </td>
 
-                      {/* AN / HN */}
-                      <td className="px-4 py-3.5">
-                        <div className="font-semibold text-blue-600 group-hover:underline">{p.an}</div>
-                        <div className="text-xs text-muted-foreground">HN: {p.hn}</div>
+                      {/* HN */}
+                      <td className="px-4 py-3.5 text-slate-700 whitespace-nowrap font-medium">
+                        {p.hn}
                       </td>
 
                       {/* ชื่อ-สกุล */}
