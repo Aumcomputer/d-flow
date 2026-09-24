@@ -36,6 +36,26 @@ export default function PttypePage() {
     return 'approve'
   })
 
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedWard, setSelectedWard] = useState(() => {
+    const urlTab = searchParams.get('tab')
+    const active = (urlTab && VALID_PTTYPE_TABS.includes(urlTab))
+      ? urlTab
+      : (sessionStorage.getItem('pttype_activeTab') || 'approve')
+    if (active === 'check') {
+      return localStorage.getItem('pttype_check_selectedWard') || 'all'
+    }
+    return 'all'
+  })
+
+  const handleWardChange = (ward) => {
+    setSelectedWard(ward)
+    if (activeTab === 'check') {
+      localStorage.setItem('pttype_check_selectedWard', ward)
+    }
+  }
+
   const setActiveTab = (tab) => {
     setActiveTabState(tab)
     sessionStorage.setItem('pttype_activeTab', tab)
@@ -44,6 +64,11 @@ export default function PttypePage() {
       next.set('tab', tab)
       return next
     }, { replace: true })
+    if (tab === 'check') {
+      setSelectedWard(localStorage.getItem('pttype_check_selectedWard') || 'all')
+    } else {
+      setSelectedWard('all')
+    }
   }
 
   useEffect(() => {
@@ -51,6 +76,11 @@ export default function PttypePage() {
     if (tabFromUrl && VALID_PTTYPE_TABS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
       setActiveTabState(tabFromUrl)
       sessionStorage.setItem('pttype_activeTab', tabFromUrl)
+      if (tabFromUrl === 'check') {
+        setSelectedWard(localStorage.getItem('pttype_check_selectedWard') || 'all')
+      } else {
+        setSelectedWard('all')
+      }
     }
   }, [searchParams])
   
@@ -63,10 +93,6 @@ export default function PttypePage() {
   const [historyConsults, setHistoryConsults] = useState([])
   const [loadingConsults, setLoadingConsults] = useState(false)
   const [approveSubTab, setApproveSubTab] = useState('pending') // 'pending' | 'history'
-
-  // Filters & Search
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedWard, setSelectedWard] = useState('all')
 
   const fetchPatients = async () => {
     setLoading(true)
@@ -131,8 +157,11 @@ export default function PttypePage() {
         wardMap.set(p.ward_name, p.ward_name)
       }
     })
+    if (selectedWard && selectedWard !== 'all' && !wardMap.has(selectedWard)) {
+      wardMap.set(selectedWard, selectedWard)
+    }
     return Array.from(wardMap.values()).sort()
-  }, [currentList])
+  }, [currentList, selectedWard])
 
   // Filtered patients for Tab ตรวจสอบสิทธิ์
   const filteredPatients = useMemo(() => {
@@ -241,7 +270,7 @@ export default function PttypePage() {
             <Building2 className="w-4 h-4 text-muted-foreground" />
             <select
               value={selectedWard}
-              onChange={(e) => setSelectedWard(e.target.value)}
+              onChange={(e) => handleWardChange(e.target.value)}
               className="px-3 py-2 text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
             >
               <option value="all">ทุกหอผู้ป่วย ({currentList.length})</option>
@@ -279,7 +308,7 @@ export default function PttypePage() {
       <div className="flex space-x-2 border-b border-border">
         {/* Tab 1: อนุมัติสิทธิ์ */}
         <button
-          onClick={() => { setActiveTab('approve'); setSelectedWard('all'); setSearchQuery(''); }}
+          onClick={() => { setActiveTab('approve'); setSearchQuery(''); }}
           className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'approve'
               ? 'border-sky-600 text-sky-600 bg-sky-50/50 rounded-t-xl'
@@ -303,7 +332,7 @@ export default function PttypePage() {
 
         {/* Tab 2: ตรวจสอบสิทธิ์ */}
         <button
-          onClick={() => { setActiveTab('check'); setSelectedWard('all'); setSearchQuery(''); }}
+          onClick={() => { setActiveTab('check'); setSearchQuery(''); }}
           className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'check'
               ? 'border-sky-600 text-sky-600 bg-sky-50/50 rounded-t-xl'
