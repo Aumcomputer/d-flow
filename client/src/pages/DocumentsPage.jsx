@@ -349,7 +349,7 @@ export default function DocumentsPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 w-full max-w-7xl animate-fade-in space-y-6">
+    <div className="w-full px-4 sm:px-6 py-6 space-y-6 animate-in fade-in zoom-in-95 duration-500">
       {/* Top Bar: Title + Controls on top right */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-2xl border border-border shadow-sm">
         <div className="flex items-center gap-3">
