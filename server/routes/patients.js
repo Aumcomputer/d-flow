@@ -627,15 +627,25 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
         const duplicateCharges = Number(dupRows[0]?.cnt || 0);
 
         // 3. Bed charges (income = 01) completeness
+        const { getDflowConnection } = require('../config/database');
+        localConn = await getDflowConnection();
+
         const admitRows = await conn.query(`
-            SELECT i.regdate, i.dchdate FROM ipt i WHERE i.an = ?
+            SELECT i.regdate, i.regtime, i.dchdate, i.dchtime FROM ipt i WHERE i.an = ?
+        `, [an]);
+
+        // Check if discharged in d-flow
+        const anDetailRows = await localConn.query(`
+            SELECT discharge_date FROM an_detail WHERE an = ?
         `, [an]);
 
         let bedMissingDays = 0;
         let bedMissingDates = [];
+        let bedAuditInfo = null;
+
         if (admitRows.length > 0) {
             const regdate = admitRows[0].regdate;
-            const dchdate = admitRows[0].dchdate;
+            const regtime = admitRows[0].regtime;
 
             const toLocalISODate = (d) => {
                 if (!(d instanceof Date) || isNaN(d)) return null;
@@ -646,11 +656,51 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
             };
 
             const startDate = new Date(regdate);
-            const endDate = dchdate ? new Date(dchdate) : new Date();
-            
-            // Normalize times to midnight to avoid skipping/duplicate days due to DST/time shifts
             startDate.setHours(0, 0, 0, 0);
-            endDate.setHours(0, 0, 0, 0);
+
+            // Determine target date and time (d-flow discharge time > HIS dchdate > current time)
+            let targetDateTime = new Date();
+            let isDischarged = false;
+
+            if (anDetailRows.length > 0 && anDetailRows[0].discharge_date) {
+                targetDateTime = new Date(anDetailRows[0].discharge_date);
+                isDischarged = true;
+            } else if (admitRows[0].dchdate) {
+                targetDateTime = new Date(admitRows[0].dchdate);
+                if (admitRows[0].dchtime) {
+                    const parts = String(admitRows[0].dchtime).split(':');
+                    targetDateTime.setHours(parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, 0, 0);
+                }
+                isDischarged = true;
+            }
+
+            // Parse admit time (hours and minutes)
+            let admitHour = 0;
+            let admitMinute = 0;
+            if (regtime) {
+                const parts = String(regtime).split(':');
+                admitHour = parseInt(parts[0], 10) || 0;
+                admitMinute = parseInt(parts[1], 10) || 0;
+            }
+
+            // Calculate hours difference on the target day compared to admit time
+            const targetHour = targetDateTime.getHours();
+            const targetMinute = targetDateTime.getMinutes();
+            const targetMinutes = targetHour * 60 + targetMinute;
+            const admitMinutes = admitHour * 60 + admitMinute;
+            const diffMinutes = targetMinutes - admitMinutes;
+
+            // Rule: If difference <= 6 hours (360 mins), do NOT charge bed for target day
+            const chargeTargetDay = diffMinutes > (6 * 60);
+
+            const targetDateOnly = new Date(targetDateTime);
+            targetDateOnly.setHours(0, 0, 0, 0);
+
+            let endDate = new Date(targetDateOnly);
+            if (!chargeTargetDay) {
+                // Exclude target day from required bed charge dates
+                endDate.setDate(endDate.getDate() - 1);
+            }
 
             // Get all dates that have income 01
             const bedRows = await conn.query(`
@@ -660,13 +710,12 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
             
             const bedDates = new Set();
             for (const r of bedRows) {
-                // Handle case where rxdate is string or Date object
                 const d = r.rxdate instanceof Date ? r.rxdate : new Date(r.rxdate);
                 const localDateStr = toLocalISODate(d);
                 if (localDateStr) bedDates.add(localDateStr);
             }
 
-            // Check each day
+            // Check each required day
             const cursor = new Date(startDate);
             while (cursor <= endDate) {
                 const dateStr = toLocalISODate(cursor);
@@ -676,11 +725,19 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
                 }
                 cursor.setDate(cursor.getDate() + 1);
             }
+
+            bedAuditInfo = {
+                admitDate: toLocalISODate(startDate),
+                admitTime: `${String(admitHour).padStart(2, '0')}:${String(admitMinute).padStart(2, '0')}`,
+                targetDate: toLocalISODate(targetDateOnly),
+                targetTime: `${String(targetHour).padStart(2, '0')}:${String(targetMinute).padStart(2, '0')}`,
+                diffHours: (diffMinutes / 60).toFixed(2),
+                chargeTargetDay,
+                isDischarged
+            };
         }
 
         // 4. Document completeness
-        const { getDflowConnection } = require('../config/database');
-        localConn = await getDflowConnection();
         const docRows = await localConn.query(`
             SELECT doc_type_id FROM documents WHERE an = ?
         `, [an]);
@@ -707,6 +764,7 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
             duplicateCharges,
             bedMissingDays,
             bedMissingDates,
+            bedAuditInfo,
             docComplete: missingDocs.length === 0,
             docMissing: missingDocs.length,
             totalOps,
