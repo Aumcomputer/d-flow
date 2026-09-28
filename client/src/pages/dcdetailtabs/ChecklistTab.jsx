@@ -235,9 +235,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
     },
     {
       pass: audit.bedMissingDays === 0,
-      passLabel: audit.bedAuditInfo && !audit.bedAuditInfo.chargeTargetDay
-        ? 'ลงค่าเตียงครบถ้วน (วันปัจจุบัน/วันจำหน่ายห่างจากเวลา Admit ไม่เกิน 6 ชม.)'
-        : 'ลงค่าเตียงครบถ้วน',
+      passLabel: 'ลงค่าเตียงครบถ้วน',
       failLabel: `ลงค่าเตียงไม่ครบถ้วน ขาด ${audit.bedMissingDays} วัน`,
       failDetail: audit.bedMissingDates?.map(d => formatDate(d)).join(', '),
       icon: Bed,
