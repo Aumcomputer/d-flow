@@ -50,7 +50,13 @@ async function getWorkflowPatients(status, historyOf = null, reqDate = null) {
             SELECT 
                 i.an, i.hn, p.pname, p.fname, p.lname,
                 TIMESTAMPDIFF(YEAR, p.birthday, CURDATE()) as age_y,
-                pt.name as pttype_name,
+                COALESCE(
+                    (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                     FROM ipt_pttype ip
+                     JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                     WHERE ip.an = i.an),
+                    pt.name
+                ) as pttype_name,
                 i.regdate as admit_date,
                 w.name as ward_name,
                 CONCAT(d.pname, d.fname, ' ', d.lname) as doctor_name,
@@ -251,7 +257,13 @@ router.get(['/all-discharged', '/pharmacy/all-discharged'], authMiddleware, asyn
                 w.name AS ward_name,
                 w.ward AS ward_code,
                 COALESCE(d.name, adm_d.name) AS doctor_name,
-                pt.name AS pttype_name,
+                COALESCE(
+                    (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                     FROM ipt_pttype ip
+                     JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                     WHERE ip.an = i.an),
+                    pt.name
+                ) AS pttype_name,
                 iptb.bedno,
                 i.dchdate, i.dchtime, i.dchstts
             FROM ipt i
@@ -373,7 +385,13 @@ router.get('/pharmacy/return-meds', authMiddleware, async (req, res) => {
             SELECT 
                 i.an, i.hn, p.pname, p.fname, p.lname,
                 TIMESTAMPDIFF(YEAR, p.birthday, CURDATE()) as age_y,
-                pt.name as pttype_name,
+                COALESCE(
+                    (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                     FROM ipt_pttype ip
+                     JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                     WHERE ip.an = i.an),
+                    pt.name
+                ) as pttype_name,
                 i.regdate as admit_date,
                 w.name as ward_name,
                 CONCAT(d.pname, d.fname, ' ', d.lname) as doctor_name

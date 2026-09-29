@@ -105,8 +105,13 @@ router.get('/inpatients', async (req, res) => {
                 (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
                 w.name AS ward_name,
                 w.ward AS ward_code,
-                COALESCE(d.name, d2.name) AS doctor_name,
-                pt.name AS pttype_name,
+                COALESCE(
+                    (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                     FROM ipt_pttype ip
+                     JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                     WHERE ip.an = i.an),
+                    pt.name
+                ) AS pttype_name,
                 pt.pttype AS pttype_code,
                 iptb.bedno,
                 COALESCE(aa.income, 0) AS total_income

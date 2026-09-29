@@ -197,9 +197,19 @@ export default function DischargeDetailPage() {
                 <Stethoscope className="w-4 h-4 text-blue-500" />
                 <span>{patient.doctor_name || '-'}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-blue-500 shrink-0" />
-                <span>{patient.pttype_name || '-'}</span>
+              <div className="flex items-start gap-1.5">
+                <Shield className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                {patient.pttypes && patient.pttypes.length > 1 ? (
+                  <div className="flex flex-col gap-0.5">
+                    {patient.pttypes.map((pt, idx) => (
+                      <span key={idx} className="text-xs text-slate-700 font-medium">
+                        <span className="text-blue-600 font-semibold">{pt.pttype_number}.</span> {pt.pttype_name}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span>{patient.pttype_name || '-'}</span>
+                )}
               </div>
             </div>
 

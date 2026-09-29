@@ -134,7 +134,13 @@ router.get('/:an', authMiddleware, async (req, res) => {
               i.an, i.hn, i.regdate, i.regtime, i.ward AS ward_code, i.dchdate, i.dchtime,
               CONCAT(p.pname, p.fname, ' ', p.lname) AS fullname,
               p.sex, p.birthday, p.cid,
-              pt.name AS pttype_name,
+              COALESCE(
+                (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                 FROM ipt_pttype ip
+                 JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                 WHERE ip.an = i.an),
+                pt.name
+              ) AS pttype_name,
               w.name AS ward_name,
               d.name AS doctor_name,
               i.incharge_doctor AS doctor_code,
@@ -164,6 +170,17 @@ router.get('/:an', authMiddleware, async (req, res) => {
         }
 
         const patient = rows[0];
+
+        // Fetch all rights from ipt_pttype
+        const pttypeRows = await conn.query(`
+            SELECT ip.pttype_number, ip.pttype, pt.name as pttype_name, ip.pttypeno, ip.hospmain, ip.hospsub
+            FROM ipt_pttype ip
+            JOIN pttype pt ON ip.pttype = pt.pttype
+            WHERE ip.an = ?
+            ORDER BY ip.pttype_number
+        `, [an]);
+        patient.pttypes = pttypeRows;
+
         if (patient.birthday) {
             const today = new Date();
             const birthDate = new Date(patient.birthday);

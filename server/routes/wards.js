@@ -105,7 +105,13 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
                     (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
                     w.name AS ward_name,
                     d.name AS doctor_name,
-                    pt.name AS pttype_name,
+                    COALESCE(
+                        (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                         FROM ipt_pttype ip
+                         JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                         WHERE ip.an = i.an),
+                        pt.name
+                    ) AS pttype_name,
                     iptb.bedno,
                     aa.income AS total_income,
                     aa.rcpt_money,
@@ -194,7 +200,13 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
                 (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
                 w.name AS ward_name,
                 d.name AS doctor_name,
-                pt.name AS pttype_name,
+                COALESCE(
+                    (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                     FROM ipt_pttype ip
+                     JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                     WHERE ip.an = i.an),
+                    pt.name
+                ) AS pttype_name,
                 iptb.bedno,
                 aa.income AS total_income,
                 aa.rcpt_money,
