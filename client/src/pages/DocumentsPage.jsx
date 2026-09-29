@@ -44,7 +44,6 @@ export default function DocumentsPage() {
   const [error, setError] = useState('')
   const [imgError, setImgError] = useState(false)
   const [copiedCid, setCopiedCid] = useState(false)
-  const [copiedRowCid, setCopiedRowCid] = useState(null)
 
   // Inpatient list tabs state
   const [activeTab, setActiveTabState] = useState(() => {
@@ -159,59 +158,33 @@ export default function DocumentsPage() {
 
   const copyToClipboard = async (text) => {
     if (!text) return false
-    const str = String(text).trim()
 
-    // 1. Try modern navigator.clipboard if available
-    if (navigator?.clipboard?.writeText) {
+    // 1. Try modern navigator.clipboard if in secure context (HTTPS / localhost)
+    if (navigator?.clipboard && window.isSecureContext) {
       try {
-        await navigator.clipboard.writeText(str)
+        await navigator.clipboard.writeText(text)
         return true
       } catch (err) {
-        console.warn('navigator.clipboard.writeText failed, attempting execCommand fallback...', err)
+        console.warn('navigator.clipboard failed, attempting fallback...', err)
       }
     }
 
-    // 2. Reliable fallback for HTTP/intranet LAN using visible-to-DOM textarea + execCommand
+    // 2. Reliable fallback for HTTP/intranet LAN using textarea + document.execCommand
     try {
       const textArea = document.createElement('textarea')
-      textArea.value = str
+      textArea.value = text
       textArea.style.position = 'fixed'
-      textArea.style.top = '0'
-      textArea.style.left = '0'
-      textArea.style.width = '2em'
-      textArea.style.height = '2em'
-      textArea.style.padding = '0'
-      textArea.style.border = 'none'
-      textArea.style.outline = 'none'
-      textArea.style.boxShadow = 'none'
-      textArea.style.background = 'transparent'
-      textArea.style.opacity = '0.01'
-      textArea.style.zIndex = '-9999'
-      textArea.setAttribute('tabindex', '-1')
-      textArea.setAttribute('aria-hidden', 'true')
-
+      textArea.style.left = '-9999px'
+      textArea.style.top = '-9999px'
+      textArea.setAttribute('readonly', '')
       document.body.appendChild(textArea)
-      textArea.focus({ preventScroll: true })
+      textArea.focus()
       textArea.select()
-      textArea.setSelectionRange(0, str.length)
-
-      let successful = false
-      try {
-        successful = document.execCommand('copy')
-      } catch (e) {
-        successful = false
-      }
+      const successful = document.execCommand('copy')
       document.body.removeChild(textArea)
-      if (successful) return true
+      return successful
     } catch (fallbackErr) {
       console.error('Copy fallback failed:', fallbackErr)
-    }
-
-    // 3. Fallback prompt if browser blocks programmatic clipboard write
-    try {
-      window.prompt('กด Ctrl+C เพื่อคัดลอกเลขประจำตัวประชาชน:', str)
-      return true
-    } catch (e) {
       return false
     }
   }
@@ -228,20 +201,6 @@ export default function DocumentsPage() {
     if (success) {
       setCopiedCid(true)
       setTimeout(() => setCopiedCid(false), 2000)
-    }
-  }
-
-  const handleCopyRowCid = async (e, cid, an) => {
-    if (e) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    if (!cid) return
-
-    const success = await copyToClipboard(String(cid).trim())
-    if (success) {
-      setCopiedRowCid(an)
-      setTimeout(() => setCopiedRowCid(null), 2000)
     }
   }
 
@@ -398,7 +357,6 @@ export default function DocumentsPage() {
       return (
         (p.an && p.an.toLowerCase().includes(q)) ||
         (p.hn && p.hn.toLowerCase().includes(q)) ||
-        (p.cid && p.cid.toLowerCase().includes(q)) ||
         (p.fname && p.fname.toLowerCase().includes(q)) ||
         (p.lname && p.lname.toLowerCase().includes(q)) ||
         (p.pttype_name && p.pttype_name.toLowerCase().includes(q)) ||
@@ -791,10 +749,10 @@ export default function DocumentsPage() {
                   </th>
                   <th 
                     onClick={() => handleSort('hn')}
-                    className="px-4 py-3.5 w-48 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                    className="px-4 py-3.5 w-28 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span>HN / CID</span>
+                      <span>HN</span>
                       {renderSortIcon('hn')}
                     </div>
                   </th>
@@ -900,37 +858,9 @@ export default function DocumentsPage() {
                         {p.an}
                       </td>
 
-                      {/* HN / CID */}
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <div className="font-semibold text-slate-800">{p.hn}</div>
-                        {p.cid ? (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono mt-0.5">
-                            <span className="text-slate-600 font-medium">{p.cid}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => handleCopyRowCid(e, p.cid, p.an)}
-                              className={`p-1 rounded-md transition-all inline-flex items-center justify-center ${
-                                copiedRowCid === p.an
-                                  ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-300'
-                                  : 'hover:bg-slate-200/80 text-slate-400 hover:text-slate-700'
-                              }`}
-                              title={copiedRowCid === p.an ? "คัดลอกแล้ว" : "คัดลอกเลข CID"}
-                            >
-                              {copiedRowCid === p.an ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in-75 duration-150" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                            {copiedRowCid === p.an && (
-                              <span className="text-[10px] text-emerald-600 font-medium animate-in fade-in duration-150">
-                                คัดลอกแล้ว
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-slate-400">-</div>
-                        )}
+                      {/* HN */}
+                      <td className="px-4 py-3.5 text-slate-700 whitespace-nowrap font-medium">
+                        {p.hn}
                       </td>
 
                       {/* ชื่อ-สกุล */}

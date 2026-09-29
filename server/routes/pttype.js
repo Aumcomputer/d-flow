@@ -52,7 +52,7 @@ router.get('/unverified', authMiddleware, async (req, res) => {
         // 1. Fetch all admitted inpatients in the hospital (dchstts IS NULL)
         const hisQuery = `
             SELECT 
-                i.an, i.hn, p.cid, i.regdate as admit_date, i.regtime as admit_time,
+                i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
                 p.pname, p.fname, p.lname, p.birthday,
                 (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
                 w.name AS ward_name,

@@ -10,7 +10,7 @@ const hisPool = mariadb.createPool({
     port: process.env.HIS_DB_PORT || 3306,
     charset: 'tis620', 
     initSql: "SET NAMES tis620",
-    connectionLimit: 10
+    connectionLimit: 5
 });
 
 const dflowPool = mariadb.createPool({
@@ -20,7 +20,7 @@ const dflowPool = mariadb.createPool({
     database: process.env.DFLOW_DB_NAME,
     port: process.env.DFLOW_DB_PORT || 3306,
     charset: 'utf8mb4',
-    connectionLimit: 10
+    connectionLimit: 5
 });
 
 const smartorPool = mariadb.createPool({
@@ -30,7 +30,7 @@ const smartorPool = mariadb.createPool({
     database: process.env.SMARTOR_DB_NAME,
     port: process.env.SMARTOR_DB_PORT || 3306,
     charset: 'tis620',
-    connectionLimit: 10
+    connectionLimit: 2
 });
 
 module.exports = {
