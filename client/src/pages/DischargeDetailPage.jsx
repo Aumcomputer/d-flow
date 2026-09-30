@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment, useCallback } from 'react'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard, Phone, Receipt, Tag } from 'lucide-react'
+import { ArrowLeft, User, Activity, FileText, CheckCircle2, Bed, Calendar, Stethoscope, Shield, DollarSign, FlaskConical, Scissors, Pill, ChevronRight, AlertCircle, UploadCloud, Circle, Trash2, Eye, ShieldCheck, AlertTriangle, CreditCard, Phone, Receipt, Tag, CornerDownLeft } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { Badge } from '../components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog'
@@ -18,6 +18,7 @@ import OperationTab from './dcdetailtabs/OperationTab'
 import ReceiptsTab from './dcdetailtabs/ReceiptsTab'
 import TimelineTab from './dcdetailtabs/TimelineTab'
 import DiscountTab from './dcdetailtabs/DiscountTab'
+import ReferbackTab from './dcdetailtabs/ReferbackTab'
 
 const TABS = [
   { id: 'checklist', label: 'รายการตรวจสอบ', icon: CheckCircle2 },
@@ -28,6 +29,7 @@ const TABS = [
   { id: 'operation', label: 'Operation', icon: Scissors },
   { id: 'receipts', label: 'ใบเสร็จรับเงิน', icon: Receipt },
   { id: 'discount', label: 'ส่วนลด', icon: Tag },
+  { id: 'referback', label: 'Refer Back', icon: CornerDownLeft },
   { id: 'timeline', label: 'Timeline', icon: Activity },
 ]
 
@@ -285,6 +287,7 @@ export default function DischargeDetailPage() {
         {activeTab === 'drugs' && <DrugProfileTab an={an} isFilterActive={isFilterActive} />}
         {activeTab === 'expenses' && <ExpensesTab an={an} />}
         {activeTab === 'discount' && <DiscountTab an={an} patient={patient} details={details} fetchDetails={fetchData} />}
+        {activeTab === 'referback' && <ReferbackTab an={an} patient={patient} details={details} />}
         {activeTab === 'lab' && <LabTab an={an} isFilterActive={isFilterActive} />}
         {activeTab === 'operation' && <OperationTab an={an} hn={patient.hn} />}
         {activeTab === 'receipts' && <ReceiptsTab an={an} />}

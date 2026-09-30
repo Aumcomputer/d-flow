@@ -50,6 +50,7 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/wards', wardRoutes);
 app.use('/api/workflow', require('./routes/workflow'));
 app.use('/api/pttype', require('./routes/pttype'));
+app.use('/api/referback', require('./routes/referback'));
 
 // System routes
 app.get('/api/system/version', (req, res) => {
@@ -143,6 +144,33 @@ async function migrateDB() {
             console.log('Database migrated: pttype_comments table verified');
         } catch (e) {
             console.error('Migration pttype_comments error:', e);
+        }
+
+        try {
+            await conn.query(`
+                CREATE TABLE IF NOT EXISTS refer_backs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    an VARCHAR(15) NOT NULL COMMENT 'Admission Number',
+                    hospcode VARCHAR(10) NOT NULL COMMENT 'รหัส รพ. ที่ประสานส่งกลับ',
+                    hospname VARCHAR(255) NOT NULL COMMENT 'ชื่อ รพ. ที่ประสานส่งกลับ',
+                    diagnosis TEXT NULL COMMENT 'การวินิจฉัยโรค',
+                    reason VARCHAR(255) NOT NULL COMMENT 'เหตุที่ส่งกลับ (เช่น ดูแลต่อหลังผ่าตัด ให้ยาต่อ กายภาพบำบัด)',
+                    status ENUM('accepted', 'rejected') NOT NULL COMMENT 'ผลการประสาน: accepted (รับ) / rejected (ปฏิเสธ)',
+                    responder_name VARCHAR(150) NOT NULL COMMENT 'ชื่อผู้ตอบ รับ / ปฏิเสธ',
+                    remark TEXT NULL COMMENT 'หมายเหตุเพิ่มเติม',
+                    contact_datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'วันเวลาที่ประสานงาน',
+                    recorded_by VARCHAR(50) NULL,
+                    recorded_by_name VARCHAR(100) NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_refer_backs_an (an),
+                    INDEX idx_refer_backs_hospcode (hospcode),
+                    INDEX idx_refer_backs_status (status)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            `);
+            console.log('Database migrated: refer_backs table verified');
+        } catch (e) {
+            console.error('Migration refer_backs error:', e);
         }
     } catch (err) {
         console.error('Migration error:', err);
