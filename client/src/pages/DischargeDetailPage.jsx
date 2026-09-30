@@ -252,13 +252,13 @@ export default function DischargeDetailPage() {
                   setActiveTab(tab.id)
                   setIsFilterActive(false)
                 }}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm sm:text-base font-medium transition-colors border-b-2 whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
+                    ? 'border-blue-600 text-blue-600 font-semibold'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4.5 h-4.5" />
                 {tab.label}
               </button>
             )

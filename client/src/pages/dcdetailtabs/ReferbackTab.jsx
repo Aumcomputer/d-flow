@@ -219,50 +219,50 @@ export default function ReferbackTab({ an, patient, details }) {
   const latestRecord = records.length > 0 ? records[0] : null;
 
   return (
-    <div className="py-4 space-y-6 w-full">
+    <div className="py-4 space-y-6 w-full text-slate-800">
       {/* Header Summary Banner */}
-      <div className="bg-gradient-to-r from-teal-500/10 via-cyan-500/10 to-blue-500/10 border border-teal-200/50 rounded-2xl p-5">
+      <div className="bg-gradient-to-r from-teal-500/10 via-cyan-500/10 to-blue-500/10 border border-teal-200/60 rounded-2xl p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-500/20">
-              <CornerDownLeft className="w-6 h-6" />
+          <div className="flex items-center gap-3.5">
+            <div className="w-13 h-13 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-500/20 shrink-0">
+              <CornerDownLeft className="w-7 h-7" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2.5 flex-wrap">
                 ประสานส่งตัวกลับ รพ.ต้นทาง (Refer Back)
                 {records.length > 0 && (
-                  <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-teal-100 text-teal-800 border border-teal-300">
+                  <span className="text-sm px-3 py-0.5 rounded-full font-bold bg-teal-100 text-teal-800 border border-teal-300">
                     ประสานแล้ว {records.length} ครั้ง
                   </span>
                 )}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-sm text-slate-600 mt-1">
                 บันทึกประวัติการประสานงานส่งตัวผู้ป่วยกลับ รพ.ต้นทาง หรือ รพ.ใกล้บ้าน พร้อมผลตอบรับ/ปฏิเสธ
               </p>
             </div>
           </div>
 
           {/* Quick Stat Badges */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/80 border border-border shadow-xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span className="text-xs text-muted-foreground">รับ:</span>
-              <span className="text-sm font-bold text-emerald-700">{acceptedCount}</span>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 border border-slate-200 shadow-xs">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <span className="text-sm text-slate-600 font-medium">รับ:</span>
+              <span className="text-base font-bold text-emerald-700">{acceptedCount}</span>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/80 border border-border shadow-xs">
-              <XCircle className="w-4 h-4 text-rose-600" />
-              <span className="text-xs text-muted-foreground">ปฏิเสธ:</span>
-              <span className="text-sm font-bold text-rose-700">{rejectedCount}</span>
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/90 border border-slate-200 shadow-xs">
+              <XCircle className="w-5 h-5 text-rose-600" />
+              <span className="text-sm text-slate-600 font-medium">ปฏิเสธ:</span>
+              <span className="text-base font-bold text-rose-700">{rejectedCount}</span>
             </div>
             {latestRecord && (
-              <div className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 ${
+              <div className={`px-4 py-2 rounded-xl border text-sm font-bold flex items-center gap-2 shadow-xs ${
                 latestRecord.status === 'accepted' 
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
-                  : 'bg-rose-50 text-rose-700 border-rose-300'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                  : 'bg-rose-50 text-rose-800 border-rose-300'
               }`}>
                 <span>สถานะล่าสุด:</span>
                 <span>{latestRecord.status === 'accepted' ? '🟢 รับแล้ว' : '🔴 ปฏิเสธ'}</span>
-                <span className="text-muted-foreground font-normal">({latestRecord.hospname})</span>
+                <span className="text-slate-600 font-normal">({latestRecord.hospname})</span>
               </div>
             )}
           </div>
@@ -273,22 +273,22 @@ export default function ReferbackTab({ an, patient, details }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Input Form (5 cols) */}
         <div className="lg:col-span-5 bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-          <div className="h-1.5 bg-gradient-to-r from-teal-500 to-emerald-500" />
-          <div className="px-5 py-4 border-b border-border bg-muted/20">
-            <h3 className="font-bold text-base flex items-center gap-2 text-slate-800">
+          <div className="h-2 bg-gradient-to-r from-teal-500 to-emerald-500" />
+          <div className="px-6 py-4.5 border-b border-border bg-muted/20">
+            <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800">
               <Plus className="w-5 h-5 text-teal-600" />
               บันทึกการประสานส่งตัวกลับ
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-sm text-slate-500 mt-0.5">
               กรอกข้อมูลการติดต่อ รพ. และผลการตอบรับ
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <form onSubmit={handleSubmit} className="p-6 space-y-5">
             {/* 1. โรงพยาบาลที่ประสานส่งกลับ (Searchable hospcode / name) */}
             <div className="relative" ref={searchBoxRef}>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                1. โรงพยาบาลที่ประสานส่งกลับ <span className="text-red-500">*</span>
+              <label className="block text-base font-semibold text-slate-800 mb-1.5">
+                1. โรงพยาบาลที่ประสานส่งกลับ <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -304,24 +304,24 @@ export default function ReferbackTab({ an, patient, details }) {
                     }
                   }}
                   placeholder="พิมพ์ชื่อ รพ. หรือ รหัส 5 หลัก (hospcode)..."
-                  className={`w-full pl-9 pr-8 py-2.5 text-sm border rounded-lg transition-colors focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
+                  className={`w-full pl-10 pr-9 py-2.5 text-base border rounded-xl transition-all focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
                     selectedHospital 
-                      ? 'border-teal-500 bg-teal-50/40 text-teal-900 font-medium' 
+                      ? 'border-teal-500 bg-teal-50/50 text-teal-900 font-semibold shadow-xs' 
                       : 'border-slate-300 bg-white'
                   }`}
                 />
-                <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <Building2 className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
                 {selectedHospital ? (
                   <button
                     type="button"
                     onClick={handleClearHospital}
-                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200"
-                    title="ล้างข้อมูล"
+                    className="absolute right-2.5 top-3 text-slate-400 hover:text-slate-700 p-1 rounded-full hover:bg-slate-200 transition-colors"
+                    title="ล้างข้อมูลเพื่อค้นหาใหม่"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 ) : searchingHosp ? (
-                  <div className="absolute right-3 top-3">
+                  <div className="absolute right-3.5 top-3.5">
                     <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : null}
@@ -329,20 +329,20 @@ export default function ReferbackTab({ an, patient, details }) {
 
               {/* Dropdown Results */}
               {showHospDropdown && hospResults.length > 0 && (
-                <div className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-xl divide-y divide-slate-100">
+                <div className="absolute z-30 left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100">
                   {hospResults.map((hosp) => (
                     <button
                       key={hosp.hospcode}
                       type="button"
                       onClick={() => handleSelectHospital(hosp)}
-                      className="w-full text-left px-3.5 py-2.5 hover:bg-teal-50/80 transition-colors flex items-start gap-2.5 text-xs"
+                      className="w-full text-left px-4 py-3 hover:bg-teal-50/80 transition-colors flex items-start gap-3 text-sm"
                     >
-                      <span className="font-mono font-bold text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded shrink-0">
+                      <span className="font-mono font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded text-xs shrink-0 mt-0.5">
                         {hosp.hospcode}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-slate-800 truncate">{hosp.name}</div>
-                        <div className="text-[11px] text-muted-foreground">
+                        <div className="font-bold text-slate-800 text-sm truncate">{hosp.name}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">
                           {hosp.province_name ? `จ.${hosp.province_name}` : ''} {hosp.hosptype ? `(${hosp.hosptype})` : ''}
                         </div>
                       </div>
@@ -351,7 +351,7 @@ export default function ReferbackTab({ an, patient, details }) {
                 </div>
               )}
               {showHospDropdown && !searchingHosp && hospSearch.length >= 2 && hospResults.length === 0 && (
-                <div className="absolute z-30 left-0 right-0 mt-1 p-3 bg-white border border-slate-200 rounded-lg shadow-lg text-xs text-center text-muted-foreground">
+                <div className="absolute z-30 left-0 right-0 mt-1 p-4 bg-white border border-slate-200 rounded-xl shadow-lg text-sm text-center text-slate-500">
                   ไม่พบข้อมูลโรงพยาบาลที่ค้นหา
                 </div>
               )}
@@ -359,19 +359,19 @@ export default function ReferbackTab({ an, patient, details }) {
 
             {/* 2. การวินิจฉัย (Diagnosis) */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5">
-                  <Stethoscope className="w-4 h-4 text-slate-500" />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-base font-semibold text-slate-800 flex items-center gap-1.5">
+                  <Stethoscope className="w-5 h-5 text-slate-500" />
                   2. การวินิจฉัย (Diagnosis)
                 </label>
                 {patientDiag?.pdx && (
                   <button
                     type="button"
                     onClick={() => setDiagnosis(`${patientDiag.pdx} : ${patientDiag.pdxName || ''}`)}
-                    className="text-[11px] text-teal-600 hover:text-teal-800 hover:underline flex items-center gap-1"
+                    className="text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-lg border border-teal-200 transition-colors flex items-center gap-1"
                     title="คลิกเพื่อดึงการวินิจฉัยหลัก (PDX) จากระบบ HIS"
                   >
-                    <Sparkles className="w-3 h-3" />
+                    <Sparkles className="w-3.5 h-3.5" />
                     ใช้ PDX ({patientDiag.pdx})
                   </button>
                 )}
@@ -380,19 +380,19 @@ export default function ReferbackTab({ an, patient, details }) {
                 type="text"
                 value={diagnosis}
                 onChange={(e) => setDiagnosis(e.target.value)}
-                placeholder="เช่น I21.9 Acute myocardial infarction หรือระบุการวินิจฉัย..."
-                className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                placeholder="เช่น I21.9 Acute myocardial infarction หรือพิมพ์การวินิจฉัย..."
+                className="w-full px-4 py-2.5 text-base border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
               />
               {/* Secondary diag chips if any */}
               {patientDiag?.diagList && patientDiag.diagList.length > 1 && (
-                <div className="mt-1.5 flex flex-wrap gap-1 items-center">
-                  <span className="text-[10px] text-muted-foreground mr-1">รหัสโรคอื่น:</span>
-                  {patientDiag.diagList.slice(0, 3).map((d, idx) => (
+                <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs font-medium text-slate-500 mr-1">รหัสโรคอื่น:</span>
+                  {patientDiag.diagList.slice(0, 4).map((d, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setDiagnosis(`${d.icd10} : ${d.diag_name || ''}`)}
-                      className="text-[10px] bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 px-2 py-0.5 rounded border border-slate-200 transition-colors"
+                      className="text-xs font-medium bg-slate-100 hover:bg-teal-50 hover:text-teal-800 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors"
                     >
                       {d.icd10}
                     </button>
@@ -403,18 +403,18 @@ export default function ReferbackTab({ an, patient, details }) {
 
             {/* 3. เหตุที่ส่งกลับ */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                3. เหตุที่ส่งกลับ <span className="text-red-500">*</span>
+              <label className="block text-base font-semibold text-slate-800 mb-1.5">
+                3. เหตุที่ส่งกลับ <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="เช่น ดูแลต่อหลังผ่าตัด, ให้ยาต่อ, กายภาพบำบัด..."
-                className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors mb-2"
+                className="w-full px-4 py-2.5 text-base border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors mb-2.5"
               />
               {/* Preset suggestion chips */}
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {REASON_PRESETS.map((preset) => (
                   <button
                     key={preset}
@@ -426,10 +426,10 @@ export default function ReferbackTab({ an, patient, details }) {
                         setReason(`${reason}, ${preset}`);
                       }
                     }}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                    className={`text-sm font-medium px-3 py-1.5 rounded-full border transition-all ${
                       reason.includes(preset)
-                        ? 'bg-teal-100 text-teal-800 border-teal-300 font-medium'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? 'bg-teal-100 text-teal-800 border-teal-300 font-semibold shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
                     + {preset}
@@ -440,14 +440,14 @@ export default function ReferbackTab({ an, patient, details }) {
 
             {/* 4. โรงพยาบาลที่ประสานส่งกลับ รับ / ปฏิเสธ */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                4. ผลการประสานงาน <span className="text-red-500">*</span>
+              <label className="block text-base font-semibold text-slate-800 mb-2">
+                4. ผลการประสานงาน <span className="text-rose-500">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3.5">
                 <button
                   type="button"
                   onClick={() => setStatus('accepted')}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 font-medium text-sm transition-all ${
+                  className={`flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 font-bold text-base transition-all ${
                     status === 'accepted'
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xs'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -460,7 +460,7 @@ export default function ReferbackTab({ an, patient, details }) {
                 <button
                   type="button"
                   onClick={() => setStatus('rejected')}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 font-medium text-sm transition-all ${
+                  className={`flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 font-bold text-base transition-all ${
                     status === 'rejected'
                       ? 'border-rose-500 bg-rose-50 text-rose-800 shadow-xs'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -474,8 +474,8 @@ export default function ReferbackTab({ an, patient, details }) {
 
             {/* 5. ชื่อผู้ตอบ รับ / ปฏิเสธ */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                5. ชื่อผู้ตอบ รับ / ปฏิเสธ <span className="text-red-500">*</span>
+              <label className="block text-base font-semibold text-slate-800 mb-1.5">
+                5. ชื่อผู้ตอบ รับ / ปฏิเสธ <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -483,27 +483,27 @@ export default function ReferbackTab({ an, patient, details }) {
                   value={responderName}
                   onChange={(e) => setResponderName(e.target.value)}
                   placeholder="ระบุชื่อ-สกุล หรือตำแหน่งผู้ตอบ เช่น พว.สมศรี (ห้องฉุกเฉิน), นพ.วิชัย..."
-                  className="w-full pl-9 pr-3.5 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 text-base border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
                 />
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <User className="w-5 h-5 text-slate-400 absolute left-3 top-3.5" />
               </div>
             </div>
 
             {/* 6. วันและเวลาที่ประสานงาน & หมายเหตุ */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   วัน-เวลาที่ประสานงาน
                 </label>
                 <input
                   type="datetime-local"
                   value={contactDatetime}
                   onChange={(e) => setContactDatetime(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 transition-colors"
+                  className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   หมายเหตุเพิ่มเติม
                 </label>
                 <input
@@ -511,7 +511,7 @@ export default function ReferbackTab({ an, patient, details }) {
                   value={remark}
                   onChange={(e) => setRemark(e.target.value)}
                   placeholder="เช่น เตียงเต็ม, นัดส่งตัว 09.00 น."
-                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 transition-colors"
+                  className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 transition-colors"
                 />
               </div>
             </div>
@@ -521,16 +521,16 @@ export default function ReferbackTab({ an, patient, details }) {
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-medium py-2.5 px-4 rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-base py-3 px-5 rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {saving ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>กำลังบันทึก...</span>
                   </>
                 ) : (
                   <>
-                    <CornerDownLeft className="w-4 h-4" />
+                    <CornerDownLeft className="w-5 h-5" />
                     <span>บันทึกผลการประสานส่งกลับ</span>
                   </>
                 )}
@@ -541,38 +541,38 @@ export default function ReferbackTab({ an, patient, details }) {
 
         {/* Right Column: History / Multiple attempts list (7 cols) */}
         <div className="lg:col-span-7 bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-          <div className="h-1.5 bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500" />
-          <div className="px-5 py-4 border-b border-border bg-muted/20 flex items-center justify-between">
+          <div className="h-2 bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500" />
+          <div className="px-6 py-4.5 border-b border-border bg-muted/20 flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-base flex items-center gap-2 text-slate-800">
+              <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800">
                 <Clock className="w-5 h-5 text-teal-600" />
                 ประวัติการประสานส่งตัวกลับ
-                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                <span className="text-sm px-3 py-0.5 rounded-full font-bold bg-slate-100 text-slate-700 border border-slate-200">
                   {records.length} รายการ
                 </span>
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-sm text-slate-500 mt-0.5">
                 เรียงตามวันเวลาที่ประสานงานล่าสุดขึ้นก่อน
               </p>
             </div>
           </div>
 
-          <div className="p-5">
+          <div className="p-6">
             {loading ? (
-              <div className="py-12 flex flex-col items-center justify-center text-muted-foreground gap-2">
-                <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs">กำลังโหลดประวัติการประสานส่งกลับ...</span>
+              <div className="py-14 flex flex-col items-center justify-center text-slate-500 gap-2.5">
+                <div className="w-7 h-7 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">กำลังโหลดประวัติการประสานส่งกลับ...</span>
               </div>
             ) : records.length === 0 ? (
-              <div className="py-14 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-2.5" />
-                <p className="text-sm font-medium text-slate-600">ยังไม่มีประวัติการประสานส่งตัวกลับ</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+              <div className="py-16 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-base font-bold text-slate-700">ยังไม่มีประวัติการประสานส่งตัวกลับ</p>
+                <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">
                   เมื่อมีการติดต่อประสานงานส่งตัวผู้ป่วยกลับ รพ.ต้นทาง สามารถกรอกข้อมูลในฟอร์มด้านซ้ายและบันทึกได้ทันที
                 </p>
               </div>
             ) : (
-              <div className="space-y-3.5">
+              <div className="space-y-4">
                 {records.map((rec, index) => {
                   const isAccepted = rec.status === 'accepted';
                   const attemptNum = records.length - index;
@@ -580,30 +580,30 @@ export default function ReferbackTab({ an, patient, details }) {
                   return (
                     <div
                       key={rec.id}
-                      className={`relative rounded-xl border p-4 transition-all shadow-xs ${
+                      className={`relative rounded-xl border p-4.5 transition-all shadow-xs ${
                         isAccepted
-                          ? 'border-emerald-200 bg-emerald-50/30 hover:border-emerald-300'
-                          : 'border-rose-200 bg-rose-50/30 hover:border-rose-300'
+                          ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300'
+                          : 'border-rose-200 bg-rose-50/40 hover:border-rose-300'
                       }`}
                     >
                       {/* Top row: Hospital name & Status badge & Action */}
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2.5">
-                          <span className={`text-xs px-2 py-0.5 rounded-md font-bold mt-0.5 shrink-0 ${
+                        <div className="flex items-start gap-3">
+                          <span className={`text-sm px-2.5 py-1 rounded-md font-bold mt-0.5 shrink-0 ${
                             isAccepted ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                           }`}>
                             ครั้งที่ {attemptNum}
                           </span>
                           <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-bold text-slate-800 text-sm">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <h4 className="font-bold text-slate-900 text-base">
                                 {rec.hospname}
                               </h4>
-                              <span className="font-mono text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">
+                              <span className="font-mono text-xs font-bold px-2 py-0.5 bg-white/90 text-slate-700 rounded-md border border-slate-200 shadow-2xs">
                                 {rec.hospcode}
                               </span>
                             </div>
-                            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
                               <Clock className="w-3.5 h-3.5 text-slate-400" />
                               <span>ประสานเมื่อ: {formatThaiDateTime(rec.contact_datetime)}</span>
                             </div>
@@ -611,19 +611,19 @@ export default function ReferbackTab({ an, patient, details }) {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold shadow-xs ${
+                          <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-bold shadow-xs ${
                             isAccepted
                               ? 'bg-emerald-600 text-white'
                               : 'bg-rose-600 text-white'
                           }`}>
                             {isAccepted ? (
                               <>
-                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <CheckCircle2 className="w-4 h-4" />
                                 <span>รับ (Accepted)</span>
                               </>
                             ) : (
                               <>
-                                <XCircle className="w-3.5 h-3.5" />
+                                <XCircle className="w-4 h-4" />
                                 <span>ปฏิเสธ (Rejected)</span>
                               </>
                             )}
@@ -632,7 +632,7 @@ export default function ReferbackTab({ an, patient, details }) {
                           <button
                             type="button"
                             onClick={() => handleDelete(rec.id, rec.hospname)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                             title="ลบรายการนี้"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -641,34 +641,34 @@ export default function ReferbackTab({ an, patient, details }) {
                       </div>
 
                       {/* Detail Grid */}
-                      <div className="mt-3 pt-3 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="mt-3.5 pt-3.5 border-t border-slate-200/70 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
                         <div>
-                          <span className="text-muted-foreground">ผู้ตอบรับ/ปฏิเสธ: </span>
-                          <span className="font-semibold text-slate-700">{rec.responder_name}</span>
+                          <span className="text-slate-500 font-medium">ผู้ตอบรับ/ปฏิเสธ: </span>
+                          <span className="font-bold text-slate-800">{rec.responder_name}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">เหตุผลที่ส่งกลับ: </span>
-                          <span className="font-medium text-slate-700">{rec.reason}</span>
+                          <span className="text-slate-500 font-medium">เหตุผลที่ส่งกลับ: </span>
+                          <span className="font-semibold text-slate-800">{rec.reason}</span>
                         </div>
                         {rec.diagnosis && (
                           <div className="sm:col-span-2">
-                            <span className="text-muted-foreground">การวินิจฉัย: </span>
-                            <span className="text-slate-700">{rec.diagnosis}</span>
+                            <span className="text-slate-500 font-medium">การวินิจฉัย: </span>
+                            <span className="font-semibold text-slate-800">{rec.diagnosis}</span>
                           </div>
                         )}
                         {rec.remark && (
-                          <div className="sm:col-span-2 bg-white/70 p-2 rounded-lg border border-slate-200/80">
-                            <span className="text-muted-foreground">หมายเหตุ: </span>
-                            <span className="text-slate-700">{rec.remark}</span>
+                          <div className="sm:col-span-2 bg-white/80 p-3 rounded-lg border border-slate-200">
+                            <span className="text-slate-500 font-medium">หมายเหตุ: </span>
+                            <span className="font-medium text-slate-800">{rec.remark}</span>
                           </div>
                         )}
                       </div>
 
                       {/* Footer: User who recorded */}
-                      <div className="mt-2.5 pt-2 border-t border-slate-200/40 flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3 text-slate-400" />
-                          <span>บันทึกโดย: {rec.recorded_by_name || rec.recorded_by || '-'}</span>
+                      <div className="mt-3 pt-2.5 border-t border-slate-200/50 flex items-center justify-between text-xs text-slate-500">
+                        <span className="flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
+                          <span>บันทึกโดย: <strong className="text-slate-700">{rec.recorded_by_name || rec.recorded_by || '-'}</strong></span>
                         </span>
                         <span>{formatThaiDateTime(rec.created_at)}</span>
                       </div>
