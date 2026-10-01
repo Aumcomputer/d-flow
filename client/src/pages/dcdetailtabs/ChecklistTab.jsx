@@ -33,6 +33,44 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
   const [cancelError, setCancelError] = useState('')
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
 
+  // Cancel Discharge Modal States
+  const [showCancelDischargeModal, setShowCancelDischargeModal] = useState(false)
+  const [cancelDischargePassword, setCancelDischargePassword] = useState('')
+  const [cancelDischargeError, setCancelDischargeError] = useState('')
+  const [cancelDischargeSubmitting, setCancelDischargeSubmitting] = useState(false)
+
+  const handleConfirmCancelDischarge = async (e) => {
+    if (e) e.preventDefault()
+    if (!cancelDischargePassword.trim()) {
+      setCancelDischargeError('กรุณากรอกรหัสผ่าน')
+      return
+    }
+    setCancelDischargeSubmitting(true)
+    setCancelDischargeError('')
+    try {
+      await api.post(`/patients/${an}/cancel-discharge`, { password: cancelDischargePassword })
+      setShowCancelDischargeModal(false)
+      setCancelDischargePassword('')
+      setWorkflowStatus(null)
+      if (setDetails) {
+        setDetails(prev => ({
+          ...prev,
+          discharge_date: null,
+          discharge_by: null,
+          workflow_status: null
+        }))
+      }
+      if (fetchData) fetchData()
+      fetchDetail()
+      alert('ยกเลิก Discharge เรียบร้อยแล้ว (ผู้ป่วยกลับสู่สถานะ Admit)')
+    } catch (err) {
+      console.error('Cancel discharge error:', err)
+      setCancelDischargeError(err.response?.data?.error || 'เกิดข้อผิดพลาด ไม่สามารถยกเลิกได้')
+    } finally {
+      setCancelDischargeSubmitting(false)
+    }
+  }
+
   const handleConfirmCancelForward = async (e) => {
     if (e) e.preventDefault()
     if (!cancelPassword.trim()) {
@@ -731,6 +769,21 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                       กรุณากรอก "เบอร์โทรศัพท์" และติ๊ก "รายการตรวจสอบ" ให้ครบถ้วน
                     </div>
                   )}
+
+                  {(details?.discharge_date || workflowStatus || patient?.dchstts) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCancelDischargePassword('');
+                        setCancelDischargeError('');
+                        setShowCancelDischargeModal(true);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 hover:border-rose-300 rounded-xl transition-all font-medium text-sm shadow-xs mt-1"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>ยกเลิก Discharge (กลับสู่สถานะ Admit)</span>
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -922,6 +975,98 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                     <>
                       <RotateCcw className="w-4 h-4" />
                       <span>ยืนยันยกเลิก</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Discharge Password Confirmation Modal */}
+      {showCancelDischargeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-border animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-border bg-rose-50/50 flex justify-between items-center">
+              <div className="flex items-center gap-3 text-rose-700">
+                <div className="p-2 bg-rose-100 rounded-xl">
+                  <RotateCcw className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-800">ยืนยันยกเลิก Discharge</h3>
+                  <p className="text-xs text-rose-600">ดึงผู้ป่วยกลับมาอยู่ในสถานะแอดมิท (Admitted)</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowCancelDischargeModal(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmCancelDischarge} className="p-6 space-y-4">
+              <div className="text-sm text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ผู้ขอยกเลิก:</span>
+                  <span className="font-semibold text-slate-800">{user?.name || user?.loginname}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Username:</span>
+                  <span className="font-mono text-slate-700">{user?.loginname}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">AN:</span>
+                  <span className="font-mono font-semibold text-slate-800">{an}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  กรุณากรอกรหัสผ่านเพื่อยืนยัน <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={cancelDischargePassword}
+                  onChange={(e) => {
+                    setCancelDischargePassword(e.target.value);
+                    if (cancelDischargeError) setCancelDischargeError('');
+                  }}
+                  placeholder="รหัสผ่านเข้าสู่ระบบของคุณ..."
+                  autoFocus
+                  disabled={cancelDischargeSubmitting}
+                  className="w-full px-3.5 py-2.5 text-sm border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-background"
+                />
+                {cancelDischargeError && (
+                  <div className="flex items-center gap-1.5 text-rose-600 text-xs mt-2">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{cancelDischargeError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelDischargeModal(false)}
+                  disabled={cancelDischargeSubmitting}
+                  className="flex-1 px-4 py-2.5 border border-input bg-background hover:bg-muted text-foreground text-sm font-medium rounded-xl transition-colors"
+                >
+                  ปิด
+                </button>
+                <button
+                  type="submit"
+                  disabled={cancelDischargeSubmitting || !cancelDischargePassword.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-xl shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {cancelDischargeSubmitting ? (
+                    <span>กำลังดำเนินการ...</span>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4" />
+                      <span>ยืนยันยกเลิก Discharge</span>
                     </>
                   )}
                 </button>

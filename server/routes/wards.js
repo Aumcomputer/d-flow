@@ -233,9 +233,19 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
         const allAns = rows.map(r => r.an);
         const completeness = await getDocCompleteness(allAns);
         
+        // Fetch ALL an_detail records for the returned ANs to ensure all D-Flow details are merged
+        let allAnDetailRows = [];
+        if (allAns.length > 0) {
+            const ansPlaceholders = allAns.map(() => '?').join(',');
+            allAnDetailRows = await dflowConn.query(
+                `SELECT * FROM an_detail WHERE an IN (${ansPlaceholders})`,
+                allAns
+            );
+        }
+        
         // Merge D-Flow discharge details
         const result = rows.map(row => {
-            const detail = anDetailRows.find(d => d.an === row.an);
+            const detail = allAnDetailRows.find(d => d.an === row.an);
             return {
                 ...row,
                 ...detail,

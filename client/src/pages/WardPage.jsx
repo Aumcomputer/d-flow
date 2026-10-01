@@ -523,7 +523,7 @@ export default function WardPage() {
                         </button>
                       ) : (
                         <div className="flex items-center justify-end gap-2">
-                          {p.discharge_date ? (
+                          {(p.discharge_date || p.workflow_status || p.dchstts) ? (
                             <button
                               onClick={(e) => { e.stopPropagation(); openCancelModal(p); }}
                               className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-rose-200 text-rose-600 hover:bg-rose-50 h-9 px-3"
