@@ -8,8 +8,9 @@ import {
 import api from '../services/api'
 import socket from '../services/socket'
 import { useSound } from '../contexts/SoundContext'
+import AdmitReturnTab from './pharmacytabs/AdmitReturnTab'
 
-const VALID_PHARMACY_TABS = ['prepare', 'dispense', 'return_audit', 'all_status', 'history', 'return_history']
+const VALID_PHARMACY_TABS = ['prepare', 'dispense', 'return_audit', 'admit_return', 'all_status', 'history', 'return_history']
 
 export default function PharmacyPage() {
   const navigate = useNavigate()
@@ -474,15 +475,17 @@ export default function PharmacyPage() {
               <span>Scan Barcode</span>
             </button>
           )}
-          <div className="w-full md:w-72">
-            <input
-              type="text"
-              placeholder="ค้นหา HN, AN หรือชื่อคนไข้"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-card"
-            />
-          </div>
+          {activeTab !== 'admit_return' && (
+            <div className="w-full md:w-72">
+              <input
+                type="text"
+                placeholder="ค้นหา HN, AN หรือชื่อคนไข้"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-card"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -537,6 +540,17 @@ export default function PharmacyPage() {
                 0
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setActiveTab('admit_return')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'admit_return'
+                ? 'border-emerald-600 text-emerald-600'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>คืนยา</span>
           </button>
           <button
             onClick={() => setActiveTab('all_status')}
@@ -630,9 +644,12 @@ export default function PharmacyPage() {
       </div>
 
       {/* Main Table */}
-      <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          {activeTab === 'prepare' ? (
+      {activeTab === 'admit_return' ? (
+        <AdmitReturnTab />
+      ) : (
+        <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+          <div className="overflow-x-auto">
+            {activeTab === 'prepare' ? (
             /* TAB: รอเช็คยา (Waiting for Check) */
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
@@ -1194,6 +1211,7 @@ export default function PharmacyPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Return Drug Audit Modal */}
       {selectedAuditPatient && (

@@ -1025,4 +1025,319 @@ router.post('/:an/cancel-dc-forward', authMiddleware, async (req, res) => {
     }
 });
 
+// ==========================================
+// Pharmacy Admit Return (คืนยาระหว่าง Admit)
+// ==========================================
+
+function buildReturnableDrugsQuery(an) {
+    const dosageforms = (process.env.RETURN_MED_DOSAGEFORMS || 'INJECTIONS')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    const excludeCategories = (process.env.RETURN_MED_EXCLUDE_CATEGORIES || 'FLUIDS AND ELECTROLYTES,INTRAVENOUS SOLOTION,INTRAVENOUS SOLUTION,INTRAVENOUS ANAESTHETICS,LOCAL ANAESTHETICS')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    const excludeCategoriesLike = (process.env.RETURN_MED_EXCLUDE_CATEGORIES_LIKE || 'ANAESTHETICS')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    const includeCategoriesLike = (process.env.RETURN_MED_INCLUDE_CATEGORIES_LIKE || 'ANXIOLYTICS,OPIOID,SEDATIVES')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    const includeIcodes = (process.env.RETURN_MED_INCLUDE_ICODES || '1500513,1460536,1590016,1490407')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    const excludeNameLike = (process.env.RETURN_MED_EXCLUDE_NAME_LIKE || 'วิสัญญี')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    let sql = `
+        SELECT DISTINCT o.icode,
+               CONCAT(d.name, IF(d.strength IS NOT NULL AND d.strength != '', CONCAT(' ', d.strength), '')) AS drug_name,
+               d.name, d.strength, d.units
+        FROM opitemrece o
+        INNER JOIN drugitems d ON d.icode = o.icode
+        WHERE o.an = ?
+    `;
+    const params = [an];
+    const orConditions = [];
+
+    if (dosageforms.length > 0) {
+        const dosagePlaceholders = dosageforms.map(() => '?').join(',');
+        let cond = `(d.dosageform IN (${dosagePlaceholders})`;
+        params.push(...dosageforms);
+
+        const notCategoryConds = [];
+        if (excludeCategories.length > 0) {
+            const excludePlaceholders = excludeCategories.map(() => '?').join(',');
+            notCategoryConds.push(`d.drugcategory NOT IN (${excludePlaceholders})`);
+            params.push(...excludeCategories);
+        }
+        for (const catLike of excludeCategoriesLike) {
+            notCategoryConds.push('d.drugcategory NOT LIKE ?');
+            params.push(`%${catLike}%`);
+        }
+
+        if (notCategoryConds.length > 0) {
+            cond += ` AND (d.drugcategory IS NULL OR (${notCategoryConds.join(' AND ')}))`;
+        }
+        cond += ')';
+        orConditions.push(cond);
+    }
+
+    for (const catLike of includeCategoriesLike) {
+        orConditions.push('d.drugcategory LIKE ?');
+        params.push(`%${catLike}%`);
+    }
+
+    if (includeIcodes.length > 0) {
+        const icodePlaceholders = includeIcodes.map(() => '?').join(',');
+        orConditions.push(`o.icode IN (${icodePlaceholders})`);
+        params.push(...includeIcodes);
+    }
+
+    if (orConditions.length > 0) {
+        sql += ` AND (${orConditions.join(' OR ')})`;
+    }
+
+    for (const nameLike of excludeNameLike) {
+        sql += ` AND d.name NOT LIKE ?`;
+        params.push(`%${nameLike}%`);
+    }
+
+    sql += ` ORDER BY drug_name ASC`;
+    return { sql, params };
+}
+
+// GET /api/workflow/pharmacy/admit-return/:an
+router.get('/pharmacy/admit-return/:an', authMiddleware, async (req, res) => {
+    let hisConn, dflowConn;
+    try {
+        const { an } = req.params;
+        hisConn = await getHisConnection();
+        dflowConn = await getDflowConnection();
+
+        // 1. Patient info from HIS
+        const patientSql = `
+            SELECT i.an, i.hn, p.pname, p.fname, p.lname,
+                   TIMESTAMPDIFF(YEAR, p.birthday, CURDATE()) as age_y,
+                   COALESCE(
+                       (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                        FROM ipt_pttype ip
+                        JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                        WHERE ip.an = i.an),
+                       pt.name
+                   ) AS pttype_name,
+                   i.regdate as admit_date,
+                   i.regtime as admit_time,
+                   i.dchdate, i.dchtime, i.dchstts,
+                   w.name as ward_name,
+                   CONCAT(d.pname, d.fname, ' ', d.lname) as doctor_name,
+                   i.prediag,
+                   iptb.bedno
+            FROM ipt i
+            LEFT JOIN patient p ON i.hn = p.hn
+            LEFT JOIN pttype pt ON i.pttype = pt.pttype
+            LEFT JOIN ward w ON i.ward = w.ward
+            LEFT JOIN doctor d ON COALESCE(i.admdoctor, i.dch_doctor) = d.code
+            LEFT JOIN iptadm iptb ON i.an = iptb.an
+            WHERE i.an = ?
+            LIMIT 1
+        `;
+        const patientRows = await hisConn.query(patientSql, [an]);
+        if (patientRows.length === 0) {
+            return res.status(404).json({ error: 'ไม่พบข้อมูลผู้ป่วยสำหรับ AN นี้ในระบบ HOSxP' });
+        }
+        const patient = patientRows[0];
+
+        // 2. Returnable drugs for left column
+        const { sql: drugsSql, params: drugsParams } = buildReturnableDrugsQuery(an);
+        const drugs = await hisConn.query(drugsSql, drugsParams);
+
+        // 3. Past rounds from pharmacy_return_rounds & pharmacy_return_items
+        const roundRows = await dflowConn.query(
+            `SELECT id, an, round_no, note, source, created_by, created_at
+             FROM pharmacy_return_rounds
+             WHERE an = ?
+             ORDER BY round_no ASC, created_at ASC`,
+            [an]
+        );
+
+        // Fetch user names from hisConn
+        const loginNames = [...new Set(roundRows.map(r => r.created_by).filter(Boolean))];
+
+        // Also check if return_drugs has audited items (Discharge Audit)
+        const auditedReturnRows = await dflowConn.query(
+            `SELECT id, an, icode, qty, is_correct, actual_qty, remark, checked_by, checked_at, created_by, created_at
+             FROM return_drugs
+             WHERE an = ? AND (checked_at IS NOT NULL OR checked_by IS NOT NULL)
+             ORDER BY id ASC`,
+            [an]
+        );
+
+        if (auditedReturnRows.length > 0 && auditedReturnRows[0].checked_by) {
+            loginNames.push(auditedReturnRows[0].checked_by);
+        }
+
+        let userNameMap = {};
+        if (loginNames.length > 0) {
+            const placeholders = loginNames.map(() => '?').join(',');
+            const users = await hisConn.query(
+                `SELECT loginname, name FROM opduser WHERE loginname IN (${placeholders})`,
+                loginNames
+            );
+            users.forEach(u => {
+                userNameMap[u.loginname] = u.name;
+            });
+        }
+
+        const rounds = [];
+        for (const r of roundRows) {
+            const items = await dflowConn.query(
+                `SELECT id, round_id, icode, drug_name, qty, units
+                 FROM pharmacy_return_items
+                 WHERE round_id = ?
+                 ORDER BY id ASC`,
+                [r.id]
+            );
+            rounds.push({
+                ...r,
+                created_by_name: userNameMap[r.created_by] || r.created_by,
+                items
+            });
+        }
+
+        // Add audited return drugs card if exists
+        if (auditedReturnRows.length > 0) {
+            const auditIcodes = auditedReturnRows.map(r => r.icode);
+            let auditDrugNameMap = {};
+            if (auditIcodes.length > 0) {
+                const placeholders = auditIcodes.map(() => '?').join(',');
+                const hisDrugs = await hisConn.query(
+                    `SELECT icode, CONCAT(name, IF(strength IS NOT NULL AND strength != '', CONCAT(' ', strength), '')) AS drug_name, units
+                     FROM drugitems WHERE icode IN (${placeholders})`,
+                    auditIcodes
+                );
+                hisDrugs.forEach(d => {
+                    auditDrugNameMap[d.icode] = { name: d.drug_name, units: d.units };
+                });
+            }
+
+            const auditItems = auditedReturnRows.map(r => ({
+                id: r.id,
+                icode: r.icode,
+                drug_name: auditDrugNameMap[r.icode]?.name || r.icode,
+                units: auditDrugNameMap[r.icode]?.units || '',
+                qty: (r.actual_qty !== null && r.actual_qty !== undefined) ? r.actual_qty : r.qty,
+                original_qty: r.qty,
+                actual_qty: r.actual_qty,
+                is_correct: r.is_correct,
+                remark: r.remark
+            }));
+
+            const firstAudit = auditedReturnRows[0];
+            rounds.push({
+                id: 'discharge_audit_' + an,
+                an: an,
+                round_no: 'ตรวจสอบยาคืน (Discharge Audit)',
+                is_audit_source: true,
+                source: 'discharge_audit',
+                note: firstAudit.remark || 'ตรวจสอบรายการยาคืนตอนจำหน่าย (Return Audit)',
+                created_by: firstAudit.checked_by || firstAudit.created_by,
+                created_by_name: userNameMap[firstAudit.checked_by || firstAudit.created_by] || firstAudit.checked_by || firstAudit.created_by,
+                created_at: firstAudit.checked_at || firstAudit.created_at,
+                items: auditItems
+            });
+        }
+
+        res.json({
+            patient,
+            drugs,
+            rounds
+        });
+    } catch (error) {
+        console.error('Fetch admit return data error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// POST /api/workflow/pharmacy/admit-return/:an
+router.post('/pharmacy/admit-return/:an', authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { an } = req.params;
+        const loginname = req.user.loginname;
+        const { note, items } = req.body;
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ error: 'กรุณาเลือกรายการยาที่ต้องการคืนอย่างน้อย 1 รายการ' });
+        }
+
+        dflowConn = await getDflowConnection();
+
+        // 1. Calculate next round_no
+        const maxRoundRows = await dflowConn.query(
+            'SELECT COALESCE(MAX(round_no), 0) + 1 AS next_round FROM pharmacy_return_rounds WHERE an = ?',
+            [an]
+        );
+        const roundNo = maxRoundRows[0].next_round;
+
+        // 2. Insert into pharmacy_return_rounds
+        const roundResult = await dflowConn.query(
+            `INSERT INTO pharmacy_return_rounds (an, round_no, note, source, created_by, created_at)
+             VALUES (?, ?, ?, 'admit_return', ?, NOW())`,
+            [an, roundNo, note || null, loginname]
+        );
+        const roundId = roundResult.insertId;
+
+        // 3. Insert items
+        for (const item of items) {
+            const icode = item.icode ? String(item.icode).trim() : null;
+            const drugName = String(item.drug_name || '').trim();
+            const qty = parseInt(item.qty, 10) || 1;
+            const units = item.units ? String(item.units).trim() : null;
+
+            if (!drugName) continue;
+
+            await dflowConn.query(
+                `INSERT INTO pharmacy_return_items (round_id, icode, drug_name, qty, units)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [roundId, icode, drugName, qty, units]
+            );
+        }
+
+        // 4. Log activity
+        await dflowConn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, 'PHARMACY_ADMIT_RETURN', loginname]
+        );
+
+        // 5. Emit socket event
+        try {
+            getIO().emit('workflow:updated', { an, type: 'pharmacy_admit_return', round_no: roundNo });
+        } catch (e) {
+            // Ignore socket errors
+        }
+
+        res.json({ success: true, round_id: roundId, round_no: roundNo });
+    } catch (error) {
+        console.error('Save pharmacy admit return error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
 module.exports = router;
