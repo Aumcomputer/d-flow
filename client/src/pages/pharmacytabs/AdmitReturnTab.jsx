@@ -286,7 +286,7 @@ export default function AdmitReturnTab() {
       {/* Patient Info Banner */}
       {patient && (
         <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50/40 border border-emerald-200 rounded-2xl p-5 shadow-xs animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-emerald-100">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs shrink-0">
                 <User className="w-6 h-6" />
@@ -341,13 +341,6 @@ export default function AdmitReturnTab() {
               </div>
             </div>
           </div>
-
-          {patient.prediag && (
-            <div className="pt-3 text-xs text-slate-600 flex items-center gap-2">
-              <span className="font-medium text-slate-500">การวินิจฉัย (Pre-diag):</span>
-              <span className="font-semibold text-slate-800">{patient.prediag}</span>
-            </div>
-          )}
         </div>
       )}
 
