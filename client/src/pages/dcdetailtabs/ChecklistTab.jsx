@@ -781,7 +781,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                       className="w-full flex items-center justify-center gap-2 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 hover:border-rose-300 rounded-xl transition-all font-medium text-sm shadow-xs mt-1"
                     >
                       <RotateCcw className="w-4 h-4" />
-                      <span>ยกเลิก Discharge (กลับสู่สถานะ Admit)</span>
+                      <span>ยกเลิก Discharge</span>
                     </button>
                   )}
                 </>
