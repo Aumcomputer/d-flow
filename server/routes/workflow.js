@@ -1061,9 +1061,10 @@ function buildReturnableDrugsQuery(an) {
         .filter(Boolean);
 
     let sql = `
-        SELECT DISTINCT o.icode,
+        SELECT o.icode,
                CONCAT(d.name, IF(d.strength IS NOT NULL AND d.strength != '', CONCAT(' ', d.strength), '')) AS drug_name,
-               d.name, d.strength, d.units
+               d.name, d.strength, d.units,
+               COALESCE(SUM(o.qty), 0) AS total_prescribed_qty
         FROM opitemrece o
         INNER JOIN drugitems d ON d.icode = o.icode
         WHERE o.an = ?
@@ -1114,7 +1115,7 @@ function buildReturnableDrugsQuery(an) {
         params.push(`%${nameLike}%`);
     }
 
-    sql += ` ORDER BY drug_name ASC`;
+    sql += ` GROUP BY o.icode ORDER BY drug_name ASC`;
     return { sql, params };
 }
 
@@ -1161,7 +1162,49 @@ router.get('/pharmacy/admit-return/:an', authMiddleware, async (req, res) => {
 
         // 2. Returnable drugs for left column
         const { sql: drugsSql, params: drugsParams } = buildReturnableDrugsQuery(an);
-        const drugs = await hisConn.query(drugsSql, drugsParams);
+        const drugsRaw = await hisConn.query(drugsSql, drugsParams);
+
+        // Fetch already returned quantities for this AN from D-Flow DB
+        const returnedItemsSum = await dflowConn.query(
+            `SELECT pi.icode, SUM(pi.qty) AS total_returned_qty
+             FROM pharmacy_return_items pi
+             JOIN pharmacy_return_rounds pr ON pi.round_id = pr.id
+             WHERE pr.an = ? AND pi.icode IS NOT NULL
+             GROUP BY pi.icode`,
+            [an]
+        );
+
+        const auditedItemsSum = await dflowConn.query(
+            `SELECT rd.icode, SUM(COALESCE(rd.actual_qty, rd.qty)) AS total_audit_returned_qty
+             FROM return_drugs rd
+             WHERE rd.an = ? AND (rd.checked_at IS NOT NULL OR rd.checked_by IS NOT NULL)
+             GROUP BY rd.icode`,
+            [an]
+        );
+
+        const returnedMap = {};
+        for (const row of returnedItemsSum) {
+            if (row.icode) {
+                returnedMap[row.icode] = (returnedMap[row.icode] || 0) + Number(row.total_returned_qty || 0);
+            }
+        }
+        for (const row of auditedItemsSum) {
+            if (row.icode) {
+                returnedMap[row.icode] = (returnedMap[row.icode] || 0) + Number(row.total_audit_returned_qty || 0);
+            }
+        }
+
+        const drugs = drugsRaw.map(d => {
+            const totalPrescribed = Number(d.total_prescribed_qty || 0);
+            const returnedQty = Number(returnedMap[d.icode] || 0);
+            const remainingQty = Math.max(0, totalPrescribed - returnedQty);
+            return {
+                ...d,
+                total_prescribed_qty: totalPrescribed,
+                returned_qty: returnedQty,
+                remaining_qty: remainingQty
+            };
+        });
 
         // 3. Past rounds from pharmacy_return_rounds & pharmacy_return_items
         const roundRows = await dflowConn.query(
@@ -1287,7 +1330,63 @@ router.post('/pharmacy/admit-return/:an', authMiddleware, async (req, res) => {
 
         dflowConn = await getDflowConnection();
 
-        // 1. Calculate next round_no
+        // 1. Validate quantities against remaining prescribed qty if item has icode
+        const icodesToValidate = items.filter(it => it.icode).map(it => String(it.icode).trim());
+        if (icodesToValidate.length > 0) {
+            let hisConnForVal;
+            try {
+                hisConnForVal = await getHisConnection();
+                const placeholders = icodesToValidate.map(() => '?').join(',');
+                const prescribedSumRows = await hisConnForVal.query(
+                    `SELECT o.icode, COALESCE(SUM(o.qty), 0) AS total_prescribed_qty
+                     FROM opitemrece o
+                     WHERE o.an = ? AND o.icode IN (${placeholders})
+                     GROUP BY o.icode`,
+                    [an, ...icodesToValidate]
+                );
+                const prescribedMap = {};
+                prescribedSumRows.forEach(r => { prescribedMap[r.icode] = Number(r.total_prescribed_qty || 0); });
+
+                const returnedSumRows = await dflowConn.query(
+                    `SELECT pi.icode, SUM(pi.qty) AS total_returned_qty
+                     FROM pharmacy_return_items pi
+                     JOIN pharmacy_return_rounds pr ON pi.round_id = pr.id
+                     WHERE pr.an = ? AND pi.icode IN (${placeholders})
+                     GROUP BY pi.icode`,
+                    [an, ...icodesToValidate]
+                );
+                const auditSumRows = await dflowConn.query(
+                    `SELECT rd.icode, SUM(COALESCE(rd.actual_qty, rd.qty)) AS total_audit_returned_qty
+                     FROM return_drugs rd
+                     WHERE rd.an = ? AND (rd.checked_at IS NOT NULL OR rd.checked_by IS NOT NULL) AND rd.icode IN (${placeholders})
+                     GROUP BY rd.icode`,
+                    [an, ...icodesToValidate]
+                );
+
+                const returnedMap = {};
+                returnedSumRows.forEach(r => { returnedMap[r.icode] = (returnedMap[r.icode] || 0) + Number(r.total_returned_qty || 0); });
+                auditSumRows.forEach(r => { returnedMap[r.icode] = (returnedMap[r.icode] || 0) + Number(r.total_audit_returned_qty || 0); });
+
+                for (const it of items) {
+                    const ic = it.icode ? String(it.icode).trim() : null;
+                    if (ic && prescribedMap[ic] !== undefined) {
+                        const totalPrescribed = prescribedMap[ic];
+                        const alreadyReturned = returnedMap[ic] || 0;
+                        const remaining = Math.max(0, totalPrescribed - alreadyReturned);
+                        const requestedQty = parseInt(it.qty, 10) || 0;
+                        if (requestedQty > remaining) {
+                            return res.status(400).json({
+                                error: `ยา ${it.drug_name || ic} เบิกทั้งหมด ${totalPrescribed} คืนแล้ว ${alreadyReturned} สามารถคืนได้สูงสุด ${remaining} เท่านั้น`
+                            });
+                        }
+                    }
+                }
+            } finally {
+                if (hisConnForVal) hisConnForVal.release();
+            }
+        }
+
+        // 2. Calculate next round_no
         const maxRoundRows = await dflowConn.query(
             'SELECT COALESCE(MAX(round_no), 0) + 1 AS next_round FROM pharmacy_return_rounds WHERE an = ?',
             [an]

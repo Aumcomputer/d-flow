@@ -119,9 +119,17 @@ export default function AdmitReturnTab() {
 
   // Add drug from left column to right column
   const handleSelectDrugFromLeft = (drug) => {
+    // Check if remaining qty <= 0
+    if (drug.remaining_qty !== undefined && drug.remaining_qty <= 0) {
+      alert('ยานี้คืนครบตามจำนวนที่เบิกแล้ว');
+      return;
+    }
+
     // Check if already in right column
     const exists = selectedDrugs.some(d => d.icode === drug.icode);
     if (exists) return;
+
+    const maxQty = drug.remaining_qty !== undefined ? Math.max(1, drug.remaining_qty) : undefined;
 
     setSelectedDrugs(prev => [
       ...prev,
@@ -130,6 +138,9 @@ export default function AdmitReturnTab() {
         drug_name: drug.drug_name || drug.name,
         units: drug.units || '',
         qty: 1,
+        max_qty: maxQty,
+        total_prescribed_qty: drug.total_prescribed_qty,
+        returned_qty: drug.returned_qty,
         source: 'prescribed'
       }
     ]);
@@ -145,6 +156,18 @@ export default function AdmitReturnTab() {
       return;
     }
 
+    // Check if this custom drug matches any prescribed drug with max_qty
+    const matchedPrescribed = availableDrugs.find(d => d.icode === drug.icode);
+    if (matchedPrescribed && matchedPrescribed.remaining_qty <= 0) {
+      alert('ยานี้มีในรายการที่ผู้ป่วยใช้ และได้คืนครบตามจำนวนที่เบิกแล้ว');
+      setShowDropdown(false);
+      return;
+    }
+
+    const maxQty = matchedPrescribed?.remaining_qty !== undefined 
+      ? Math.max(1, matchedPrescribed.remaining_qty) 
+      : undefined;
+
     setSelectedDrugs(prev => [
       ...prev,
       {
@@ -152,6 +175,9 @@ export default function AdmitReturnTab() {
         drug_name: drug.drug_name || drug.name,
         units: drug.units || '',
         qty: 1,
+        max_qty: maxQty,
+        total_prescribed_qty: matchedPrescribed?.total_prescribed_qty,
+        returned_qty: matchedPrescribed?.returned_qty,
         source: 'custom'
       }
     ]);
@@ -164,8 +190,16 @@ export default function AdmitReturnTab() {
   const handleUpdateQty = (index, delta) => {
     setSelectedDrugs(prev => {
       const next = [...prev];
-      const newQty = Math.max(1, (next[index].qty || 1) + delta);
-      next[index] = { ...next[index], qty: newQty };
+      const item = next[index];
+      if (!item) return prev;
+
+      let newQty = (item.qty || 1) + delta;
+      if (item.max_qty !== undefined && newQty > item.max_qty) {
+        newQty = item.max_qty;
+      }
+      newQty = Math.max(1, newQty);
+
+      next[index] = { ...item, qty: newQty };
       return next;
     });
   };
@@ -174,7 +208,15 @@ export default function AdmitReturnTab() {
     const val = parseInt(value, 10);
     setSelectedDrugs(prev => {
       const next = [...prev];
-      next[index] = { ...next[index], qty: isNaN(val) ? 1 : Math.max(1, val) };
+      const item = next[index];
+      if (!item) return prev;
+
+      let newQty = isNaN(val) ? 1 : Math.max(1, val);
+      if (item.max_qty !== undefined && newQty > item.max_qty) {
+        newQty = item.max_qty;
+      }
+
+      next[index] = { ...item, qty: newQty };
       return next;
     });
   };
@@ -385,13 +427,18 @@ export default function AdmitReturnTab() {
               ) : (
                 filteredAvailableDrugs.map((drug, index) => {
                   const isSelected = selectedIcodesSet.has(drug.icode);
+                  const isExhausted = drug.remaining_qty !== undefined && drug.remaining_qty <= 0;
+                  const isClickable = !isSelected && !isExhausted;
+
                   return (
                     <div
                       key={drug.icode || index}
-                      onClick={() => !isSelected && handleSelectDrugFromLeft(drug)}
+                      onClick={() => isClickable && handleSelectDrugFromLeft(drug)}
                       className={`p-3 rounded-xl border text-xs transition-all flex items-center justify-between gap-3 ${
                         isSelected
                           ? 'bg-slate-50 border-dashed border-slate-300 opacity-55 cursor-not-allowed select-none'
+                          : isExhausted
+                          ? 'bg-slate-50/80 border-slate-200 opacity-60 cursor-not-allowed select-none'
                           : 'bg-card border-border hover:border-emerald-400 hover:bg-emerald-50/40 cursor-pointer shadow-2xs hover:shadow-xs'
                       }`}
                     >
@@ -404,11 +451,26 @@ export default function AdmitReturnTab() {
                             {drug.drug_name || drug.name}
                           </span>
                         </div>
-                        {drug.units && (
-                          <div className="text-[11px] text-slate-500 mt-0.5">
-                            หน่วย: {drug.units}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          {drug.units && (
+                            <span className="text-[11px] text-slate-500">
+                              หน่วย: {drug.units}
+                            </span>
+                          )}
+                          <span className="px-1.5 py-0.5 text-[10px] rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            เบิกทั้งหมด: <strong className="font-mono">{drug.total_prescribed_qty || 0}</strong>
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[10px] rounded bg-purple-50 text-purple-700 border border-purple-200">
+                            คืนแล้ว: <strong className="font-mono">{drug.returned_qty || 0}</strong>
+                          </span>
+                          <span className={`px-1.5 py-0.5 text-[10px] rounded font-semibold border ${
+                            drug.remaining_qty > 0 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}>
+                            คงเหลือคืนได้: <strong className="font-mono">{drug.remaining_qty ?? 0}</strong>
+                          </span>
+                        </div>
                       </div>
 
                       <div className="shrink-0">
@@ -417,10 +479,15 @@ export default function AdmitReturnTab() {
                             <Check className="w-3 h-3 text-slate-600" />
                             <span>เลือกแล้ว</span>
                           </span>
+                        ) : isExhausted ? (
+                          <span className="px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-100 rounded-lg border border-slate-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-slate-400" />
+                            <span>คืนครบแล้ว</span>
+                          </span>
                         ) : (
                           <button
                             type="button"
-                            className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors flex items-center gap-1"
+                            className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                           >
                             <Plus className="w-3 h-3" />
                             <span>เลือกคืน</span>
@@ -434,7 +501,7 @@ export default function AdmitReturnTab() {
             </div>
             
             <div className="p-2.5 bg-muted/10 border-t border-border text-[11px] text-muted-foreground text-center">
-              คลิกที่รายการยาเพื่อเพิ่มลงในรายการคืนรอบนี้
+              คลิกที่รายการยาเพื่อเพิ่มลงในรายการคืนรอบนี้ (คืนได้ไม่เกินจำนวนคงเหลือ)
             </div>
           </div>
 
@@ -477,11 +544,16 @@ export default function AdmitReturnTab() {
                           {item.drug_name}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 flex-wrap">
                         {item.icode && (
                           <span className="font-mono text-[10px] text-slate-400">[{item.icode}]</span>
                         )}
                         <span>หน่วย: {item.units || '-'}</span>
+                        {item.max_qty !== undefined && (
+                          <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded border border-emerald-200 font-medium">
+                            คืนได้สูงสุด: {item.max_qty} {item.units || ''}
+                          </span>
+                        )}
                         {item.source === 'custom' && (
                           <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded border border-amber-200">
                             เพิ่มนอกรายการ
@@ -495,7 +567,8 @@ export default function AdmitReturnTab() {
                       <button
                         type="button"
                         onClick={() => handleUpdateQty(index, -1)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-300 disabled:opacity-40 active:scale-95 transition-all"
+                        disabled={item.qty <= 1}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-300 disabled:opacity-40 active:scale-95 transition-all cursor-pointer"
                         title="ลดจำนวน"
                       >
                         <Minus className="w-3.5 h-3.5" />
@@ -503,6 +576,7 @@ export default function AdmitReturnTab() {
                       <input
                         type="number"
                         min="1"
+                        max={item.max_qty !== undefined ? item.max_qty : undefined}
                         value={item.qty}
                         onChange={(e) => handleSetQty(index, e.target.value)}
                         className="w-12 h-7 text-center font-bold text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
@@ -510,15 +584,16 @@ export default function AdmitReturnTab() {
                       <button
                         type="button"
                         onClick={() => handleUpdateQty(index, 1)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold border border-emerald-300 active:scale-95 transition-all"
-                        title="เพิ่มจำนวน"
+                        disabled={item.max_qty !== undefined && item.qty >= item.max_qty}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold border border-emerald-300 disabled:opacity-40 disabled:hover:bg-emerald-100 active:scale-95 transition-all cursor-pointer"
+                        title={item.max_qty !== undefined && item.qty >= item.max_qty ? `สูงสุดแล้ว (${item.max_qty})` : "เพิ่มจำนวน"}
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleRemoveDrug(index)}
-                        className="w-7 h-7 ml-1 flex items-center justify-center rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors"
+                        className="w-7 h-7 ml-1 flex items-center justify-center rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer"
                         title="ลบรายการนี้"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
