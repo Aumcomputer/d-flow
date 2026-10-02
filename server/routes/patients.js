@@ -912,7 +912,7 @@ const getReturnDrugsHandler = async (req, res) => {
         const { an } = req.params;
 
         // Parse dosageforms and categories/icodes from .env
-        const dosageforms = (process.env.RETURN_MED_DOSAGEFORMS || 'INJECTIONS')
+        const dosageforms = (process.env.RETURN_MED_DOSAGEFORMS || 'INJECTIONS,INJECTION')
             .split(',')
             .map(s => s.trim())
             .filter(Boolean);

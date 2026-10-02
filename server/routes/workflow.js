@@ -1030,7 +1030,7 @@ router.post('/:an/cancel-dc-forward', authMiddleware, async (req, res) => {
 // ==========================================
 
 function buildReturnableDrugsQuery(an) {
-    const dosageforms = (process.env.RETURN_MED_DOSAGEFORMS || 'INJECTIONS')
+    const dosageforms = (process.env.RETURN_MED_DOSAGEFORMS || 'INJECTIONS,INJECTION')
         .split(',')
         .map(s => s.trim())
         .filter(Boolean);
