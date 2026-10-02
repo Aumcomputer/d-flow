@@ -932,7 +932,7 @@ const getReturnDrugsHandler = async (req, res) => {
             .map(s => s.trim())
             .filter(Boolean);
 
-        const includeIcodes = (process.env.RETURN_MED_INCLUDE_ICODES || '1500513,1460536,1590016,1490407')
+        const includeIcodes = (process.env.RETURN_MED_INCLUDE_ICODES || '1500513,1460536,1590016,1490407,1490100,1000244,1000245,1490114,1650084')
             .split(',')
             .map(s => s.trim())
             .filter(Boolean);
