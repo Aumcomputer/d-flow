@@ -721,9 +721,6 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                             <span className="font-semibold text-slate-800 text-sm group-hover:text-sky-700 transition-colors">
                               หนังสือรับรองสวัสดิการค่าห้องพิเศษ
                             </span>
-                            <Badge className="bg-sky-100 text-sky-700 border-sky-200 text-[11px] px-2 py-0.5 rounded-full font-medium">
-                              ระบบ PIS
-                            </Badge>
                             <Badge className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
                               benefitCert.status_text === 'อนุมัติ' 
                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
@@ -733,7 +730,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                             </Badge>
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5 truncate">
-                            ผู้ยื่น: <strong className="text-slate-700">{benefitCert.requester_name || '-'}</strong> ({benefitCert.relationship ? `เกี่ยวข้องเป็น${benefitCert.relationship}` : ''}) • คลิกเพื่อดูรายละเอียด
+                            ผู้ยื่น: <strong className="text-slate-700">{benefitCert.requester_name || '-'}</strong>
                           </p>
                         </div>
                       </div>
@@ -1637,7 +1634,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                     หนังสือรับรองสวัสดิการค่าห้องพิเศษ
                   </DialogTitle>
                   <p className="text-xs text-sky-100 mt-0.5">
-                    รหัสคำร้อง: {benefitCert?.request_code || '-'} • ระบบ PIS
+                    รหัสคำร้อง: {benefitCert?.request_code || '-'}
                   </p>
                 </div>
               </div>
