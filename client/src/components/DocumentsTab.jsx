@@ -1727,12 +1727,6 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                     <span className="text-xs text-slate-400 shrink-0">อนุมัติโดย:</span>
                     <strong className="text-slate-800 text-right">{benefitCert.approver_name || '-'}</strong>
                   </div>
-                  {benefitCert.approver_position && benefitCert.approver_position !== '-' && (
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs text-slate-400 shrink-0">ตำแหน่ง:</span>
-                      <span className="text-slate-700 text-right">{benefitCert.approver_position}</span>
-                    </div>
-                  )}
                   <div className="flex items-start justify-between gap-2 pt-1 border-t border-slate-100">
                     <span className="text-xs text-slate-400 shrink-0 flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
