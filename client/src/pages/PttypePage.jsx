@@ -166,8 +166,8 @@ export default function PttypePage() {
     return Array.from(wardMap.values()).sort()
   }, [currentList, selectedWard])
 
-  // Sorting state for Tab ตรวจสอบสิทธิ์
-  const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' })
+  // Sorting state for Tab ตรวจสอบสิทธิ์ (default: วันที่ admit asc)
+  const [sortConfig, setSortConfig] = useState({ key: 'admit_date', direction: 'asc' })
 
   const handleSort = (key) => {
     let direction = 'asc'
@@ -213,10 +213,12 @@ export default function PttypePage() {
         let aVal = a[sortConfig.key]
         let bVal = b[sortConfig.key]
 
-        // Date sorting
+        // Date sorting (including admit_time if available)
         if (sortConfig.key === 'admit_date') {
-          const aTime = aVal ? new Date(aVal).getTime() : 0
-          const bTime = bVal ? new Date(bVal).getTime() : 0
+          const aDateTimeStr = a.admit_date ? `${a.admit_date.substring(0, 10)}T${a.admit_time || '00:00:00'}` : ''
+          const bDateTimeStr = b.admit_date ? `${b.admit_date.substring(0, 10)}T${b.admit_time || '00:00:00'}` : ''
+          const aTime = aDateTimeStr ? new Date(aDateTimeStr).getTime() : 0
+          const bTime = bDateTimeStr ? new Date(bDateTimeStr).getTime() : 0
           return sortConfig.direction === 'asc' ? aTime - bTime : bTime - aTime
         }
 
