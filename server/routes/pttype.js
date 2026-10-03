@@ -65,6 +65,7 @@ router.get('/unverified', authMiddleware, async (req, res) => {
                     pt.name
                 ) AS pttype_name,
                 pt.pttype AS pttype_code,
+                COALESCE(d.name, d2.name) AS doctor_name,
                 iptb.bedno,
                 COALESCE(aa.income, 0) AS total_income
             FROM ipt i
