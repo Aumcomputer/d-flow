@@ -48,11 +48,28 @@ const smartorPool = mariadb.createPool({
     minimumIdle: 1
 });
 
+const teamcom3Pool = mariadb.createPool({
+    host: process.env.DFLOW_DB_HOST || '10.10.10.17',
+    user: process.env.DFLOW_DB_USER || 'd-flow',
+    password: process.env.DFLOW_DB_PASSWORD,
+    database: 'teamcom3_pis',
+    port: Number(process.env.DFLOW_DB_PORT) || 3306,
+    charset: 'utf8mb4',
+    connectionLimit: 3,
+    acquireTimeout: 15000,
+    connectTimeout: 10000,
+    socketTimeout: 30000,
+    idleTimeout: 60,
+    minimumIdle: 1
+});
+
 module.exports = {
     hisPool,
     dflowPool,
     smartorPool,
+    teamcom3Pool,
     getHisConnection: () => hisPool.getConnection(),
     getDflowConnection: () => dflowPool.getConnection(),
-    getSmartorConnection: () => smartorPool.getConnection()
+    getSmartorConnection: () => smartorPool.getConnection(),
+    getTeamcom3Connection: () => teamcom3Pool.getConnection()
 };

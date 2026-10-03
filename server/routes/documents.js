@@ -213,6 +213,74 @@ router.get('/:an', async (req, res) => {
     }
 });
 
+// GET /api/documents/:an/benefit-certificate
+// Fetch special room welfare certificate from teamcom3_pis by AN
+router.get('/:an/benefit-certificate', async (req, res) => {
+    let teamcomConn;
+    try {
+        const { an } = req.params;
+        const { getTeamcom3Connection } = require('../config/database');
+        teamcomConn = await getTeamcom3Connection();
+
+        const query = `
+            SELECT 
+                dr.id AS request_id,
+                dr.request_code,
+                drp.an,
+                drp.patient_name,
+                CASE drp.relationship
+                    WHEN 'self' THEN 'ตนเอง'
+                    WHEN 'father' THEN 'บิดา'
+                    WHEN 'mother' THEN 'มารดา'
+                    WHEN 'child' THEN 'บุตร'
+                    WHEN 'spouse' THEN 'คู่สมรส'
+                    ELSE COALESCE(drp.relationship, '-')
+                END AS relationship,
+                drp.ward_room,
+                CONCAT(COALESCE(req_emp.Pname, ''), req_emp.Fname, ' ', req_emp.Lname) AS requester_name,
+                COALESCE(req_pos.po_name, '-') AS requester_position,
+                COALESCE(req_dep.dep_name, '-') AS requester_department,
+                CASE 
+                    WHEN UPPER(COALESCE(dr.outcome, '')) IN ('APPROVE', 'APPROVED', 'COMPLETED') THEN 'อนุมัติ'
+                    WHEN UPPER(COALESCE(dr.outcome, '')) IN ('REJECT', 'REJECTED') THEN 'ไม่อนุมัติ'
+                    WHEN UPPER(COALESCE(dr.status, '')) = 'SUBMITTED' THEN 'รอพิจารณา'
+                    ELSE COALESCE(dr.status, '-')
+                END AS status_text,
+                dr.status,
+                dr.outcome,
+                COALESCE(CONCAT(COALESCE(app_emp.Pname, ''), app_emp.Fname, ' ', app_emp.Lname), '-') AS approver_name,
+                COALESCE(app_pos.po_name, '-') AS approver_position,
+                dr.created_at AS request_date,
+                dr.approved_at AS approve_date
+            FROM document_request_patients drp
+            INNER JOIN document_requests dr ON drp.request_id = dr.id
+            LEFT JOIN pis_employee req_emp ON dr.requester_empid = req_emp.EmpId
+            LEFT JOIN pis_position req_pos ON req_emp.po_code = req_pos.po_code
+            LEFT JOIN pis_department req_dep ON req_emp.dep_code = req_dep.dep_code
+            LEFT JOIN pis_employee app_emp ON dr.approver_empid = app_emp.EmpId
+            LEFT JOIN pis_position app_pos ON app_emp.po_code = app_pos.po_code
+            WHERE drp.an = ?
+            ORDER BY dr.id DESC
+            LIMIT 1
+        `;
+
+        const rows = await teamcomConn.query(query, [an]);
+        if (rows.length === 0) {
+            return res.json({ hasCertificate: false, certificate: null });
+        }
+
+        res.json({
+            hasCertificate: true,
+            certificate: rows[0]
+        });
+    } catch (error) {
+        console.error('Fetch benefit certificate error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (teamcomConn) teamcomConn.release();
+    }
+});
+
 router.post('/upload', upload.single('file'), async (req, res) => {
     let conn;
     try {
