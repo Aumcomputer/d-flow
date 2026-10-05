@@ -25,6 +25,14 @@ router.get('/hospitals', authMiddleware, async (req, res) => {
             return res.json([]);
         }
 
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:master:hospitals:${query.toLowerCase()}`;
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         conn = await getHisConnection();
         const pattern = `%${query}%`;
         const exactMatch = query;
@@ -44,6 +52,10 @@ router.get('/hospitals', authMiddleware, async (req, res) => {
         `;
 
         const rows = await conn.query(sql, [pattern, pattern, exactMatch, `${query}%`]);
+        try {
+            await redis.setEx(cacheKey, 604800, JSON.stringify(rows)); // 7d
+        } catch (e) { console.error('Redis Set Error:', e); }
+
         res.json(rows);
     } catch (err) {
         console.error('Error searching hospitals:', err);

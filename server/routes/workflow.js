@@ -321,6 +321,15 @@ router.get('/drugs/search', authMiddleware, async (req, res) => {
         if (!query) {
             return res.json([]);
         }
+
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:master:drugs:${query.toLowerCase()}`;
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         hisConn = await getHisConnection();
         const sql = `
             SELECT icode, name, strength, units, dosageform,
@@ -331,6 +340,10 @@ router.get('/drugs/search', authMiddleware, async (req, res) => {
             LIMIT 30
         `;
         const rows = await hisConn.query(sql, [`%${query}%`, `%${query}%`]);
+        try {
+            await redis.setEx(cacheKey, 3600, JSON.stringify(rows)); // 1h
+        } catch (e) { console.error('Redis Set Error:', e); }
+
         res.json(rows);
     } catch (err) {
         console.error('Drug search error:', err);

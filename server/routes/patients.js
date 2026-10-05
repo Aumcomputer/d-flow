@@ -127,6 +127,14 @@ router.get('/:an', authMiddleware, async (req, res) => {
     let conn;
     try {
         const { an } = req.params;
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:patients:${an}:summary`;
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         conn = await getHisConnection();
 
         const sql = `
@@ -193,6 +201,10 @@ router.get('/:an', authMiddleware, async (req, res) => {
         } else {
             patient.age = null;
         }
+
+        try {
+            await redis.setEx(cacheKey, 60, JSON.stringify(patient)); // 60s
+        } catch (e) { console.error('Redis Set Error:', e); }
 
         res.json(patient);
     } catch (error) {
@@ -587,6 +599,14 @@ router.get('/:an/operations', authMiddleware, async (req, res) => {
     let conn;
     try {
         const { an } = req.params;
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:patients:${an}:operations`;
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         const { getSmartorConnection } = require('../config/database');
         conn = await getSmartorConnection();
         
@@ -607,6 +627,10 @@ router.get('/:an/operations', authMiddleware, async (req, res) => {
             ORDER BY ab.op_date DESC, ats.step_6 DESC
         `, [an]);
         
+        try {
+            await redis.setEx(cacheKey, 300, JSON.stringify(rows)); // 5m
+        } catch (e) { console.error('Redis Set Error:', e); }
+
         res.json(rows);
     } catch (error) {
         console.error('Operations error:', error);
@@ -1163,6 +1187,14 @@ router.get('/:an/expenses', authMiddleware, async (req, res) => {
     let conn;
     try {
         const { an } = req.params;
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:patients:${an}:expenses`;
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         conn = await getHisConnection();
 
         const sql = `
@@ -1176,6 +1208,10 @@ router.get('/:an/expenses', authMiddleware, async (req, res) => {
             ORDER BY o.income
         `;
         const rows = await conn.query(sql, [an]);
+        try {
+            await redis.setEx(cacheKey, 60, JSON.stringify(rows)); // 60s
+        } catch (e) { console.error('Redis Set Error:', e); }
+
         res.json(rows);
     } catch (error) {
         console.error('Fetch expenses error:', error);
@@ -1220,6 +1256,14 @@ router.get('/:an/labs', authMiddleware, async (req, res) => {
     let conn;
     try {
         const { an } = req.params;
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:patients:${an}:labs`;
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         conn = await getHisConnection();
 
         const sql = `
@@ -1241,6 +1285,10 @@ router.get('/:an/labs', authMiddleware, async (req, res) => {
             ORDER BY h.order_date DESC, h.order_time DESC
         `;
         const rows = await conn.query(sql, [an]);
+        try {
+            await redis.setEx(cacheKey, 60, JSON.stringify(rows)); // 60s
+        } catch (e) { console.error('Redis Set Error:', e); }
+
         res.json(rows);
     } catch (error) {
         console.error('Fetch labs error:', error);
@@ -1291,6 +1339,14 @@ router.get('/:an/receipts', authMiddleware, async (req, res) => {
     let conn;
     try {
         const { an } = req.params;
+        const { getRedisClient } = require('../lib/redis');
+        const redis = getRedisClient();
+        const cacheKey = `cache:patients:${an}:receipts`;
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) return res.json(JSON.parse(cached));
+        } catch (e) { console.error('Redis Get Error:', e); }
+
         conn = await getHisConnection();
         const sql = `
             SELECT 
@@ -1305,6 +1361,10 @@ router.get('/:an/receipts', authMiddleware, async (req, res) => {
             ORDER BY r.bill_date_time DESC
         `;
         const rows = await conn.query(sql, [an]);
+        try {
+            await redis.setEx(cacheKey, 60, JSON.stringify(rows)); // 60s
+        } catch (e) { console.error('Redis Set Error:', e); }
+
         res.json(rows);
     } catch (error) {
         console.error('Fetch receipts error:', error);
