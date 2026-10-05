@@ -34,21 +34,24 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // Helper function to fetch document completion status for a list of ANs
-async function getDocCompleteness(ans) {
+async function getDocCompleteness(ans, existingConn = null) {
     if (!ans || ans.length === 0) return {};
     
-    let dflowConn;
+    let dflowConn = existingConn;
+    const shouldRelease = !existingConn;
     const completeness = {};
     ans.forEach(an => completeness[an] = false);
 
     try {
-        dflowConn = await getDflowConnection();
+        if (!dflowConn) {
+            dflowConn = await getDflowConnection();
+        }
         // Check if required documents are all uploaded
         const placeholders = ans.map(() => '?').join(',');
         
         // Find total required doc types
         const reqRows = await dflowConn.query('SELECT COUNT(*) as cnt FROM document_types WHERE is_required = 1');
-        const totalRequired = Number(reqRows[0].cnt);
+        const totalRequired = Number(reqRows[0]?.cnt || 0);
 
         if (totalRequired > 0) {
             // Count unique required doc types uploaded per AN (excluding soft-deleted)
@@ -72,7 +75,7 @@ async function getDocCompleteness(ans) {
     } catch (err) {
         console.error('getDocCompleteness error:', err);
     } finally {
-        if (dflowConn) dflowConn.release();
+        if (shouldRelease && dflowConn) dflowConn.release();
     }
     
     return completeness;
@@ -144,7 +147,7 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
         dflowConn = await getDflowConnection();
 
         const ans = rows.map(r => r.an);
-        const completeness = await getDocCompleteness(ans);
+        const completeness = await getDocCompleteness(ans, dflowConn);
         
         // Fetch discharge status from D-Flow DB (just in case they were discharged in D-Flow but not HIS yet)
         const placeholders = ans.map(() => '?').join(',');
@@ -231,7 +234,7 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
         if (rows.length === 0) return res.json([]);
         
         const allAns = rows.map(r => r.an);
-        const completeness = await getDocCompleteness(allAns);
+        const completeness = await getDocCompleteness(allAns, dflowConn);
         
         // Fetch ALL an_detail records for the returned ANs to ensure all D-Flow details are merged
         let allAnDetailRows = [];
