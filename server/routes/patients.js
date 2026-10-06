@@ -480,9 +480,22 @@ router.post('/:an/cancel-discharge', authMiddleware, async (req, res) => {
             [an]
         );
         
+        // Delete discharge return drugs
+        await conn.query('DELETE FROM return_drugs WHERE an = ?', [an]);
+        
+        // Invalidate Redis caches for this patient
+        try {
+            const { getRedisClient } = require('../lib/redis');
+            const redis = getRedisClient();
+            await redis.del(`cache:patients:${an}:summary`);
+            await redis.del('cache:hospital:inpatients_his');
+        } catch (e) {
+            // Redis error should not break workflow
+        }
+
         const { getIO } = require('../lib/socket');
         try {
-            getIO().emit('workflow:updated', { an, status: null });
+            getIO().emit('workflow:updated', { an, status: null, type: 'cancel_discharge' });
         } catch (e) {
             console.error('Socket emit error:', e);
         }
