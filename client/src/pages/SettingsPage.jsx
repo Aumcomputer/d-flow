@@ -34,7 +34,8 @@ import {
   RotateCcw,
   Code,
   Tag,
-  CheckSquare
+  CheckSquare,
+  HeartHandshake
 } from 'lucide-react'
 
 const MODULE_META = {
@@ -91,6 +92,15 @@ const MODULE_META = {
     bg: 'bg-purple-50',
     text: 'text-purple-600',
     border: 'border-purple-200'
+  },
+  social_work: {
+    name: 'สังคมสงเคราะห์',
+    desc: 'งานสังคมสงเคราะห์และให้คำปรึกษาผู้ป่วยและญาติ',
+    icon: HeartHandshake,
+    color: 'from-rose-500 to-pink-500',
+    bg: 'bg-rose-50',
+    text: 'text-rose-600',
+    border: 'border-rose-200'
   }
 }
 

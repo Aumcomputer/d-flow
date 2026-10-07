@@ -26,7 +26,8 @@ import {
   BookmarkCheck,
   MessageSquare,
   Hotel,
-  Clock
+  Clock,
+  HeartHandshake
 } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import api from '../services/api'
@@ -132,6 +133,23 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
   const [benefitCert, setBenefitCert] = useState(null)
   const [isCertModalOpen, setIsCertModalOpen] = useState(false)
 
+  // Social work consult state (ส่วนส่งปรึกษานักสังคมสงเคราะห์)
+  const [socialWorkReasons, setSocialWorkReasons] = useState([])
+  const [socialWorkRequest, setSocialWorkRequest] = useState(null)
+  const [isSocialWorkModalOpen, setIsSocialWorkModalOpen] = useState(false)
+  const [isEditSocialWork, setIsEditSocialWork] = useState(false)
+  const [selectedSocialWorkReasonId, setSelectedSocialWorkReasonId] = useState(null)
+  const [selectedSocialWorkReasonName, setSelectedSocialWorkReasonName] = useState('')
+  const [socialWorkReasonOther, setSocialWorkReasonOther] = useState('')
+  const [nurseSocialWorkComment, setNurseSocialWorkComment] = useState('')
+  const [submittingSocialWork, setSubmittingSocialWork] = useState(false)
+  const [socialWorkError, setSocialWorkError] = useState('')
+
+  // Cancel social work modal state
+  const [isCancelSocialWorkModalOpen, setIsCancelSocialWorkModalOpen] = useState(false)
+  const [cancelSocialWorkReason, setCancelSocialWorkReason] = useState('')
+  const [submittingCancelSocialWork, setSubmittingCancelSocialWork] = useState(false)
+
   const fetchDocuments = useCallback(async () => {
     if (!patient?.an) return
     try {
@@ -192,11 +210,36 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
     }
   }
 
+  const fetchSocialWorkReasons = async () => {
+    try {
+      const res = await api.get('/social-work/reasons')
+      setSocialWorkReasons(res.data?.reasons || [])
+    } catch (err) {
+      console.error('Fetch social work reasons error:', err)
+    }
+  }
+
+  const fetchSocialWorkRequest = useCallback(async () => {
+    if (!patient?.an) {
+      setSocialWorkRequest(null)
+      return
+    }
+    try {
+      const res = await api.get(`/social-work/requests/patient/${patient.an}`)
+      setSocialWorkRequest(res.data?.request || null)
+    } catch (err) {
+      console.error('Fetch social work request error:', err)
+      setSocialWorkRequest(null)
+    }
+  }, [patient?.an])
+
   useEffect(() => {
     fetchDocuments()
     fetchBenefitCertificate()
     fetchComments()
-  }, [fetchDocuments, fetchBenefitCertificate, fetchComments])
+    fetchSocialWorkReasons()
+    fetchSocialWorkRequest()
+  }, [fetchDocuments, fetchBenefitCertificate, fetchComments, fetchSocialWorkRequest])
 
   useEffect(() => {
     const handleCommentAdded = (data) => {
@@ -204,11 +247,18 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
         fetchComments()
       }
     }
+    const handleSocialWorkUpdated = (data) => {
+      if (data?.an === patient?.an || !data?.an) {
+        fetchSocialWorkRequest()
+      }
+    }
     socket.on('pttype:comment_added', handleCommentAdded)
+    socket.on('social_work:updated', handleSocialWorkUpdated)
     return () => {
       socket.off('pttype:comment_added', handleCommentAdded)
+      socket.off('social_work:updated', handleSocialWorkUpdated)
     }
-  }, [patient?.an, fetchComments])
+  }, [patient?.an, fetchComments, fetchSocialWorkRequest])
 
   useEffect(() => {
     if (details?.consult_pttype_date) {
@@ -441,6 +491,88 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
     }
   }
 
+  const handleOpenSocialWorkModal = () => {
+    setIsEditSocialWork(false)
+    fetchSocialWorkReasons()
+    setSelectedSocialWorkReasonId(socialWorkReasons[0]?.id || null)
+    setSelectedSocialWorkReasonName(socialWorkReasons[0]?.name || '')
+    setSocialWorkReasonOther('')
+    setNurseSocialWorkComment('')
+    setSocialWorkError('')
+    setIsSocialWorkModalOpen(true)
+  }
+
+  const handleOpenEditSocialWorkModal = () => {
+    if (!socialWorkRequest) return
+    setIsEditSocialWork(true)
+    fetchSocialWorkReasons()
+    setSelectedSocialWorkReasonId(socialWorkRequest.reason_id)
+    setSelectedSocialWorkReasonName(socialWorkRequest.reason_name)
+    setSocialWorkReasonOther(socialWorkRequest.reason_other || '')
+    setNurseSocialWorkComment(socialWorkRequest.nurse_comment || '')
+    setSocialWorkError('')
+    setIsSocialWorkModalOpen(true)
+  }
+
+  const handleSubmitSocialWork = async (e) => {
+    if (e) e.preventDefault()
+    if (!selectedSocialWorkReasonId) {
+      setSocialWorkError('กรุณาเลือกสาเหตุที่ส่งปรึกษา')
+      return
+    }
+    const reasonObj = socialWorkReasons.find(r => Number(r.id) === Number(selectedSocialWorkReasonId))
+    const reasonName = reasonObj?.name || selectedSocialWorkReasonName
+    if (reasonObj?.is_other && !socialWorkReasonOther.trim()) {
+      setSocialWorkError('กรุณาระบุสาเหตุอื่นๆ')
+      return
+    }
+
+    setSubmittingSocialWork(true)
+    setSocialWorkError('')
+    try {
+      if (isEditSocialWork && socialWorkRequest?.id) {
+        await api.put(`/social-work/requests/${socialWorkRequest.id}`, {
+          reason_id: selectedSocialWorkReasonId,
+          reason_name: reasonName,
+          reason_other: reasonObj?.is_other ? socialWorkReasonOther.trim() : null,
+          nurse_comment: nurseSocialWorkComment.trim()
+        })
+      } else {
+        await api.post('/social-work/requests', {
+          an: patient.an,
+          reason_id: selectedSocialWorkReasonId,
+          reason_name: reasonName,
+          reason_other: reasonObj?.is_other ? socialWorkReasonOther.trim() : null,
+          nurse_comment: nurseSocialWorkComment.trim()
+        })
+      }
+      setIsSocialWorkModalOpen(false)
+      await fetchSocialWorkRequest()
+    } catch (err) {
+      console.error('Submit social work error:', err)
+      setSocialWorkError(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึก')
+    } finally {
+      setSubmittingSocialWork(false)
+    }
+  }
+
+  const handleConfirmCancelSocialWork = async () => {
+    if (!socialWorkRequest?.id) return
+    setSubmittingCancelSocialWork(true)
+    try {
+      await api.post(`/social-work/requests/${socialWorkRequest.id}/cancel`, {
+        cancel_reason: cancelSocialWorkReason.trim()
+      })
+      setIsCancelSocialWorkModalOpen(false)
+      setCancelSocialWorkReason('')
+      await fetchSocialWorkRequest()
+    } catch (err) {
+      console.error('Cancel social work error:', err)
+    } finally {
+      setSubmittingCancelSocialWork(false)
+    }
+  }
+
   const handleUpload = async (file, docTypeId = null) => {
     if (!patient) return
 
@@ -567,8 +699,8 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
   return (
     <div className="py-2 w-full max-w-7xl mx-auto space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (8 cols): Document Checklist & Uploads */}
-        <div className="lg:col-span-8 space-y-5">
+        {/* Left Column: Document Checklist & Uploads */}
+        <div className="lg:col-span-6 xl:col-span-6 space-y-5">
           {/* Completeness Bar */}
           {completeness && (
             <div className={`flex items-center justify-between p-4 rounded-2xl shadow-sm border ${completeness.complete ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'}`}>
@@ -777,108 +909,237 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
           </div>
         </div>
 
-        {/* Right Column (4 cols): Consult Rights Panel & Grant Rights Panel */}
-        <div className="lg:col-span-4 space-y-5">
-          {/* Card 1: ส่งปรึกษาสิทธิการรักษา */}
-          {!details?.consult_pttype_date ? (
-            <div className="bg-card rounded-2xl p-6 border border-border shadow-sm space-y-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mx-auto border border-sky-100 shadow-sm">
-                <ShieldAlert className="w-7 h-7" />
-              </div>
-              <div className="space-y-1.5">
-                <h3 className="font-bold text-slate-800 text-lg">ส่งปรึกษาสิทธิการรักษา</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  หากพบข้อสงสัย หรือต้องการให้งานสิทธิ์ตรวจสอบสิทธิการรักษาของผู้ป่วยรายนี้
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenConsultModal}
-                className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-semibold py-3 px-5 text-base rounded-xl shadow-sm transition-all duration-200 hover:shadow"
-              >
-                <Send className="w-5 h-5" />
-                <span>ส่งปรึกษาสิทธิการรักษา</span>
-              </button>
-            </div>
-          ) : (
-            <div className="bg-card rounded-2xl p-5 border border-sky-200 bg-sky-50/20 shadow-sm space-y-4">
-              {/* Header of the Box with Action Buttons */}
-              <div className="flex items-center justify-between border-b border-sky-100 pb-3 gap-2">
-                <div className="flex items-center gap-2 font-bold text-slate-900 text-base sm:text-lg">
-                  <ShieldCheck className="w-5 h-5 text-sky-600 shrink-0" />
-                  <span className="truncate">ส่งปรึกษาสิทธิการรักษา</span>
+        {/* Right Column: Consult Rights & Social Work Panels, and Grant Rights Panel */}
+        <div className="lg:col-span-6 xl:col-span-6 space-y-5">
+          {/* Side-by-side Consult Boxes: ส่งปรึกษาสิทธิการรักษา & ส่งสังคมสงเคราะห์ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            {/* Box 1: ส่งปรึกษาสิทธิการรักษา */}
+            {!details?.consult_pttype_date ? (
+              <div className="bg-card rounded-2xl p-5 border border-border shadow-sm space-y-3.5 text-center flex flex-col justify-between h-full">
+                <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mx-auto border border-sky-100 shadow-sm">
+                  <ShieldAlert className="w-6 h-6" />
                 </div>
-
-                {/* Top Right Buttons: แก้ไข & ยกเลิก */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleOpenEditModal}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors"
-                    title="แก้ไขข้อมูลส่งปรึกษา"
-                  >
-                    <Pencil className="w-3.5 h-3.5 text-slate-500" />
-                    <span>แก้ไข</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenCancelModal}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors"
-                    title="ยกเลิกการส่งปรึกษา"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
-                    <span>ยกเลิก</span>
-                  </button>
+                <div className="space-y-1">
+                  <h3 className="font-bold text-slate-800 text-base">ส่งปรึกษาสิทธิการรักษา</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    หากพบข้อสงสัย หรือต้องการให้งานสิทธิ์ตรวจสอบสิทธิการรักษาของผู้ป่วยรายนี้
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleOpenConsultModal}
+                  className="w-full inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-semibold py-2.5 px-4 text-sm rounded-xl shadow-sm transition-all duration-200 hover:shadow"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>ส่งปรึกษาสิทธิการรักษา</span>
+                </button>
               </div>
+            ) : (
+              <div className="bg-card rounded-2xl p-4 sm:p-5 border border-sky-200 bg-sky-50/20 shadow-sm space-y-3.5">
+                {/* Header of the Box with Action Buttons */}
+                <div className="flex items-center justify-between border-b border-sky-100 pb-2.5 gap-2">
+                  <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
+                    <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0" />
+                    <span className="truncate">ส่งปรึกษาสิทธิการรักษา</span>
+                  </div>
 
-              <div className="space-y-4 text-base">
-                <div>
-                  <span className="text-muted-foreground text-sm font-medium block mb-1">ความเห็นแพทย์เจ้าของไข้</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-sm sm:text-base font-bold border ${
-                      details.consult_pttype_urgency === 'ฉุกเฉิน'
-                        ? 'bg-rose-100 text-rose-700 border-rose-200'
-                        : 'bg-sky-100 text-sky-700 border-sky-200'
-                    }`}>
-                      <span className={`w-2.5 h-2.5 rounded-full ${details.consult_pttype_urgency === 'ฉุกเฉิน' ? 'bg-rose-600 animate-pulse' : 'bg-sky-600'}`} />
-                      {details.consult_pttype_urgency || 'ไม่ฉุกเฉิน'}
-                    </span>
+                  {/* Top Right Buttons: แก้ไข & ยกเลิก */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleOpenEditModal}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors"
+                      title="แก้ไขข้อมูลส่งปรึกษา"
+                    >
+                      <Pencil className="w-3 h-3 text-slate-500" />
+                      <span>แก้ไข</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleOpenCancelModal}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors"
+                      title="ยกเลิกการส่งปรึกษา"
+                    >
+                      <RotateCcw className="w-3 h-3 text-rose-500" />
+                      <span>ยกเลิก</span>
+                    </button>
                   </div>
                 </div>
 
-                {details.consult_pttype_reason && (
+                <div className="space-y-3 text-sm">
                   <div>
-                    <span className="text-muted-foreground text-sm font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
-                    <div className="text-slate-800 bg-white p-3.5 rounded-xl border border-sky-100 text-sm sm:text-base whitespace-pre-line leading-relaxed shadow-sm font-normal">
-                      {details.consult_pttype_reason}
+                    <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นแพทย์เจ้าของไข้</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs sm:text-sm font-bold border ${
+                        details.consult_pttype_urgency === 'ฉุกเฉิน'
+                          ? 'bg-rose-100 text-rose-700 border-rose-200'
+                          : 'bg-sky-100 text-sky-700 border-sky-200'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full ${details.consult_pttype_urgency === 'ฉุกเฉิน' ? 'bg-rose-600 animate-pulse' : 'bg-sky-600'}`} />
+                        {details.consult_pttype_urgency || 'ไม่ฉุกเฉิน'}
+                      </span>
                     </div>
                   </div>
-                )}
 
-                <div className="border-t border-sky-100 pt-3.5 space-y-2.5 text-sm sm:text-base text-slate-700">
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-muted-foreground text-sm font-medium shrink-0">รศส. แพทย์:</span>
-                    <span className="font-semibold text-slate-900 text-right">
-                      {details.consult_pttype_doctor_name || '-'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-muted-foreground text-sm font-medium shrink-0">ผู้บันทึก:</span>
-                    <span className="font-semibold text-slate-900">
-                      {details.consult_pttype_by_name || details.consult_pttype_by || '-'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-muted-foreground text-sm font-medium shrink-0">วันที่ เวลา:</span>
-                    <span className="font-semibold text-slate-900">
-                      {formatDateTime(details.consult_pttype_date)}
-                    </span>
+                  {details.consult_pttype_reason && (
+                    <div>
+                      <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
+                      <div className="text-slate-800 bg-white p-3 rounded-xl border border-sky-100 text-xs sm:text-sm whitespace-pre-line leading-relaxed shadow-2xs font-normal">
+                        {details.consult_pttype_reason}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="border-t border-sky-100 pt-2.5 space-y-1.5 text-xs text-slate-700">
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-muted-foreground shrink-0">รศส. แพทย์:</span>
+                      <span className="font-semibold text-slate-900 text-right truncate">
+                        {details.consult_pttype_doctor_name || '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-muted-foreground shrink-0">ผู้บันทึก:</span>
+                      <span className="font-semibold text-slate-900 truncate">
+                        {details.consult_pttype_by_name || details.consult_pttype_by || '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
+                      <span className="font-semibold text-slate-900">
+                        {formatDateTime(details.consult_pttype_date)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Box 2: ส่งสังคมสงเคราะห์ (ด้านข้างกล่องส่งปรึกษาสิทธิการรักษา) */}
+            {!socialWorkRequest ? (
+              <div className="bg-card rounded-2xl p-5 border border-border shadow-sm space-y-3.5 text-center flex flex-col justify-between h-full">
+                <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100 shadow-sm">
+                  <HeartHandshake className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-bold text-slate-800 text-base">ส่งสังคมสงเคราะห์</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    ส่งปรึกษานักสังคมสงเคราะห์ กรณีผู้ป่วยมีปัญหาด้านค่าใช้จ่ายหรือครอบครัว
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenSocialWorkModal}
+                  className="w-full inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-semibold py-2.5 px-4 text-sm rounded-xl shadow-sm transition-all duration-200 hover:shadow"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>ส่งสังคมสงเคราะห์</span>
+                </button>
+              </div>
+            ) : (
+              <div className="bg-card rounded-2xl p-4 sm:p-5 border border-rose-200 bg-rose-50/20 shadow-sm space-y-3.5">
+                {/* Header of the Box with Action Buttons */}
+                <div className="flex items-center justify-between border-b border-rose-100 pb-2.5 gap-2">
+                  <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
+                    <HeartHandshake className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span className="truncate">ส่งสังคมสงเคราะห์</span>
+                  </div>
+
+                  {socialWorkRequest.status === 'pending' ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleOpenEditSocialWorkModal}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors"
+                        title="แก้ไขข้อมูลส่งปรึกษา"
+                      >
+                        <Pencil className="w-3 h-3 text-slate-500" />
+                        <span>แก้ไข</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCancelSocialWorkModalOpen(true)
+                          setCancelSocialWorkReason('')
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors"
+                        title="ยกเลิกการส่งปรึกษา"
+                      >
+                        <RotateCcw className="w-3 h-3 text-rose-500" />
+                        <span>ยกเลิก</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-semibold px-2 py-0.5">
+                      ตอบแล้ว
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  {socialWorkRequest.status === 'pending' && (
+                    <div>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        รอนักสังคมสงเคราะห์ตอบ
+                      </span>
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
+                    <div className="text-slate-800 bg-white p-3 rounded-xl border border-rose-100 text-xs sm:text-sm leading-relaxed shadow-2xs font-medium">
+                      {socialWorkRequest.reason_name}
+                      {socialWorkRequest.reason_other ? (
+                        <span className="block text-slate-600 text-xs mt-1 bg-rose-50/50 p-1.5 rounded border border-rose-100 font-normal">
+                          ระบุ: {socialWorkRequest.reason_other}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {socialWorkRequest.nurse_comment && (
+                    <div>
+                      <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นพยาบาล</span>
+                      <div className="text-slate-700 bg-white p-3 rounded-xl border border-rose-100 text-xs sm:text-sm leading-relaxed shadow-2xs whitespace-pre-wrap">
+                        {socialWorkRequest.nurse_comment}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="border-t border-rose-100 pt-2.5 space-y-1.5 text-xs text-slate-600">
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-muted-foreground shrink-0">ผู้ส่ง:</span>
+                      <span className="font-semibold text-slate-800 truncate">
+                        {socialWorkRequest.sent_by_name || socialWorkRequest.sent_by || '-'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatDateTime(socialWorkRequest.sent_at)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {socialWorkRequest.status === 'answered' && (
+                    <div className="mt-3 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
+                      </div>
+                      <div className="text-slate-800 text-xs sm:text-sm bg-white p-2.5 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed shadow-2xs">
+                        {socialWorkRequest.social_worker_comment}
+                      </div>
+                      <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1">
+                        <span className="truncate">ผู้ตอบ: <strong className="text-slate-700">{socialWorkRequest.social_worker_by_name || socialWorkRequest.social_worker_by}</strong></span>
+                        <span className="shrink-0">{formatDateTime(socialWorkRequest.social_worker_at)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Card 2: สำหรับเจ้าหน้าที่งานสิทธิ์มากรอกให้สิทธิ์ (แสดงเมื่อมีการส่งปรึกษาสิทธิ์แล้ว) */}
           {details?.consult_pttype_date && (
@@ -1751,6 +2012,173 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
               ปิดหน้าต่าง
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Social Work Consult Dialog (Pop up ส่งปรึกษา / แก้ไข) */}
+      <Dialog open={isSocialWorkModalOpen} onOpenChange={setIsSocialWorkModalOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
+              <HeartHandshake className="w-6 h-6 text-rose-600" />
+              <span>{isEditSocialWork ? 'แก้ไขการส่งปรึกษานักสังคมสงเคราะห์' : 'ส่งปรึกษานักสังคมสงเคราะห์'}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitSocialWork} className="space-y-4 py-2">
+            {/* Patient Header Banner */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-700 flex flex-wrap gap-x-4 gap-y-1.5">
+              <div>AN: <strong className="text-slate-900 font-mono">{patient?.an}</strong></div>
+              <div>HN: <strong className="text-slate-900 font-mono">{patient?.hn}</strong></div>
+              <div>ชื่อ-สกุล: <strong className="text-slate-900">{patient?.patient_name || patient?.fullname || `${patient?.pname || ''}${patient?.fname || ''} ${patient?.lname || ''}`}</strong></div>
+              {patient?.age_y && <div>อายุ: <strong className="text-slate-900">{patient?.age_y} ปี</strong></div>}
+            </div>
+
+            {/* 1. สาเหตุที่ส่งปรึกษานักสังคมสงเคราะห์ (เลือกได้แค่อันเดียว) */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-slate-800">
+                สาเหตุที่ส่งปรึกษานักสังคมสงเคราะห์ <span className="text-xs text-slate-500 font-normal">(เลือกได้แค่อันเดียว)</span> <span className="text-red-500">*</span>
+              </label>
+
+              <div className="space-y-2">
+                {socialWorkReasons.map((reason) => {
+                  const isSelected = Number(selectedSocialWorkReasonId) === Number(reason.id)
+                  return (
+                    <div key={reason.id} className="space-y-2">
+                      <label
+                        onClick={() => {
+                          setSelectedSocialWorkReasonId(reason.id)
+                          setSelectedSocialWorkReasonName(reason.name)
+                        }}
+                        className={`p-3 rounded-xl border text-sm cursor-pointer transition-all flex items-start gap-3 select-none ${
+                          isSelected
+                            ? 'bg-rose-50/70 border-rose-500 text-rose-950 shadow-2xs ring-1 ring-rose-400 font-medium'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="social_work_reason_choice"
+                          checked={isSelected}
+                          onChange={() => {
+                            setSelectedSocialWorkReasonId(reason.id)
+                            setSelectedSocialWorkReasonName(reason.name)
+                          }}
+                          className="mt-0.5 text-rose-600 focus:ring-rose-500 shrink-0"
+                        />
+                        <span className="leading-snug">{reason.name}</span>
+                      </label>
+
+                      {/* Textbox เมื่อเลือกอื่นๆระบุ */}
+                      {Boolean(reason.is_other) && isSelected && (
+                        <div className="pl-6 animate-in fade-in duration-200">
+                          <input
+                            type="text"
+                            value={socialWorkReasonOther}
+                            onChange={(e) => setSocialWorkReasonOther(e.target.value)}
+                            placeholder="ระบุสาเหตุอื่นๆ..."
+                            autoFocus
+                            className="w-full px-3.5 py-2 text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-2xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 2. ความเห็นของพยาบาลหัวหน้าตึกหรือหัวหน้าเวร */}
+            <div className="space-y-1.5 pt-1">
+              <label className="block text-sm font-semibold text-slate-800">
+                ความเห็นของพยาบาลหัวหน้าตึกหรือหัวหน้าเวร
+              </label>
+              <textarea
+                rows={3}
+                value={nurseSocialWorkComment}
+                onChange={(e) => setNurseSocialWorkComment(e.target.value)}
+                placeholder="ระบุความคิดเห็นของพยาบาล..."
+                className="w-full px-3.5 py-2.5 text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none shadow-2xs leading-relaxed"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                เมื่อกดบันทึก ระบบจะบันทึกชื่อผู้ส่ง ({user?.name || user?.loginname}) และลงเวลาให้อัตโนมัติ
+              </p>
+            </div>
+
+            {socialWorkError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <span>{socialWorkError}</span>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsSocialWorkModalOpen(false)}
+                className="rounded-xl"
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                type="submit"
+                disabled={submittingSocialWork || !selectedSocialWorkReasonId}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white gap-1.5 shadow-2xs"
+              >
+                <Check className="w-4 h-4" />
+                <span>{submittingSocialWork ? 'กำลังบันทึก...' : (isEditSocialWork ? 'บันทึกการแก้ไข' : 'บันทึกส่งปรึกษา')}</span>
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Social Work Dialog */}
+      <Dialog open={isCancelSocialWorkModalOpen} onOpenChange={setIsCancelSocialWorkModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-600">
+              <RotateCcw className="w-5 h-5" />
+              <span>ยืนยันยกเลิกการส่งปรึกษานักสังคมสงเคราะห์</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-slate-600">
+              คุณต้องการยกเลิกคำขอส่งปรึกษานักสังคมสงเคราะห์สำหรับผู้ป่วย AN: <strong>{patient?.an}</strong> ใช่หรือไม่?
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                เหตุผลในการยกเลิก (ถ้ามี)
+              </label>
+              <input
+                type="text"
+                value={cancelSocialWorkReason}
+                onChange={(e) => setCancelSocialWorkReason(e.target.value)}
+                placeholder="ระบุเหตุผลในการยกเลิก..."
+                className="w-full px-3 py-2 text-sm border rounded-xl"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCancelSocialWorkModalOpen(false)}
+              className="rounded-xl"
+            >
+              ย้อนกลับ
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmCancelSocialWork}
+              disabled={submittingCancelSocialWork}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700"
+            >
+              {submittingCancelSocialWork ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

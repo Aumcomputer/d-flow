@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { FileText, ShieldCheck, Building2, Pill, ClipboardList, Wallet, ChevronRight, Lock, Settings } from 'lucide-react'
+import { FileText, ShieldCheck, Building2, Pill, ClipboardList, Wallet, ChevronRight, Lock, Settings, HeartHandshake } from 'lucide-react'
 import { Card, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 
@@ -11,6 +11,7 @@ const modules = [
   { key: 'pharmacy', path: '/pharmacy', name: 'ห้องยา', desc: 'ระบบห้องยา', icon: Pill, color: 'from-green-400 to-emerald-600', bg: 'bg-green-50', text: 'text-green-600' },
   { key: 'discharge', path: '/discharge', name: 'ศูนย์จำหน่าย', desc: 'ศูนย์จำหน่ายผู้ป่วย', icon: ClipboardList, color: 'from-orange-400 to-amber-500', bg: 'bg-orange-50', text: 'text-orange-600' },
   { key: 'finance', path: '/finance', name: 'การเงิน', desc: 'ระบบการเงิน', icon: Wallet, color: 'from-purple-500 to-fuchsia-500', bg: 'bg-purple-50', text: 'text-purple-600' },
+  { key: 'social_work', path: '/social-work', name: 'สังคมสงเคราะห์', desc: 'ระบบสังคมสงเคราะห์', icon: HeartHandshake, color: 'from-rose-500 to-pink-500', bg: 'bg-rose-50', text: 'text-rose-600' },
 ]
 
 export default function WelcomePage() {
@@ -47,7 +48,7 @@ export default function WelcomePage() {
       </div>
 
       <div className="flex-1 flex flex-col justify-center">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-5">
           {modules.map((m) => {
             const isAllowed = user?.isAdmin || (Array.isArray(user?.allowedModules) && user.allowedModules.includes(m.key))
 

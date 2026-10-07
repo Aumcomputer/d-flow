@@ -52,6 +52,7 @@ app.use('/api/workflow', require('./routes/workflow'));
 app.use('/api/pttype', require('./routes/pttype'));
 app.use('/api/referback', require('./routes/referback'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/social-work', require('./routes/socialWork'));
 
 // System routes
 app.get('/api/system/version', (req, res) => {
@@ -179,6 +180,13 @@ async function migrateDB() {
             await initSettingsTables();
         } catch (e) {
             console.error('Migration settings tables error:', e);
+        }
+
+        try {
+            const { initSocialWorkTables } = require('./services/socialWorkService');
+            await initSocialWorkTables();
+        } catch (e) {
+            console.error('Migration social work tables error:', e);
         }
     } catch (err) {
         console.error('Migration error:', err);

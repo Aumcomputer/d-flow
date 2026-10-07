@@ -21,7 +21,8 @@ const MODULE_DEFINITIONS = [
     { key: 'ward', name: 'หอผู้ป่วย', desc: 'ข้อมูลหอผู้ป่วย', icon: 'Building2' },
     { key: 'pharmacy', name: 'ห้องยา', desc: 'ระบบห้องยา', icon: 'Pill' },
     { key: 'discharge', name: 'ศูนย์จำหน่าย', desc: 'ศูนย์จำหน่ายผู้ป่วย', icon: 'ClipboardList' },
-    { key: 'finance', name: 'การเงิน', desc: 'ระบบการเงิน', icon: 'Wallet' }
+    { key: 'finance', name: 'การเงิน', desc: 'ระบบการเงิน', icon: 'Wallet' },
+    { key: 'social_work', name: 'สังคมสงเคราะห์', desc: 'ระบบงานสังคมสงเคราะห์และให้คำปรึกษา', icon: 'HeartHandshake' }
 ];
 
 // Middleware: Require Admin

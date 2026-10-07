@@ -1,6 +1,6 @@
 const { getDflowConnection, getHisConnection } = require('../config/database');
 
-const MODULE_KEYS = ['documents', 'pttype', 'ward', 'pharmacy', 'discharge', 'finance'];
+const MODULE_KEYS = ['documents', 'pttype', 'ward', 'pharmacy', 'discharge', 'finance', 'social_work'];
 
 const DEFAULT_ADMINS = [
     { loginname: 'admin', name: 'Administrator' },
@@ -22,7 +22,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
     ],
     pharmacy: ['Rx-ห้องยาผู้ป่วยใน', 'Rx-ห้องยาผู้ป่วยนอก', 'Rx-ผู้ดูแลระบบ', 'ศูนย์แพ้ยา'],
     discharge: ['RBH_OPD_IPD_NURSE', 'RBH_OPD_NA', 'เวชระเบียน', 'Rx-ห้องยาผู้ป่วยใน'],
-    finance: ['F-ศูนย์เรียกเก็บ', 'F-ศูนย์เรียกเก็บ(Admin)']
+    finance: ['F-ศูนย์เรียกเก็บ', 'F-ศูนย์เรียกเก็บ(Admin)'],
+    social_work: ['นักสังคมสงเคราะห์']
 };
 
 const DEFAULT_DRUG_SETTINGS = {
@@ -102,10 +103,10 @@ async function initSettingsTables() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
 
-        // Check if module_role_permissions is empty, if so seed defaults
-        const permCount = await conn.query('SELECT COUNT(*) as cnt FROM module_role_permissions');
-        if (Number(permCount[0]?.cnt || 0) === 0) {
-            for (const [moduleKey, groups] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+        // Seed default permissions for any modules not yet configured
+        for (const [moduleKey, groups] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+            const mCount = await conn.query('SELECT COUNT(*) as cnt FROM module_role_permissions WHERE module_key = ?', [moduleKey]);
+            if (Number(mCount[0]?.cnt || 0) === 0) {
                 for (const group of groups) {
                     try {
                         await conn.query(
@@ -116,8 +117,8 @@ async function initSettingsTables() {
                         console.error('Error seeding default permission:', moduleKey, group, e.message);
                     }
                 }
+                console.log(`Seeded default module_role_permissions for ${moduleKey}`);
             }
-            console.log('Seeded default module_role_permissions');
         }
 
         // 3. system_settings table (Key-Value configuration for return meds, etc.)

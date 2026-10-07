@@ -13,6 +13,7 @@ import PharmacyPage from './pages/PharmacyPage'
 import DischargeCenterPage from './pages/DischargeCenterPage'
 import FinancePage from './pages/FinancePage'
 import DischargeDetailPage from './pages/DischargeDetailPage'
+import SocialWorkPage from './pages/SocialWorkPage'
 import SettingsPage from './pages/SettingsPage'
 import Navbar from './components/Navbar'
 import { Lock } from 'lucide-react'
@@ -96,6 +97,7 @@ function AppRoutes() {
       <Route path="/pharmacy" element={<ProtectedRoute module="pharmacy"><PharmacyPage /></ProtectedRoute>} />
       <Route path="/discharge" element={<ProtectedRoute module="discharge"><DischargeCenterPage /></ProtectedRoute>} />
       <Route path="/finance" element={<ProtectedRoute module="finance"><FinancePage /></ProtectedRoute>} />
+      <Route path="/social-work" element={<ProtectedRoute module="social_work"><SocialWorkPage /></ProtectedRoute>} />
     </Routes>
   )
 }
