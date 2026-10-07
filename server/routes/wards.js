@@ -215,7 +215,9 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
                 aa.rcpt_money,
                 aa.paid_money,
                 (SELECT COALESCE(SUM(deposit_amount), 0) FROM finance_deposit fd WHERE fd.vn = i.an) AS total_deposit,
-                i.dchdate, i.dchstts
+                i.dchdate, i.dchtime, i.dchstts, i.dchtype,
+                dct.name AS dchtype_name,
+                dcs.name AS dchstts_name
             FROM ipt i
             LEFT JOIN patient p ON i.hn = p.hn
             LEFT JOIN ward w ON i.ward = w.ward
@@ -223,6 +225,8 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
             LEFT JOIN pttype pt ON i.pttype = pt.pttype
             LEFT JOIN iptadm iptb ON i.an = iptb.an
             LEFT JOIN an_stat aa ON aa.an = i.an
+            LEFT JOIN dchtype dct ON i.dchtype = dct.dchtype
+            LEFT JOIN dchstts dcs ON i.dchstts = dcs.dchstts
             WHERE i.ward = ? AND (i.dchdate = ? ${ans.length > 0 ? `OR i.an IN (${placeholders})` : ''})
             GROUP BY i.an
             ORDER BY i.dchdate DESC, i.dchtime DESC
@@ -244,6 +248,51 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
                 `SELECT * FROM an_detail WHERE an IN (${ansPlaceholders})`,
                 allAns
             );
+        }
+
+        // Helper to format Date to YYYY-MM-DD
+        const formatDchDate = (d) => {
+            if (!d) return null;
+            if (d instanceof Date) {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            return String(d).split('T')[0];
+        };
+
+        // Auto-complete any patient waiting for ward confirmation if already discharged in HOSxP
+        const { getIO } = require('../lib/socket');
+        for (const row of rows) {
+            if (row.dchdate) {
+                const detail = allAnDetailRows.find(d => d.an === row.an);
+                if (detail && detail.workflow_status === 'ward_waiting') {
+                    const dchDateStr = formatDchDate(row.dchdate);
+                    const dchTimeStr = row.dchtime ? String(row.dchtime).slice(0, 8) : '00:00:00';
+                    const hosxpDchDateTime = dchDateStr ? `${dchDateStr} ${dchTimeStr}` : null;
+
+                    await dflowConn.query(
+                        `UPDATE an_detail SET
+                            workflow_status = 'completed',
+                            ward_done_by = IFNULL(ward_done_by, 'HOSxP (Auto)'),
+                            ward_done_date = IFNULL(ward_done_date, ?)
+                         WHERE an = ? AND workflow_status = 'ward_waiting'`,
+                        [hosxpDchDateTime, row.an]
+                    );
+                    await dflowConn.query(
+                        'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+                        [row.an, 'WARD_DONE_AUTO', 'HOSxP']
+                    );
+                    try {
+                        getIO().emit('workflow:updated', { an: row.an, status: 'completed' });
+                    } catch (e) {}
+
+                    detail.workflow_status = 'completed';
+                    detail.ward_done_by = detail.ward_done_by || 'HOSxP (Auto)';
+                    detail.ward_done_date = detail.ward_done_date || hosxpDchDateTime;
+                }
+            }
         }
         
         // Merge D-Flow discharge details

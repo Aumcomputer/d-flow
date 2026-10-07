@@ -266,7 +266,9 @@ router.get(['/all-discharged', '/pharmacy/all-discharged'], authMiddleware, asyn
                     pt.name
                 ) AS pttype_name,
                 iptb.bedno,
-                i.dchdate, i.dchtime, i.dchstts
+                i.dchdate, i.dchtime, i.dchstts, i.dchtype,
+                dct.name as dchtype_name,
+                dcs.name as dchstts_name
             FROM ipt i
             LEFT JOIN patient p ON i.hn = p.hn
             LEFT JOIN ward w ON i.ward = w.ward
@@ -274,6 +276,8 @@ router.get(['/all-discharged', '/pharmacy/all-discharged'], authMiddleware, asyn
             LEFT JOIN doctor adm_d ON i.admdoctor = adm_d.code
             LEFT JOIN pttype pt ON i.pttype = pt.pttype
             LEFT JOIN iptadm iptb ON i.an = iptb.an
+            LEFT JOIN dchtype dct ON i.dchtype = dct.dchtype
+            LEFT JOIN dchstts dcs ON i.dchstts = dcs.dchstts
             WHERE i.an IN (${placeholders})
             GROUP BY i.an
             ORDER BY i.dchdate DESC, i.dchtime DESC
@@ -880,11 +884,43 @@ router.post('/:an/dc-done', authMiddleware, async (req, res) => {
         let actionType;
 
         if (chk_hm === 0 && chk_payment === 0) {
-            // Case 1: ไม่มียา HM, ไม่มียอดต้องชำระ -> รอกลับบ้าน (ward_waiting)
-            nextStatus = 'ward_waiting';
-            setClause = 'dc_done_by = ?, dc_done_date = NOW(), chk_payment = ?';
-            values = [loginname, chk_payment];
-            actionType = 'DC_DONE_WAITING_WARD';
+            // Case 1: ไม่มียา HM, ไม่มียอดต้องชำระ -> ตรวจสอบว่าจำหน่ายใน HOSxP แล้วหรือไม่
+            let hisConnCheck;
+            let dchDateTime = null;
+            try {
+                hisConnCheck = await getHisConnection();
+                const hisRows = await hisConnCheck.query('SELECT dchdate, dchtime FROM ipt WHERE an = ?', [an]);
+                if (hisRows.length > 0 && hisRows[0].dchdate) {
+                    const row = hisRows[0];
+                    let dchDateStr;
+                    if (row.dchdate instanceof Date) {
+                        const year = row.dchdate.getFullYear();
+                        const month = String(row.dchdate.getMonth() + 1).padStart(2, '0');
+                        const day = String(row.dchdate.getDate()).padStart(2, '0');
+                        dchDateStr = `${year}-${month}-${day}`;
+                    } else {
+                        dchDateStr = String(row.dchdate).split('T')[0];
+                    }
+                    const dchTimeStr = row.dchtime ? String(row.dchtime).slice(0, 8) : '00:00:00';
+                    dchDateTime = `${dchDateStr} ${dchTimeStr}`;
+                }
+            } catch (e) {
+                console.error('Error checking HIS dchdate in dc-done:', e);
+            } finally {
+                if (hisConnCheck) hisConnCheck.release();
+            }
+
+            if (dchDateTime) {
+                nextStatus = 'completed';
+                setClause = 'dc_done_by = ?, dc_done_date = NOW(), chk_payment = ?, ward_done_by = ?, ward_done_date = ?';
+                values = [loginname, chk_payment, 'HOSxP (Auto)', dchDateTime];
+                actionType = 'DC_DONE_AUTO_COMPLETED';
+            } else {
+                nextStatus = 'ward_waiting';
+                setClause = 'dc_done_by = ?, dc_done_date = NOW(), chk_payment = ?';
+                values = [loginname, chk_payment];
+                actionType = 'DC_DONE_WAITING_WARD';
+            }
         } else if (chk_hm === 0 && chk_payment === 1) {
             // Case 2: ไม่มียา HM, มียอดต้องชำระ -> ไปการเงิน (finance)
             nextStatus = 'finance';
@@ -964,13 +1000,48 @@ router.post('/:an/finance-done', authMiddleware, async (req, res) => {
 });
 
 router.post('/:an/ward-done', authMiddleware, async (req, res) => {
-    await updateWorkflowStatus(
-        req, res,
-        'ward_done_by = ?, ward_done_date = NOW()',
-        [req.user.loginname],
-        'completed',
-        'WARD_DONE'
-    );
+    let hisConn;
+    let dchDateTime = null;
+    try {
+        hisConn = await getHisConnection();
+        const hisRows = await hisConn.query('SELECT dchdate, dchtime FROM ipt WHERE an = ?', [req.params.an]);
+        if (hisRows.length > 0 && hisRows[0].dchdate) {
+            const row = hisRows[0];
+            let dchDateStr;
+            if (row.dchdate instanceof Date) {
+                const year = row.dchdate.getFullYear();
+                const month = String(row.dchdate.getMonth() + 1).padStart(2, '0');
+                const day = String(row.dchdate.getDate()).padStart(2, '0');
+                dchDateStr = `${year}-${month}-${day}`;
+            } else {
+                dchDateStr = String(row.dchdate).split('T')[0];
+            }
+            const dchTimeStr = row.dchtime ? String(row.dchtime).slice(0, 8) : '00:00:00';
+            dchDateTime = `${dchDateStr} ${dchTimeStr}`;
+        }
+    } catch (e) {
+        console.error('Error fetching HIS dchdate in ward-done:', e);
+    } finally {
+        if (hisConn) hisConn.release();
+    }
+
+    if (dchDateTime) {
+        await updateWorkflowStatus(
+            req, res,
+            'ward_done_by = ?, ward_done_date = ?',
+            [req.user.loginname, dchDateTime],
+            'completed',
+            'WARD_DONE'
+        );
+    } else {
+        await updateWorkflowStatus(
+            req, res,
+            'ward_done_by = ?, ward_done_date = NOW()',
+            [req.user.loginname],
+            'completed',
+            'WARD_DONE'
+        );
+    }
 });
 
 // Cancel forward from discharge center (requires password confirmation)
