@@ -543,9 +543,6 @@ export default function SocialWorkPage() {
                   autoFocus
                   className="w-full px-3.5 py-3 text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none shadow-2xs leading-relaxed"
                 />
-                <p className="text-[11px] text-muted-foreground">
-                  เมื่อบันทึก ระบบจะลงชื่อผู้ตอบ ({user?.name || user?.loginname}) และบันทึกเวลาให้อัตโนมัติ
-                </p>
               </div>
 
               {answerError && (
