@@ -701,7 +701,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
   if (!patient) return null
 
   return (
-    <div className="py-2 w-full max-w-7xl mx-auto space-y-6">
+    <div className="py-2 w-full space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Document Checklist & Uploads */}
         <div className="lg:col-span-6 xl:col-span-6 space-y-5">
