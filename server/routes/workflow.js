@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { getHisConnection, getDflowConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { getIO } = require('../lib/socket');
+const { getParsedReturnMedFilters } = require('../services/settingsService');
 
 // Support BigInt serialization in JSON responses
 BigInt.prototype.toJSON = function() {
@@ -1043,35 +1044,14 @@ router.post('/:an/cancel-dc-forward', authMiddleware, async (req, res) => {
 // ==========================================
 
 function buildReturnableDrugsQuery(an) {
-    const dosageforms = (process.env.RETURN_MED_DOSAGEFORMS || 'INJECTIONS,INJECTION')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-
-    const excludeCategories = (process.env.RETURN_MED_EXCLUDE_CATEGORIES || 'FLUIDS AND ELECTROLYTES,INTRAVENOUS SOLOTION,INTRAVENOUS SOLUTION,INTRAVENOUS ANAESTHETICS,LOCAL ANAESTHETICS')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-
-    const excludeCategoriesLike = (process.env.RETURN_MED_EXCLUDE_CATEGORIES_LIKE || 'ANAESTHETICS')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-
-    const includeCategoriesLike = (process.env.RETURN_MED_INCLUDE_CATEGORIES_LIKE || 'ANXIOLYTICS,OPIOID,SEDATIVES')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-
-    const includeIcodes = (process.env.RETURN_MED_INCLUDE_ICODES || '1500513,1460536,1590016,1490407,1490100,1000244,1000245,1490114,1650084')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-
-    const excludeNameLike = (process.env.RETURN_MED_EXCLUDE_NAME_LIKE || 'วิสัญญี')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
+    const {
+        dosageforms,
+        excludeCategories,
+        excludeCategoriesLike,
+        includeCategoriesLike,
+        includeIcodes,
+        excludeNameLike
+    } = getParsedReturnMedFilters();
 
     let sql = `
         SELECT o.icode,

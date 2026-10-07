@@ -25,6 +25,35 @@ const DEFAULT_ROLE_PERMISSIONS = {
     finance: ['F-ศูนย์เรียกเก็บ', 'F-ศูนย์เรียกเก็บ(Admin)']
 };
 
+const DEFAULT_DRUG_SETTINGS = {
+    RETURN_MED_DOSAGEFORMS: {
+        value: process.env.RETURN_MED_DOSAGEFORMS || "INJECTIONS,INJECTION",
+        description: "รูปแบบยาที่ต้องส่งคืน (Dosage Forms)"
+    },
+    RETURN_MED_EXCLUDE_CATEGORIES: {
+        value: process.env.RETURN_MED_EXCLUDE_CATEGORIES || "FLUIDS AND ELECTROLYTES,INTRAVENOUS SOLOTION,INTRAVENOUS SOLUTION,INTRAVENOUS ANAESTHETICS,LOCAL ANAESTHETICS",
+        description: "หมวดหมู่ยาที่ยกเว้นแบบตรงตัว (Exact Exclude Categories)"
+    },
+    RETURN_MED_EXCLUDE_CATEGORIES_LIKE: {
+        value: process.env.RETURN_MED_EXCLUDE_CATEGORIES_LIKE || "ANAESTHETICS",
+        description: "หมวดหมู่ยาที่ยกเว้นแบบมีคำว่า (Exclude Categories LIKE)"
+    },
+    RETURN_MED_INCLUDE_CATEGORIES_LIKE: {
+        value: process.env.RETURN_MED_INCLUDE_CATEGORIES_LIKE || "ANXIOLYTICS,OPIOID,SEDATIVES",
+        description: "หมวดหมู่ยาที่บังคับรวมแบบมีคำว่า (Include Categories LIKE)"
+    },
+    RETURN_MED_INCLUDE_ICODES: {
+        value: process.env.RETURN_MED_INCLUDE_ICODES || "1500513,1460536,1590016,1490407,1490100,1000244,1000245,1490114,1650084",
+        description: "รหัสยาที่บังคับรวมเป็นพิเศษ (Include Drug Codes / icodes)"
+    },
+    RETURN_MED_EXCLUDE_NAME_LIKE: {
+        value: process.env.RETURN_MED_EXCLUDE_NAME_LIKE || "วิสัญญี",
+        description: "ชื่อยาที่ยกเว้นแบบมีคำว่า (Exclude Drug Name LIKE)"
+    }
+};
+
+let cachedDrugSettings = null;
+
 async function initSettingsTables() {
     let conn;
     try {
@@ -91,11 +120,171 @@ async function initSettingsTables() {
             console.log('Seeded default module_role_permissions');
         }
 
+        // 3. system_settings table (Key-Value configuration for return meds, etc.)
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS system_settings (
+                setting_key VARCHAR(100) PRIMARY KEY,
+                setting_value TEXT,
+                description VARCHAR(255),
+                updated_by VARCHAR(50) DEFAULT 'system',
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        for (const [key, item] of Object.entries(DEFAULT_DRUG_SETTINGS)) {
+            try {
+                await conn.query(
+                    `INSERT IGNORE INTO system_settings (setting_key, setting_value, description, updated_by)
+                     VALUES (?, ?, ?, 'system_bootstrap')`,
+                    [key, item.value, item.description]
+                );
+            } catch (e) {
+                console.error('Error seeding drug setting:', key, e.message);
+            }
+        }
+
+        // Preload drug settings into memory cache
+        await loadDrugSettings();
+
         console.log('Settings tables initialized successfully');
     } catch (err) {
         console.error('Failed to initialize settings tables:', err);
     } finally {
         if (conn) conn.release();
+    }
+}
+
+async function loadDrugSettings() {
+    let conn;
+    try {
+        conn = await getDflowConnection();
+        const rows = await conn.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE "RETURN_MED_%"');
+        const map = {};
+        for (const r of rows) {
+            map[r.setting_key] = r.setting_value;
+        }
+
+        cachedDrugSettings = {
+            RETURN_MED_DOSAGEFORMS: map.RETURN_MED_DOSAGEFORMS !== undefined ? map.RETURN_MED_DOSAGEFORMS : DEFAULT_DRUG_SETTINGS.RETURN_MED_DOSAGEFORMS.value,
+            RETURN_MED_EXCLUDE_CATEGORIES: map.RETURN_MED_EXCLUDE_CATEGORIES !== undefined ? map.RETURN_MED_EXCLUDE_CATEGORIES : DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_CATEGORIES.value,
+            RETURN_MED_EXCLUDE_CATEGORIES_LIKE: map.RETURN_MED_EXCLUDE_CATEGORIES_LIKE !== undefined ? map.RETURN_MED_EXCLUDE_CATEGORIES_LIKE : DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_CATEGORIES_LIKE.value,
+            RETURN_MED_INCLUDE_CATEGORIES_LIKE: map.RETURN_MED_INCLUDE_CATEGORIES_LIKE !== undefined ? map.RETURN_MED_INCLUDE_CATEGORIES_LIKE : DEFAULT_DRUG_SETTINGS.RETURN_MED_INCLUDE_CATEGORIES_LIKE.value,
+            RETURN_MED_INCLUDE_ICODES: map.RETURN_MED_INCLUDE_ICODES !== undefined ? map.RETURN_MED_INCLUDE_ICODES : DEFAULT_DRUG_SETTINGS.RETURN_MED_INCLUDE_ICODES.value,
+            RETURN_MED_EXCLUDE_NAME_LIKE: map.RETURN_MED_EXCLUDE_NAME_LIKE !== undefined ? map.RETURN_MED_EXCLUDE_NAME_LIKE : DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_NAME_LIKE.value,
+        };
+        return cachedDrugSettings;
+    } catch (e) {
+        console.error('Error loading drug settings:', e);
+        if (!cachedDrugSettings) {
+            cachedDrugSettings = {
+                RETURN_MED_DOSAGEFORMS: DEFAULT_DRUG_SETTINGS.RETURN_MED_DOSAGEFORMS.value,
+                RETURN_MED_EXCLUDE_CATEGORIES: DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_CATEGORIES.value,
+                RETURN_MED_EXCLUDE_CATEGORIES_LIKE: DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_CATEGORIES_LIKE.value,
+                RETURN_MED_INCLUDE_CATEGORIES_LIKE: DEFAULT_DRUG_SETTINGS.RETURN_MED_INCLUDE_CATEGORIES_LIKE.value,
+                RETURN_MED_INCLUDE_ICODES: DEFAULT_DRUG_SETTINGS.RETURN_MED_INCLUDE_ICODES.value,
+                RETURN_MED_EXCLUDE_NAME_LIKE: DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_NAME_LIKE.value,
+            };
+        }
+        return cachedDrugSettings;
+    } finally {
+        if (conn) conn.release();
+    }
+}
+
+function getDrugSettingsSync() {
+    if (!cachedDrugSettings) {
+        return {
+            RETURN_MED_DOSAGEFORMS: DEFAULT_DRUG_SETTINGS.RETURN_MED_DOSAGEFORMS.value,
+            RETURN_MED_EXCLUDE_CATEGORIES: DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_CATEGORIES.value,
+            RETURN_MED_EXCLUDE_CATEGORIES_LIKE: DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_CATEGORIES_LIKE.value,
+            RETURN_MED_INCLUDE_CATEGORIES_LIKE: DEFAULT_DRUG_SETTINGS.RETURN_MED_INCLUDE_CATEGORIES_LIKE.value,
+            RETURN_MED_INCLUDE_ICODES: DEFAULT_DRUG_SETTINGS.RETURN_MED_INCLUDE_ICODES.value,
+            RETURN_MED_EXCLUDE_NAME_LIKE: DEFAULT_DRUG_SETTINGS.RETURN_MED_EXCLUDE_NAME_LIKE.value,
+        };
+    }
+    return cachedDrugSettings;
+}
+
+function getParsedReturnMedFilters() {
+    const s = getDrugSettingsSync();
+    return {
+        dosageforms: (s.RETURN_MED_DOSAGEFORMS || '').split(',').map(x => x.trim()).filter(Boolean),
+        excludeCategories: (s.RETURN_MED_EXCLUDE_CATEGORIES || '').split(',').map(x => x.trim()).filter(Boolean),
+        excludeCategoriesLike: (s.RETURN_MED_EXCLUDE_CATEGORIES_LIKE || '').split(',').map(x => x.trim()).filter(Boolean),
+        includeCategoriesLike: (s.RETURN_MED_INCLUDE_CATEGORIES_LIKE || '').split(',').map(x => x.trim()).filter(Boolean),
+        includeIcodes: (s.RETURN_MED_INCLUDE_ICODES || '').split(',').map(x => x.trim()).filter(Boolean),
+        excludeNameLike: (s.RETURN_MED_EXCLUDE_NAME_LIKE || '').split(',').map(x => x.trim()).filter(Boolean),
+    };
+}
+
+async function saveDrugSettings(newSettings, updatedBy = 'system') {
+    let conn;
+    try {
+        conn = await getDflowConnection();
+        for (const [key, val] of Object.entries(newSettings)) {
+            if (DEFAULT_DRUG_SETTINGS[key]) {
+                const strVal = String(val ?? '').trim();
+                await conn.query(
+                    `INSERT INTO system_settings (setting_key, setting_value, description, updated_by)
+                     VALUES (?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE 
+                        setting_value = VALUES(setting_value),
+                        updated_by = VALUES(updated_by)`,
+                    [key, strVal, DEFAULT_DRUG_SETTINGS[key].description, updatedBy]
+                );
+            }
+        }
+        await loadDrugSettings();
+        return cachedDrugSettings;
+    } catch (e) {
+        console.error('Error saving drug settings:', e);
+        throw e;
+    } finally {
+        if (conn) conn.release();
+    }
+}
+
+async function getDrugDetailsByIcodes(icodes) {
+    if (!Array.isArray(icodes) || icodes.length === 0) return [];
+    let hisConn;
+    try {
+        hisConn = await getHisConnection();
+        const rows = await hisConn.query(
+            `SELECT icode, name, strength, units, dosageform, drugcategory 
+             FROM drugitems 
+             WHERE icode IN (?)
+             ORDER BY name ASC`,
+            [icodes]
+        );
+        return rows;
+    } catch (e) {
+        console.error('Error in getDrugDetailsByIcodes:', e);
+        return [];
+    } finally {
+        if (hisConn) hisConn.release();
+    }
+}
+
+async function searchDrugitems(searchQuery) {
+    if (!searchQuery || searchQuery.trim().length < 2) return [];
+    let hisConn;
+    try {
+        hisConn = await getHisConnection();
+        const term = `%${searchQuery.trim()}%`;
+        const rows = await hisConn.query(
+            `SELECT icode, name, strength, units, dosageform, drugcategory 
+             FROM drugitems 
+             WHERE (icode LIKE ? OR name LIKE ?)
+             ORDER BY name ASC 
+             LIMIT 30`,
+            [term, term]
+        );
+        return rows;
+    } catch (e) {
+        console.error('Error in searchDrugitems:', e);
+        return [];
+    } finally {
+        if (hisConn) hisConn.release();
     }
 }
 
@@ -185,7 +374,14 @@ async function getUserPermissions(loginname, providedGroupName) {
 
 module.exports = {
     MODULE_KEYS,
+    DEFAULT_DRUG_SETTINGS,
     initSettingsTables,
     isUserAdmin,
-    getUserPermissions
+    getUserPermissions,
+    loadDrugSettings,
+    getDrugSettingsSync,
+    getParsedReturnMedFilters,
+    saveDrugSettings,
+    getDrugDetailsByIcodes,
+    searchDrugitems
 };

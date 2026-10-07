@@ -1,7 +1,16 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const { getDflowConnection, getHisConnection } = require('../config/database');
-const { MODULE_KEYS, isUserAdmin, getUserPermissions } = require('../services/settingsService');
+const { 
+    MODULE_KEYS, 
+    DEFAULT_DRUG_SETTINGS,
+    isUserAdmin, 
+    getUserPermissions,
+    getDrugSettingsSync,
+    saveDrugSettings,
+    getDrugDetailsByIcodes,
+    searchDrugitems
+} = require('../services/settingsService');
 const { getIO } = require('../lib/socket');
 
 const router = express.Router();
@@ -354,6 +363,72 @@ router.post('/roles', authMiddleware, requireAdmin, async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (dflowConn) dflowConn.release();
+    }
+});
+
+// 9. Get drug filter settings (Admin only)
+router.get('/drugs', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const settings = getDrugSettingsSync();
+        const icodes = (settings.RETURN_MED_INCLUDE_ICODES || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+        const resolvedDrugs = await getDrugDetailsByIcodes(icodes);
+
+        res.json({
+            settings,
+            defaults: DEFAULT_DRUG_SETTINGS,
+            resolvedDrugs
+        });
+    } catch (err) {
+        console.error('Error in GET /drugs:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 10. Update drug filter settings (Admin only)
+router.post('/drugs', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { settings } = req.body;
+        if (!settings || typeof settings !== 'object') {
+            return res.status(400).json({ error: 'Invalid settings payload' });
+        }
+
+        const currentAdmin = req.user?.loginname || 'admin';
+        const updatedSettings = await saveDrugSettings(settings, currentAdmin);
+
+        const icodes = (updatedSettings.RETURN_MED_INCLUDE_ICODES || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+        const resolvedDrugs = await getDrugDetailsByIcodes(icodes);
+
+        try {
+            getIO().emit('settings:drugs_updated', { settings: updatedSettings });
+        } catch (e) {}
+
+        res.json({
+            success: true,
+            message: 'บันทึกการตั้งค่าตัวกรองยาคืนเรียบร้อยแล้ว',
+            settings: updatedSettings,
+            resolvedDrugs
+        });
+    } catch (err) {
+        console.error('Error in POST /drugs:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 11. Search drug items from HOSxP drugitems (Admin only)
+router.get('/drugs/search', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const query = req.query.q || '';
+        const drugs = await searchDrugitems(query);
+        res.json({ drugs });
+    } catch (err) {
+        console.error('Error in GET /drugs/search:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 

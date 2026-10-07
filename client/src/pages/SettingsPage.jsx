@@ -30,7 +30,11 @@ import {
   RefreshCw,
   Sliders,
   ChevronRight,
-  Info
+  Info,
+  RotateCcw,
+  Code,
+  Tag,
+  CheckSquare
 } from 'lucide-react'
 
 const MODULE_META = {
@@ -90,6 +94,15 @@ const MODULE_META = {
   }
 }
 
+const DEFAULT_DRUG_FILTER_FALLBACK = {
+  RETURN_MED_DOSAGEFORMS: 'INJECTIONS,INJECTION',
+  RETURN_MED_EXCLUDE_CATEGORIES: 'FLUIDS AND ELECTROLYTES,INTRAVENOUS SOLOTION,INTRAVENOUS SOLUTION,INTRAVENOUS ANAESTHETICS,LOCAL ANAESTHETICS',
+  RETURN_MED_EXCLUDE_CATEGORIES_LIKE: 'ANAESTHETICS',
+  RETURN_MED_INCLUDE_CATEGORIES_LIKE: 'ANXIOLYTICS,OPIOID,SEDATIVES',
+  RETURN_MED_INCLUDE_ICODES: '1500513,1460536,1590016,1490407,1490100,1000244,1000245,1490114,1650084',
+  RETURN_MED_EXCLUDE_NAME_LIKE: 'วิสัญญี'
+}
+
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth()
   const [activeTab, setActiveTab] = useState('admins') // 'admins' | 'roles' | 'drugs'
@@ -102,10 +115,10 @@ export default function SettingsPage() {
   const [isSearchingUsers, setIsSearchingUsers] = useState(false)
   const [addingAdmin, setAddingAdmin] = useState(false)
   const [deletingAdmin, setDeletingAdmin] = useState(null)
-  const [adminMessage, setAdminMessage] = useState(null) // { type: 'success' | 'error', text: '' }
+  const [adminMessage, setAdminMessage] = useState(null)
 
   // Role Setting State
-  const [roles, setRoles] = useState({}) // { [moduleKey]: string[] }
+  const [roles, setRoles] = useState({})
   const [initialRoles, setInitialRoles] = useState({})
   const [availableGroups, setAvailableGroups] = useState([])
   const [loadingRoles, setLoadingRoles] = useState(false)
@@ -113,6 +126,20 @@ export default function SettingsPage() {
   const [isSavingAllRoles, setIsSavingAllRoles] = useState(false)
   const [roleMessage, setRoleMessage] = useState(null)
   const [groupFilterPerModule, setGroupFilterPerModule] = useState({})
+
+  // Drug Setting State
+  const [drugSettings, setDrugSettings] = useState(DEFAULT_DRUG_FILTER_FALLBACK)
+  const [initialDrugSettings, setInitialDrugSettings] = useState(DEFAULT_DRUG_FILTER_FALLBACK)
+  const [defaultDrugSettings, setDefaultDrugSettings] = useState(DEFAULT_DRUG_FILTER_FALLBACK)
+  const [resolvedDrugs, setResolvedDrugs] = useState([])
+  const [loadingDrugs, setLoadingDrugs] = useState(false)
+  const [savingDrugs, setSavingDrugs] = useState(false)
+  const [drugMessage, setDrugMessage] = useState(null)
+  const [drugSearchQuery, setDrugSearchQuery] = useState('')
+  const [drugSearchResults, setDrugSearchResults] = useState([])
+  const [isSearchingDrugs, setIsSearchingDrugs] = useState(false)
+  const [rawViewMode, setRawViewMode] = useState(false)
+  const [tagInputs, setTagInputs] = useState({})
 
   // Fetch Admins
   const fetchAdmins = async () => {
@@ -148,9 +175,37 @@ export default function SettingsPage() {
     }
   }
 
+  // Fetch Drug Settings
+  const fetchDrugSettings = async () => {
+    setLoadingDrugs(true)
+    try {
+      const res = await api.get('/settings/drugs')
+      if (res.data?.settings) {
+        setDrugSettings(res.data.settings)
+        setInitialDrugSettings(JSON.parse(JSON.stringify(res.data.settings)))
+      }
+      if (res.data?.defaults) {
+        const flatDefaults = {}
+        for (const [k, v] of Object.entries(res.data.defaults)) {
+          flatDefaults[k] = v.value
+        }
+        setDefaultDrugSettings(flatDefaults)
+      }
+      if (res.data?.resolvedDrugs) {
+        setResolvedDrugs(res.data.resolvedDrugs)
+      }
+    } catch (err) {
+      console.error('Failed to fetch drug settings:', err)
+      setDrugMessage({ type: 'error', text: err.response?.data?.error || 'เกิดข้อผิดพลาดในการโหลดการตั้งค่ายา' })
+    } finally {
+      setLoadingDrugs(false)
+    }
+  }
+
   useEffect(() => {
     fetchAdmins()
     fetchRolesData()
+    fetchDrugSettings()
   }, [])
 
   // Live search users in HOSxP opduser
@@ -174,6 +229,28 @@ export default function SettingsPage() {
 
     return () => clearTimeout(timer)
   }, [adminSearchQuery])
+
+  // Live search drugs from HOSxP drugitems
+  useEffect(() => {
+    if (!drugSearchQuery.trim() || drugSearchQuery.trim().length < 2) {
+      setDrugSearchResults([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingDrugs(true)
+      try {
+        const res = await api.get(`/settings/drugs/search?q=${encodeURIComponent(drugSearchQuery.trim())}`)
+        setDrugSearchResults(res.data.drugs || [])
+      } catch (err) {
+        console.error('Search drugs error:', err)
+      } finally {
+        setIsSearchingDrugs(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [drugSearchQuery])
 
   // Add Admin Handler
   const handleAddAdmin = async (targetUser) => {
@@ -226,7 +303,6 @@ export default function SettingsPage() {
         [moduleKey]: [...current, groupname]
       }
     })
-    // Reset selector filter for that module
     setGroupFilterPerModule(prev => ({ ...prev, [moduleKey]: '' }))
   }
 
@@ -280,10 +356,79 @@ export default function SettingsPage() {
     }
   }
 
-  // Check if roles have uncommitted changes
+  // Drug Filter Helpers
+  const parseCommaTags = (str) => {
+    if (!str) return []
+    return str.split(',').map(s => s.trim()).filter(Boolean)
+  }
+
+  const handleAddDrugTag = (fieldKey, valueToAdd) => {
+    if (!valueToAdd || !valueToAdd.trim()) return
+    const currentTags = parseCommaTags(drugSettings[fieldKey])
+    const cleanVal = valueToAdd.trim()
+    if (!currentTags.includes(cleanVal)) {
+      const newTags = [...currentTags, cleanVal]
+      setDrugSettings(prev => ({ ...prev, [fieldKey]: newTags.join(',') }))
+    }
+    setTagInputs(prev => ({ ...prev, [fieldKey]: '' }))
+  }
+
+  const handleRemoveDrugTag = (fieldKey, tagToRemove) => {
+    const currentTags = parseCommaTags(drugSettings[fieldKey])
+    const newTags = currentTags.filter(t => t !== tagToRemove)
+    setDrugSettings(prev => ({ ...prev, [fieldKey]: newTags.join(',') }))
+
+    // If removing from icodes, also update resolvedDrugs
+    if (fieldKey === 'RETURN_MED_INCLUDE_ICODES') {
+      setResolvedDrugs(prev => prev.filter(d => d.icode !== tagToRemove))
+    }
+  }
+
+  const handleAddDrugItemIcode = (drug) => {
+    if (!drug || !drug.icode) return
+    handleAddDrugTag('RETURN_MED_INCLUDE_ICODES', drug.icode)
+    if (!resolvedDrugs.some(d => d.icode === drug.icode)) {
+      setResolvedDrugs(prev => [...prev, drug])
+    }
+    setDrugSearchQuery('')
+    setDrugSearchResults([])
+  }
+
+  // Save Drug Settings
+  const handleSaveDrugSettings = async () => {
+    setSavingDrugs(true)
+    setDrugMessage(null)
+    try {
+      const res = await api.post('/settings/drugs', { settings: drugSettings })
+      setDrugMessage({ type: 'success', text: res.data.message || 'บันทึกการตั้งค่าตัวกรองยาคืนเรียบร้อยแล้ว' })
+      setInitialDrugSettings(JSON.parse(JSON.stringify(res.data.settings)))
+      if (res.data.resolvedDrugs) {
+        setResolvedDrugs(res.data.resolvedDrugs)
+      }
+    } catch (err) {
+      console.error('Save drug settings error:', err)
+      setDrugMessage({ type: 'error', text: err.response?.data?.error || 'ไม่สามารถบันทึกการตั้งค่ายาได้' })
+    } finally {
+      setSavingDrugs(false)
+    }
+  }
+
+  // Reset to Defaults
+  const handleResetDrugDefaults = () => {
+    if (window.confirm('คุณต้องการรีเซ็ตค่าตัวกรองยาคืนกลับเป็นค่าเริ่มต้นมาตรฐานใช่หรือไม่?')) {
+      setDrugSettings(JSON.parse(JSON.stringify(defaultDrugSettings)))
+      setDrugMessage({ type: 'success', text: 'รีเซ็ตเป็นค่าเริ่มต้นเรียบร้อยแล้ว (อย่าลืมกดปุ่ม "บันทึกการตั้งค่า" เพื่อบันทึกผล)' })
+    }
+  }
+
+  // Dirty Checks
   const hasRoleChanges = useMemo(() => {
     return JSON.stringify(roles) !== JSON.stringify(initialRoles)
   }, [roles, initialRoles])
+
+  const hasDrugChanges = useMemo(() => {
+    return JSON.stringify(drugSettings) !== JSON.stringify(initialDrugSettings)
+  }, [drugSettings, initialDrugSettings])
 
   return (
     <div className="container mx-auto p-6 max-w-7xl animate-fade-in relative z-10 pb-16">
@@ -296,7 +441,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-slate-900">ตั้งค่าระบบ (System Settings)</h1>
-              <p className="text-slate-500 text-sm">จัดการสิทธิ์ผู้ดูแลระบบ กลุ่มงานที่เข้าถึงโมดูล และการตั้งค่ายา</p>
+              <p className="text-slate-500 text-sm">จัดการสิทธิ์ผู้ดูแลระบบ กลุ่มงานที่เข้าถึงโมดูล และตัวกรองระบบยาคืน</p>
             </div>
           </div>
         </div>
@@ -355,9 +500,12 @@ export default function SettingsPage() {
         >
           <Pill className="w-4 h-4" />
           <span>3. Drug Setting</span>
-          <span className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
-            Phase ถัดไป
+          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
+            ระบบยาคืน
           </span>
+          {hasDrugChanges && (
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="มีการเปลี่ยนแปลงที่ยังไม่บันทึก" />
+          )}
         </button>
       </div>
 
@@ -681,9 +829,6 @@ export default function SettingsPage() {
               const isModuleSaving = savingModule === moduleKey
               const isModuleChanged = JSON.stringify(assignedGroups) !== JSON.stringify(initialRoles[moduleKey] || [])
               const filterText = groupFilterPerModule[moduleKey] || ''
-              const filteredUnassigned = unassignedGroups.filter(g => 
-                g.toLowerCase().includes(filterText.toLowerCase())
-              )
 
               return (
                 <Card
@@ -780,7 +925,7 @@ export default function SettingsPage() {
                         </select>
                       </div>
 
-                      {/* Quick nurse / doctor presets if applicable */}
+                      {/* Quick presets */}
                       <div className="flex flex-wrap gap-1 pt-1">
                         {moduleKey === 'ward' && unassignedGroups.includes('RBH_OPD_IPD_NURSE') && (
                           <button
@@ -842,70 +987,596 @@ export default function SettingsPage() {
       )}
 
       {/* ========================================================= */}
-      {/* TAB 3: DRUG SETTING (PHASE 2 PLACEHOLDER) */}
+      {/* TAB 3: DRUG SETTING (RETURN MED FILTER SETTINGS) */}
       {/* ========================================================= */}
       {activeTab === 'drugs' && (
-        <div className="max-w-3xl mx-auto py-8">
-          <Card className="border-slate-200 shadow-sm overflow-hidden text-center p-8 bg-gradient-to-b from-white to-slate-50/50">
-            <div className="w-20 h-20 mx-auto rounded-3xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mb-6 shadow-sm">
-              <Pill className="w-10 h-10" />
-            </div>
-
-            <Badge variant="outline" className="bg-amber-100/80 text-amber-900 border-amber-300 font-medium px-3 py-1 mb-4 text-xs">
-              <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
-              อยู่ระหว่างการพัฒนา (Phase 2)
-            </Badge>
-
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">
-              ระบบตั้งค่ายา (Drug Settings)
-            </h2>
-            <p className="text-slate-500 text-sm max-w-lg mx-auto mb-8 leading-relaxed">
-              ฟังก์ชันนี้จะเปิดให้ใช้งานใน Phase ถัดไป สำหรับตั้งค่ากติกาการคืนยา รายการยาตรวจสอบพิเศษ 
-              และนโยบายการกระจายยาของผู้ป่วยใน
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left max-w-xl mx-auto">
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                  <Pill className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-800">ตั้งค่าประเภทและรายการยาคืน</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">ระบุรายการยาที่ต้องส่งคืนห้องยาก่อน Discharge</p>
-                </div>
+        <div className="space-y-6">
+          {/* Header Action & Info Bar */}
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+            <div className="flex items-start gap-3.5 text-sm text-slate-700">
+              <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0 mt-0.5">
+                <Pill className="w-5 h-5" />
               </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
-                  <Clock className="w-4 h-4" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-slate-900">ตั้งค่าตัวกรองระบบยาคืน (Return Med Filter Settings)</p>
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px]">
+                    Active
+                  </Badge>
                 </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-800">กำหนดรอบเวลาการคืนยา</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">ตั้งรอบเวลาการตรวจสอบยาคืนของห้องยาในแต่ละวัน</p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-purple-50 text-purple-600 shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-800">นโยบายตรวจสอบยาเสพติด/ยาพิเศษ</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">กำหนดเงื่อนไขการตรวจสอบและลายมือชื่อเภสัชกร</p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-amber-50 text-amber-600 shrink-0">
-                  <Sliders className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-800">เชื่อมโยงค่าใช้จ่ายยากับ HIS</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">ปรับยอดค่ายาอัตโนมัติเมื่อมีการรับคืนยาสำเร็จ</p>
-                </div>
+                <p className="text-slate-500 text-xs md:text-sm mt-0.5">
+                  กำหนดเงื่อนไขรูปแบบยา หมวดหมู่ และรหัสยาเฉพาะที่ต้องนำมาตรวจสอบการคืนยาก่อน Discharge และในระบบห้องยา
+                </p>
               </div>
             </div>
-          </Card>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0 w-full md:w-auto justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRawViewMode(!rawViewMode)}
+                className="rounded-xl text-xs text-slate-600 hover:text-slate-900 border border-slate-200"
+              >
+                <Code className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+                {rawViewMode ? 'โหมด Tags ปกติ' : 'ดูรูปแบบ Text (.env)'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetDrugDefaults}
+                className="rounded-xl border-slate-200 text-xs text-slate-600 hover:text-amber-700 hover:bg-amber-50"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                คืนค่าเริ่มต้น
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchDrugSettings}
+                disabled={loadingDrugs}
+                className="rounded-xl border-slate-200 text-xs text-slate-600"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loadingDrugs ? 'animate-spin' : ''}`} />
+                รีเฟรช
+              </Button>
+              <Button
+                onClick={handleSaveDrugSettings}
+                disabled={savingDrugs || !hasDrugChanges}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs px-4 shadow-sm"
+              >
+                {savingDrugs ? (
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                บันทึกการตั้งค่า
+              </Button>
+            </div>
+          </div>
+
+          {/* Feedback Message */}
+          {drugMessage && (
+            <div
+              className={`p-4 rounded-xl flex items-center justify-between gap-3 text-sm animate-fade-in ${
+                drugMessage.type === 'success'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                  : 'bg-red-50 border border-red-200 text-red-800'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {drugMessage.type === 'success' ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+                )}
+                <span>{drugMessage.text}</span>
+              </div>
+              <button
+                onClick={() => setDrugMessage(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Raw Text (.env format) View Mode */}
+          {rawViewMode ? (
+            <Card className="border-slate-200 shadow-xs">
+              <CardHeader className="pb-3 border-b border-slate-100">
+                <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-800">
+                  <Code className="w-5 h-5 text-slate-600" />
+                  รูปแบบ Raw Configuration (.env / String Format)
+                </CardTitle>
+                <CardDescription>
+                  สามารถแก้ไขข้อความคั่นด้วยเครื่องหมายจุลภาค (Comma `,`) ได้โดยตรง
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-5 space-y-4 font-mono text-xs">
+                {[
+                  { key: 'RETURN_MED_DOSAGEFORMS', label: 'RETURN_MED_DOSAGEFORMS', desc: 'รูปแบบยาที่ต้องส่งคืน' },
+                  { key: 'RETURN_MED_INCLUDE_CATEGORIES_LIKE', label: 'RETURN_MED_INCLUDE_CATEGORIES_LIKE', desc: 'หมวดหมู่ยาที่บังคับรวม (LIKE)' },
+                  { key: 'RETURN_MED_EXCLUDE_CATEGORIES', label: 'RETURN_MED_EXCLUDE_CATEGORIES', desc: 'หมวดหมู่ยาที่ยกเว้นแบบตรงตัว' },
+                  { key: 'RETURN_MED_EXCLUDE_CATEGORIES_LIKE', label: 'RETURN_MED_EXCLUDE_CATEGORIES_LIKE', desc: 'หมวดหมู่ยาที่ยกเว้น (LIKE)' },
+                  { key: 'RETURN_MED_EXCLUDE_NAME_LIKE', label: 'RETURN_MED_EXCLUDE_NAME_LIKE', desc: 'คำในชื่อยาที่ยกเว้น (LIKE)' },
+                  { key: 'RETURN_MED_INCLUDE_ICODES', label: 'RETURN_MED_INCLUDE_ICODES', desc: 'รหัสยาเฉพาะที่บังคับรวม (icodes)' }
+                ].map((item) => (
+                  <div key={item.key} className="space-y-1">
+                    <div className="flex justify-between items-center text-slate-600 font-sans text-xs">
+                      <span className="font-mono font-bold text-slate-900">{item.label}</span>
+                      <span className="text-slate-400">{item.desc}</span>
+                    </div>
+                    <Input
+                      value={drugSettings[item.key] || ''}
+                      onChange={(e) => setDrugSettings(prev => ({ ...prev, [item.key]: e.target.value }))}
+                      className="font-mono text-xs rounded-xl bg-slate-50 border-slate-200"
+                    />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Card 1: รูปแบบยา & หมวดหมู่ที่ต้องรวม */}
+              <Card className="border-slate-200 shadow-xs flex flex-col justify-between">
+                <CardHeader className="pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-teal-50 text-teal-600">
+                      <CheckSquare className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base font-bold text-slate-800">
+                        1. เงื่อนไขที่นำมารวมเป็นยาคืน (Include Rules)
+                      </CardTitle>
+                      <CardDescription className="text-xs text-slate-500">
+                        ยาที่ตรงกับรูปแบบหรือหมวดหมู่เหล่านี้จะถูกนำมาตรวจสอบ
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-6">
+                  {/* RETURN_MED_DOSAGEFORMS */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-teal-600" />
+                        รูปแบบยาหลักที่ต้องคืน (RETURN_MED_DOSAGEFORMS)
+                      </label>
+                      <span className="text-[11px] text-slate-400">
+                        {parseCommaTags(drugSettings.RETURN_MED_DOSAGEFORMS).length} รายการ
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      รูปแบบยาหลักที่นำมาตรวจ เช่น ยาฉีด (INJECTIONS, INJECTION)
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 min-h-[48px] p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      {parseCommaTags(drugSettings.RETURN_MED_DOSAGEFORMS).map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-white text-teal-800 border border-teal-200 shadow-2xs">
+                          {tag}
+                          <button onClick={() => handleRemoveDrugTag('RETURN_MED_DOSAGEFORMS', tag)} className="text-slate-400 hover:text-red-500">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="พิมพ์ชื่อรูปแบบยา เช่น INJECTIONS..."
+                        value={tagInputs.RETURN_MED_DOSAGEFORMS || ''}
+                        onChange={(e) => setTagInputs(prev => ({ ...prev, RETURN_MED_DOSAGEFORMS: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddDrugTag('RETURN_MED_DOSAGEFORMS', tagInputs.RETURN_MED_DOSAGEFORMS)
+                          }
+                        }}
+                        className="h-8 text-xs rounded-xl"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddDrugTag('RETURN_MED_DOSAGEFORMS', tagInputs.RETURN_MED_DOSAGEFORMS)}
+                        className="h-8 text-xs rounded-xl px-3"
+                      >
+                        + เพิ่ม
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* RETURN_MED_INCLUDE_CATEGORIES_LIKE */}
+                  <div className="space-y-2 pt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-blue-600" />
+                        หมวดหมู่ยาที่บังคับรวม (RETURN_MED_INCLUDE_CATEGORIES_LIKE)
+                      </label>
+                      <span className="text-[11px] text-slate-400">
+                        {parseCommaTags(drugSettings.RETURN_MED_INCLUDE_CATEGORIES_LIKE).length} รายการ
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      คำในหมวดหมู่ยาที่ต้องการให้รวมเสมอ แม้ไม่ได้อยู่ในรูปแบบยาข้างต้น เช่น ANXIOLYTICS, OPIOID, SEDATIVES
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 min-h-[48px] p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      {parseCommaTags(drugSettings.RETURN_MED_INCLUDE_CATEGORIES_LIKE).map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-white text-blue-800 border border-blue-200 shadow-2xs">
+                          {tag}
+                          <button onClick={() => handleRemoveDrugTag('RETURN_MED_INCLUDE_CATEGORIES_LIKE', tag)} className="text-slate-400 hover:text-red-500">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="พิมพ์คำในหมวดหมู่ เช่น OPIOID..."
+                        value={tagInputs.RETURN_MED_INCLUDE_CATEGORIES_LIKE || ''}
+                        onChange={(e) => setTagInputs(prev => ({ ...prev, RETURN_MED_INCLUDE_CATEGORIES_LIKE: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddDrugTag('RETURN_MED_INCLUDE_CATEGORIES_LIKE', tagInputs.RETURN_MED_INCLUDE_CATEGORIES_LIKE)
+                          }
+                        }}
+                        className="h-8 text-xs rounded-xl"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddDrugTag('RETURN_MED_INCLUDE_CATEGORIES_LIKE', tagInputs.RETURN_MED_INCLUDE_CATEGORIES_LIKE)}
+                        className="h-8 text-xs rounded-xl px-3"
+                      >
+                        + เพิ่ม
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 2: หมวดหมู่ & ชื่อยาที่ยกเว้น */}
+              <Card className="border-slate-200 shadow-xs flex flex-col justify-between">
+                <CardHeader className="pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-red-50 text-red-600">
+                      <X className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base font-bold text-slate-800">
+                        2. เงื่อนไขที่ยกเว้น (Exclude Rules)
+                      </CardTitle>
+                      <CardDescription className="text-xs text-slate-500">
+                        ยาที่ตรงกับเงื่อนไขด้านล่างนี้ จะไม่ถูกนำมาแสดงในรายการยาคืน
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-5">
+                  {/* RETURN_MED_EXCLUDE_CATEGORIES */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-amber-600" />
+                        หมวดหมู่ยาที่ยกเว้นแบบตรงตัว (RETURN_MED_EXCLUDE_CATEGORIES)
+                      </label>
+                      <span className="text-[11px] text-slate-400">
+                        {parseCommaTags(drugSettings.RETURN_MED_EXCLUDE_CATEGORIES).length} รายการ
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      ยกเว้นหมวดหมู่แบบตรงตัว (Exact Match) เช่น สารน้ำ น้ำเกลือ ยาดมสลบ
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 min-h-[48px] max-h-[120px] overflow-y-auto p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      {parseCommaTags(drugSettings.RETURN_MED_EXCLUDE_CATEGORIES).map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-white text-slate-700 border border-slate-200 shadow-2xs">
+                          <span className="truncate max-w-[200px]" title={tag}>{tag}</span>
+                          <button onClick={() => handleRemoveDrugTag('RETURN_MED_EXCLUDE_CATEGORIES', tag)} className="text-slate-400 hover:text-red-500">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="พิมพ์ชื่อหมวดหมู่ที่ต้องการยกเว้น..."
+                        value={tagInputs.RETURN_MED_EXCLUDE_CATEGORIES || ''}
+                        onChange={(e) => setTagInputs(prev => ({ ...prev, RETURN_MED_EXCLUDE_CATEGORIES: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddDrugTag('RETURN_MED_EXCLUDE_CATEGORIES', tagInputs.RETURN_MED_EXCLUDE_CATEGORIES)
+                          }
+                        }}
+                        className="h-8 text-xs rounded-xl"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddDrugTag('RETURN_MED_EXCLUDE_CATEGORIES', tagInputs.RETURN_MED_EXCLUDE_CATEGORIES)}
+                        className="h-8 text-xs rounded-xl px-3"
+                      >
+                        + เพิ่ม
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* RETURN_MED_EXCLUDE_CATEGORIES_LIKE */}
+                  <div className="space-y-2 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-amber-600" />
+                        คำในหมวดหมู่ที่ยกเว้น (RETURN_MED_EXCLUDE_CATEGORIES_LIKE)
+                      </label>
+                      <span className="text-[11px] text-slate-400">
+                        {parseCommaTags(drugSettings.RETURN_MED_EXCLUDE_CATEGORIES_LIKE).length} รายการ
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 min-h-[38px] p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      {parseCommaTags(drugSettings.RETURN_MED_EXCLUDE_CATEGORIES_LIKE).map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-white text-slate-700 border border-slate-200 shadow-2xs">
+                          {tag}
+                          <button onClick={() => handleRemoveDrugTag('RETURN_MED_EXCLUDE_CATEGORIES_LIKE', tag)} className="text-slate-400 hover:text-red-500">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="พิมพ์คำที่ต้องการยกเว้น เช่น ANAESTHETICS..."
+                        value={tagInputs.RETURN_MED_EXCLUDE_CATEGORIES_LIKE || ''}
+                        onChange={(e) => setTagInputs(prev => ({ ...prev, RETURN_MED_EXCLUDE_CATEGORIES_LIKE: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddDrugTag('RETURN_MED_EXCLUDE_CATEGORIES_LIKE', tagInputs.RETURN_MED_EXCLUDE_CATEGORIES_LIKE)
+                          }
+                        }}
+                        className="h-8 text-xs rounded-xl"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddDrugTag('RETURN_MED_EXCLUDE_CATEGORIES_LIKE', tagInputs.RETURN_MED_EXCLUDE_CATEGORIES_LIKE)}
+                        className="h-8 text-xs rounded-xl px-3"
+                      >
+                        + เพิ่ม
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* RETURN_MED_EXCLUDE_NAME_LIKE */}
+                  <div className="space-y-2 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-red-600" />
+                        คำในชื่อยาที่ยกเว้น (RETURN_MED_EXCLUDE_NAME_LIKE)
+                      </label>
+                      <span className="text-[11px] text-slate-400">
+                        {parseCommaTags(drugSettings.RETURN_MED_EXCLUDE_NAME_LIKE).length} รายการ
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      หากชื่อยามีคำนี้จะไม่นำมาแสดงเป็นยาคืน เช่น คำว่า "วิสัญญี"
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 min-h-[38px] p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      {parseCommaTags(drugSettings.RETURN_MED_EXCLUDE_NAME_LIKE).map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-white text-red-700 border border-red-200 shadow-2xs">
+                          {tag}
+                          <button onClick={() => handleRemoveDrugTag('RETURN_MED_EXCLUDE_NAME_LIKE', tag)} className="text-slate-400 hover:text-red-500">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="พิมพ์คำในชื่อยา เช่น วิสัญญี..."
+                        value={tagInputs.RETURN_MED_EXCLUDE_NAME_LIKE || ''}
+                        onChange={(e) => setTagInputs(prev => ({ ...prev, RETURN_MED_EXCLUDE_NAME_LIKE: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddDrugTag('RETURN_MED_EXCLUDE_NAME_LIKE', tagInputs.RETURN_MED_EXCLUDE_NAME_LIKE)
+                          }
+                        }}
+                        className="h-8 text-xs rounded-xl"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddDrugTag('RETURN_MED_EXCLUDE_NAME_LIKE', tagInputs.RETURN_MED_EXCLUDE_NAME_LIKE)}
+                        className="h-8 text-xs rounded-xl px-3"
+                      >
+                        + เพิ่ม
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 3: รหัสยาเฉพาะที่บังคับรวม (RETURN_MED_INCLUDE_ICODES) */}
+              <Card className="border-slate-200 shadow-xs lg:col-span-2">
+                <CardHeader className="pb-3 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <Pill className="w-5 h-5 text-indigo-600" />
+                        3. รหัสยาที่บังคับรวมเป็นพิเศษ (RETURN_MED_INCLUDE_ICODES)
+                      </CardTitle>
+                      <Badge variant="secondary" className="font-mono text-xs">
+                        {parseCommaTags(drugSettings.RETURN_MED_INCLUDE_ICODES).length} รหัสยา
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-xs text-slate-500 mt-0.5">
+                      รายการยาเฉพาะตัวที่ต้องบังคับให้ตรวจสอบการคืนยาเสมอ (เช่น Potassium, Pseudoephedrine, Ritalin, Cytotec)
+                    </CardDescription>
+                  </div>
+
+                  {/* Drug Search Input */}
+                  <div className="relative w-full md:w-80">
+                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                    <Input
+                      placeholder="ค้นหายาใน HOSxP ด้วยชื่อ หรือ icode..."
+                      value={drugSearchQuery}
+                      onChange={(e) => setDrugSearchQuery(e.target.value)}
+                      className="pl-9 h-9 text-xs rounded-xl border-slate-200 focus-visible:ring-indigo-500"
+                    />
+                    {isSearchingDrugs && (
+                      <RefreshCw className="w-3.5 h-3.5 absolute right-3 top-3 text-slate-400 animate-spin" />
+                    )}
+
+                    {/* Autocomplete Search Dropdown */}
+                    {drugSearchQuery.trim().length >= 2 && (
+                      <div className="absolute left-0 right-0 top-10 bg-white border border-slate-200 rounded-xl shadow-lg z-30 max-h-64 overflow-y-auto p-1.5 space-y-1">
+                        {drugSearchResults.length === 0 ? (
+                          <div className="text-center py-4 text-xs text-slate-400">
+                            {isSearchingDrugs ? 'กำลังค้นหา...' : 'ไม่พบรายการยาที่ตรงกับคำค้น'}
+                          </div>
+                        ) : (
+                          drugSearchResults.map((drug) => {
+                            const isIncluded = parseCommaTags(drugSettings.RETURN_MED_INCLUDE_ICODES).includes(drug.icode)
+                            return (
+                              <div
+                                key={drug.icode}
+                                className="p-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-slate-800 truncate">
+                                    {drug.name} {drug.strength ? `(${drug.strength})` : ''}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 font-mono">
+                                    <span className="bg-slate-100 px-1 rounded text-slate-700">{drug.icode}</span>
+                                    <span>{drug.dosageform || '-'}</span>
+                                    <span>• {drug.units || '-'}</span>
+                                  </div>
+                                </div>
+                                <div>
+                                  {isIncluded ? (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                      รวมอยู่แล้ว
+                                    </span>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={() => handleAddDrugItemIcode(drug)}
+                                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-2"
+                                    >
+                                      <Plus className="w-3 h-3 mr-1" />
+                                      เพิ่ม
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-50 text-slate-600 font-semibold uppercase border-b border-slate-200">
+                        <tr>
+                          <th className="px-4 py-3">icode</th>
+                          <th className="px-4 py-3">ชื่อยา (Drug Name & Strength)</th>
+                          <th className="px-4 py-3">รูปแบบ (Dosage Form)</th>
+                          <th className="px-4 py-3">หมวดหมู่ (Drug Category)</th>
+                          <th className="px-4 py-3">หน่วย (Units)</th>
+                          <th className="px-4 py-3 text-right">การจัดการ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {parseCommaTags(drugSettings.RETURN_MED_INCLUDE_ICODES).length === 0 ? (
+                          <tr>
+                            <td colSpan="6" className="text-center py-8 text-slate-400">
+                              ไม่มีรหัสยาที่ระบุเป็นพิเศษ
+                            </td>
+                          </tr>
+                        ) : (
+                          parseCommaTags(drugSettings.RETURN_MED_INCLUDE_ICODES).map((icode) => {
+                            const drugInfo = resolvedDrugs.find(d => String(d.icode) === String(icode))
+                            return (
+                              <tr key={icode} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="px-4 py-3 font-mono font-bold text-slate-900">
+                                  <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    {icode}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 font-semibold text-slate-800">
+                                  {drugInfo ? (
+                                    <span>
+                                      {drugInfo.name} {drugInfo.strength ? <span className="font-normal text-slate-500">({drugInfo.strength})</span> : ''}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 italic">กำลังตรวจสอบชื่อยาจาก HOSxP...</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600 font-mono">
+                                  {drugInfo?.dosageform || '-'}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600">
+                                  <span className="truncate max-w-[200px] inline-block" title={drugInfo?.drugcategory}>
+                                    {drugInfo?.drugcategory || '-'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-slate-600">
+                                  {drugInfo?.units || '-'}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveDrugTag('RETURN_MED_INCLUDE_ICODES', icode)}
+                                    className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                    title="ลบยานี้ออกจากรายการยาคืน"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Direct icode typing input */}
+                  <div className="p-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
+                    <span className="text-slate-500 text-[11px]">
+                      หรือพิมพ์รหัส icode เพื่อเพิ่มโดยตรง:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="พิมพ์ icode เช่น 1500513..."
+                        value={tagInputs.RETURN_MED_INCLUDE_ICODES || ''}
+                        onChange={(e) => setTagInputs(prev => ({ ...prev, RETURN_MED_INCLUDE_ICODES: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddDrugTag('RETURN_MED_INCLUDE_ICODES', tagInputs.RETURN_MED_INCLUDE_ICODES)
+                          }
+                        }}
+                        className="h-8 text-xs font-mono rounded-xl w-44"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddDrugTag('RETURN_MED_INCLUDE_ICODES', tagInputs.RETURN_MED_INCLUDE_ICODES)}
+                        className="h-8 text-xs rounded-xl px-3"
+                      >
+                        + เพิ่ม icode
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       )}
     </div>
