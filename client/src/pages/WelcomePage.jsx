@@ -19,8 +19,8 @@ export default function WelcomePage() {
   const date = new Date().toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   return (
-    <div className="w-full px-6 lg:px-10 py-6 animate-fade-in relative z-10 flex flex-col min-h-[calc(100vh-4rem)]">
-      <div className="mb-8 mt-2 flex flex-col md:flex-row justify-between items-start md:items-end border-b pb-6 border-slate-200">
+    <div className="w-full px-6 lg:px-10 py-5 animate-fade-in relative z-10 flex flex-col">
+      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end border-b pb-5 border-slate-200">
         <div>
           <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">สวัสดี, {user?.name}</h1>
           <p className="text-slate-500 font-medium">
@@ -47,7 +47,7 @@ export default function WelcomePage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center my-auto py-4">
+      <div className="mt-2">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-5">
           {modules.map((m) => {
             const isAllowed = user?.isAdmin || (Array.isArray(user?.allowedModules) && user.allowedModules.includes(m.key))
