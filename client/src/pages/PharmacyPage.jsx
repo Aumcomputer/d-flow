@@ -305,15 +305,29 @@ export default function PharmacyPage() {
     if (!raw || loadingPatientForCheck) return
     const clean = raw.replace(/^(an:?|hn:?)\s*/i, '').trim()
 
+    // Form Validate: ตัวเลข 7 หรือ 9 หลักเท่านั้น เพื่อลดภาระ Backend
+    if (!/^\d+$/.test(clean) || (clean.length !== 7 && clean.length !== 9)) {
+      setPatientForCheck(null)
+      setCheckDoneSuccess('')
+      setCheckDoneError('กรุณาระบุตัวเลข 7 หรือ 9 หลักเท่านั้น (HN 7 หลัก หรือ AN 9 หลัก)')
+      playScanBeep(false)
+      return
+    }
+
     setLoadingPatientForCheck(true)
     setCheckDoneError('')
     setCheckDoneSuccess('')
     try {
       const res = await api.get(`/workflow/pharmacy/patient-for-check/${clean}`)
       setPatientForCheck(res.data)
+      if (!res.data.is_admitted) {
+        setCheckDoneError('ผู้ป่วยรายนี้ไม่ได้ Admit อยู่ในโรงพยาบาล (จำหน่ายแล้ว) ไม่สามารถบันทึกได้')
+        playScanBeep(false)
+      }
     } catch (err) {
       setPatientForCheck(null)
-      setCheckDoneError(err.response?.data?.error || `ไม่พบข้อมูลผู้ป่วยสำหรับ AN "${clean}"`)
+      setCheckDoneError(err.response?.data?.error || `ไม่พบข้อมูลผู้ป่วยสำหรับรหัส "${clean}"`)
+      playScanBeep(false)
     } finally {
       setLoadingPatientForCheck(false)
     }
@@ -321,6 +335,11 @@ export default function PharmacyPage() {
 
   const handleSubmitCheckDone = async () => {
     if (!patientForCheck || savingCheckDone) return
+    if (!patientForCheck.is_admitted) {
+      setCheckDoneError('ไม่สามารถบันทึกได้ เนื่องจากผู้ป่วยไม่ได้ Admit อยู่ในโรงพยาบาล')
+      playScanBeep(false)
+      return
+    }
     setSavingCheckDone(true)
     setCheckDoneError('')
     try {
@@ -1778,7 +1797,7 @@ export default function PharmacyPage() {
                 </div>
                 <div>
                   <h3 className="font-bold text-lg leading-tight">เช็คยาเสร็จแล้ว</h3>
-                  <p className="text-xs text-blue-100">คีย์หรือยิงบาร์โค้ด AN เพื่อบันทึกเช็คยาและส่งต่อศูนย์จำหน่าย</p>
+                  <p className="text-xs text-blue-100">คีย์หรือยิงบาร์โค้ด AN (9 หลัก) หรือ HN (7 หลัก) เฉพาะเคสที่ยัง Admit อยู่</p>
                 </div>
               </div>
               <button
@@ -1792,7 +1811,7 @@ export default function PharmacyPage() {
 
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
-              {/* Form Input AN */}
+              {/* Form Input AN / HN */}
               <form onSubmit={handleSearchPatientForCheck} className="flex gap-2">
                 <div className="relative flex-1">
                   <Barcode className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1801,7 +1820,7 @@ export default function PharmacyPage() {
                     type="text"
                     value={checkDoneAn}
                     onChange={(e) => setCheckDoneAn(e.target.value)}
-                    placeholder="ยิง Barcode หรือพิมพ์ AN แล้วกด Enter..."
+                    placeholder="ยิง Barcode หรือพิมพ์ AN (9 หลัก) / HN (7 หลัก) แล้วกด Enter..."
                     disabled={loadingPatientForCheck || savingCheckDone}
                     className="w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-base font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-2xs"
                   />
@@ -1854,13 +1873,15 @@ export default function PharmacyPage() {
 
                     <div className="text-right">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-block ${
+                        !patientForCheck.is_admitted ? 'bg-rose-100 text-rose-800' :
                         patientForCheck.workflow_status === 'pharmacy_prepare' ? 'bg-blue-100 text-blue-800' :
                         patientForCheck.workflow_status === 'discharge_center' ? 'bg-purple-100 text-purple-800' :
                         patientForCheck.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
                         patientForCheck.pharmacy_pack_date ? 'bg-emerald-100 text-emerald-800' :
                         'bg-amber-100 text-amber-800'
                       }`}>
-                        {patientForCheck.workflow_status === 'pharmacy_prepare' ? 'รอเช็คยา (ตึกส่งแล้ว)' :
+                        {!patientForCheck.is_admitted ? 'ไม่ได้ Admit อยู่ (จำหน่ายแล้ว)' :
+                         patientForCheck.workflow_status === 'pharmacy_prepare' ? 'รอเช็คยา (ตึกส่งแล้ว)' :
                          patientForCheck.workflow_status === 'discharge_center' ? 'อยู่ที่ศูนย์จำหน่าย' :
                          patientForCheck.workflow_status === 'completed' ? 'เสร็จสิ้นแล้ว' :
                          patientForCheck.pharmacy_pack_date ? 'เช็คยาแล้ว' :
@@ -1890,6 +1911,13 @@ export default function PharmacyPage() {
                     </div>
                   </div>
 
+                  {!patientForCheck.is_admitted && (
+                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>ผู้ป่วยรายนี้ไม่ได้ Admit อยู่ในโรงพยาบาล (จำหน่ายแล้ว) จึงไม่สามารถบันทึกได้</span>
+                    </div>
+                  )}
+
                   {patientForCheck.pharmacy_pack_date && (
                     <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-1.5">
                       <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1902,22 +1930,34 @@ export default function PharmacyPage() {
                     <button
                       type="button"
                       onClick={handleSubmitCheckDone}
-                      disabled={savingCheckDone}
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-base font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      disabled={savingCheckDone || !patientForCheck.is_admitted}
+                      className={`w-full py-3 rounded-xl text-base font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
+                        !patientForCheck.is_admitted
+                          ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                          : 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white hover:shadow-lg cursor-pointer disabled:opacity-50'
+                      }`}
                     >
                       <CheckCircle2 className="w-5 h-5" />
-                      <span>{savingCheckDone ? 'กำลังบันทึก...' : 'บันทึกจ่ายยาเสร็จ'}</span>
+                      <span>
+                        {savingCheckDone
+                          ? 'กำลังบันทึก...'
+                          : !patientForCheck.is_admitted
+                            ? 'ไม่สามารถบันทึกได้ (ผู้ป่วยไม่ได้ Admit อยู่)'
+                            : 'บันทึกจ่ายยาเสร็จ'}
+                      </span>
                     </button>
                     <p className="text-[11px] text-center text-muted-foreground mt-2">
-                      เมื่อกดบันทึก ระบบจะลงประวัติเช็คยาสำเร็จ และล้างข้อมูลเพื่อพร้อมคีย์ AN รายถัดไปทันที
+                      {patientForCheck.is_admitted
+                        ? 'เมื่อกดบันทึก ระบบจะลงประวัติเช็คยาสำเร็จ และล้างข้อมูลเพื่อพร้อมคีย์ AN/HN รายถัดไปทันที'
+                        : 'ระบบอนุญาตให้บันทึกได้เฉพาะเคสที่ยังคงสถานะ Admit อยู่ในโรงพยาบาลเท่านั้น'}
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-10 text-muted-foreground border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
                   <Barcode className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">กรุณาคีย์หรือยิง Barcode AN เพื่อดูข้อมูลผู้ป่วย</p>
-                  <p className="text-xs text-slate-400 mt-1">สามารถคีย์ล่วงหน้าก่อนตึกส่งต่อได้ หรือเช็คเคสที่ตึกส่งมาแล้ว</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">กรุณาคีย์หรือยิง Barcode AN (9 หลัก) หรือ HN (7 หลัก)</p>
+                  <p className="text-xs text-slate-400 mt-1">ระบบจะตรวจสอบและบันทึกเฉพาะเคสที่ยัง Admit อยู่ในโรงพยาบาลเท่านั้น</p>
                 </div>
               )}
             </div>

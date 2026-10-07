@@ -880,16 +880,23 @@ router.post('/:an/pharmacy-pack-done', authMiddleware, async (req, res) => {
     );
 });
 
-// Get patient details for pharmacy check modal by AN (or HN)
+// Get patient details for pharmacy check modal by AN or HN (7 or 9 digits)
 router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) => {
     let hisConn, dflowConn;
     try {
-        const rawAn = String(req.params.an || '').trim();
-        const cleanAn = rawAn.replace(/^(an:?|hn:?)\s*/i, '').trim();
-        const strippedAn = cleanAn.replace(/^0+/, '');
+        const raw = String(req.params.an || '').trim();
+        const clean = raw.replace(/^(an:?|hn:?)\s*/i, '').trim();
+        const stripped = clean.replace(/^0+/, '');
+
+        // Validation: ตัวเลข 7 หรือ 9 หลักเท่านั้น (HN 7 หลัก หรือ AN 9 หลัก)
+        if (!/^\d+$/.test(clean) || (clean.length !== 7 && clean.length !== 9)) {
+            return res.status(400).json({ error: 'รหัสต้องเป็นตัวเลข 7 หรือ 9 หลักเท่านั้น (HN 7 หลัก หรือ AN 9 หลัก)' });
+        }
 
         hisConn = await getHisConnection();
-        const query = `
+        let patient = null;
+
+        const baseSelect = `
             SELECT 
                 i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
                 p.pname, p.fname, p.lname, p.birthday, p.sex,
@@ -917,20 +924,84 @@ router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) =
             LEFT JOIN iptadm iptb ON i.an = iptb.an
             LEFT JOIN dchtype dct ON i.dchtype = dct.dchtype
             LEFT JOIN dchstts dcs ON i.dchstts = dcs.dchstts
-            WHERE i.an = ? OR i.an = ? OR i.hn = ? OR i.hn = ?
-            ORDER BY i.an DESC
-            LIMIT 1
         `;
 
-        const hisRows = await hisConn.query(query, [cleanAn, strippedAn, cleanAn, strippedAn]);
-        if (hisRows.length === 0) {
-            return res.status(404).json({ error: `ไม่พบข้อมูลผู้ป่วยสำหรับรหัส "${cleanAn}"` });
+        if (clean.length === 7) {
+            // ค้นหาด้วย HN (7 หลัก) -> แสดงเฉพาะเคสที่ยัง Admit อยู่เท่านั้น
+            const hnQuery = `
+                ${baseSelect}
+                WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?)
+                  AND i.dchdate IS NULL
+                  AND i.dchstts IS NULL
+                ORDER BY i.regdate DESC, i.regtime DESC
+                LIMIT 1
+            `;
+            const hnRows = await hisConn.query(hnQuery, [clean, stripped]);
+            if (hnRows.length > 0) {
+                patient = hnRows[0];
+            } else {
+                // หากไม่พบเคสที่ยัง Admit อยู่ ให้ตรวจสอบว่ามีประวัติเดิมหรือไม่ เพื่อแจ้งเตือนที่ชัดเจน
+                const pastRows = await hisConn.query(
+                    `SELECT i.an, i.hn, i.dchdate, p.pname, p.fname, p.lname 
+                     FROM ipt i 
+                     JOIN patient p ON i.hn = p.hn 
+                     WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?) 
+                     ORDER BY i.regdate DESC, i.regtime DESC LIMIT 1`,
+                    [clean, stripped]
+                );
+                if (pastRows.length > 0) {
+                    const past = pastRows[0];
+                    return res.status(400).json({
+                        error: `ผู้ป่วย ${past.pname || ''}${past.fname} ${past.lname} (HN: ${clean}) ไม่ได้ Admit อยู่ในโรงพยาบาล (จำหน่ายแล้ว)`
+                    });
+                }
+                const ptCheck = await hisConn.query(
+                    `SELECT hn, pname, fname, lname FROM patient WHERE (hn = ? OR TRIM(LEADING '0' FROM hn) = ?) LIMIT 1`,
+                    [clean, stripped]
+                );
+                if (ptCheck.length > 0) {
+                    const pt = ptCheck[0];
+                    return res.status(400).json({
+                        error: `ผู้ป่วย ${pt.pname || ''}${pt.fname} ${pt.lname} (HN: ${clean}) ไม่ได้ Admit อยู่ในโรงพยาบาล`
+                    });
+                }
+                return res.status(404).json({ error: `ไม่พบข้อมูลผู้ป่วยสำหรับ HN "${clean}"` });
+            }
+        } else {
+            // clean.length === 9 -> ลองค้นหาด้วย AN ก่อน
+            const anQuery = `
+                ${baseSelect}
+                WHERE i.an = ? OR i.an = ?
+                ORDER BY i.an DESC
+                LIMIT 1
+            `;
+            const anRows = await hisConn.query(anQuery, [clean, stripped]);
+            if (anRows.length > 0) {
+                patient = anRows[0];
+            } else {
+                // หากไม่พบด้วย AN ให้ลองค้นหาด้วย HN (กรณีเป็น HN 9 หลัก) ที่ยัง Admit อยู่
+                const hn9Query = `
+                    ${baseSelect}
+                    WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?)
+                      AND i.dchdate IS NULL
+                      AND i.dchstts IS NULL
+                    ORDER BY i.regdate DESC, i.regtime DESC
+                    LIMIT 1
+                `;
+                const hn9Rows = await hisConn.query(hn9Query, [clean, stripped]);
+                if (hn9Rows.length > 0) {
+                    patient = hn9Rows[0];
+                } else {
+                    return res.status(404).json({ error: `ไม่พบข้อมูลผู้ป่วยสำหรับรหัส "${clean}"` });
+                }
+            }
         }
 
-        const patient = hisRows[0];
         for (const k in patient) {
             if (typeof patient[k] === 'bigint') patient[k] = Number(patient[k]);
         }
+
+        const isAdmitted = Boolean(!patient.dchdate && !patient.dchstts);
 
         dflowConn = await getDflowConnection();
         const detailRows = await dflowConn.query('SELECT * FROM an_detail WHERE an = ?', [patient.an]);
@@ -939,6 +1010,7 @@ router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) =
         res.json({
             ...patient,
             ...(detail || {}),
+            is_admitted: isAdmitted,
             has_pack_done: Boolean(detail?.pharmacy_pack_date)
         });
     } catch (err) {
@@ -952,10 +1024,21 @@ router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) =
 
 // Mark pharmacy pack/check done from modal (or anywhere)
 router.post('/pharmacy/pack-done/:an', authMiddleware, async (req, res) => {
-    let conn;
+    let hisConn, conn;
     try {
         const { an } = req.params;
         const loginname = req.user.loginname;
+
+        // บันทึกได้เฉพาะเคสที่ admit อยู่เท่านั้น
+        hisConn = await getHisConnection();
+        const iptRows = await hisConn.query('SELECT dchdate, dchstts FROM ipt WHERE an = ?', [an]);
+        if (iptRows.length === 0) {
+            return res.status(404).json({ error: 'ไม่พบข้อมูลผู้ป่วยในระบบ HOSxP' });
+        }
+        if (iptRows[0].dchdate || iptRows[0].dchstts) {
+            return res.status(400).json({ error: 'ไม่สามารถบันทึกได้ เนื่องจากผู้ป่วยไม่ได้ Admit อยู่ในโรงพยาบาล (จำหน่ายแล้ว)' });
+        }
+
         conn = await getDflowConnection();
 
         // 1. Check existing an_detail
@@ -1006,6 +1089,7 @@ router.post('/pharmacy/pack-done/:an', authMiddleware, async (req, res) => {
         console.error('Pharmacy pack done error:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
+        if (hisConn) hisConn.release();
         if (conn) conn.release();
     }
 });
