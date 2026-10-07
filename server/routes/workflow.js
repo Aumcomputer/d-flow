@@ -633,7 +633,7 @@ async function updateWorkflowStatus(req, res, setClause, values, newStatus, acti
         
         getIO().emit('workflow:updated', { an, status: newStatus });
         
-        res.json({ success: true });
+        res.json({ success: true, status: newStatus });
     } catch (error) {
         console.error('Workflow update error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -788,6 +788,7 @@ router.post(['/pharmacy/dispense-by-barcode', '/pharmacy/dispense-by-hn'], authM
 });
 
 router.post('/:an/send-pharmacy', authMiddleware, async (req, res) => {
+    const { an } = req.params;
     const { phone, hm, returnmed } = req.body;
     let setClause = 'sent_pharmacy_by = ?, sent_pharmacy_date = NOW()';
     const values = [req.user.loginname];
@@ -795,8 +796,30 @@ router.post('/:an/send-pharmacy', authMiddleware, async (req, res) => {
     if (phone) { setClause += ', ward_phone = ?'; values.push(phone); }
     if (hm !== undefined) { setClause += ', chk_hm = ?'; values.push(hm ? 1 : 0); }
     if (returnmed !== undefined) { setClause += ', chk_returnmed = ?'; values.push(returnmed ? 1 : 0); }
-    
-    await updateWorkflowStatus(req, res, setClause, values, 'pharmacy_prepare', 'SEND_PHARMACY_PREPARE');
+
+    // Check if pharmacy already checked/packed this patient previously
+    let dflowConn;
+    let alreadyPacked = false;
+    try {
+        dflowConn = await getDflowConnection();
+        const detailRows = await dflowConn.query('SELECT pharmacy_pack_date FROM an_detail WHERE an = ?', [an]);
+        if (detailRows.length > 0 && detailRows[0].pharmacy_pack_date) {
+            alreadyPacked = true;
+        }
+    } catch (e) {
+        console.error('Error checking pharmacy_pack_date in send-pharmacy:', e);
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+
+    if (alreadyPacked) {
+        // ห้องยาเช็คเสร็จก่อนหน้านี้แล้ว -> ชื่อจะไปปรากฏที่ศูนย์จำหน่ายทันที
+        setClause += ', sent_dc_by = IFNULL(sent_dc_by, ?), sent_dc_date = IFNULL(sent_dc_date, NOW())';
+        values.push(req.user.loginname);
+        await updateWorkflowStatus(req, res, setClause, values, 'discharge_center', 'SEND_PHARMACY_ALREADY_PACKED');
+    } else {
+        await updateWorkflowStatus(req, res, setClause, values, 'pharmacy_prepare', 'SEND_PHARMACY_PREPARE');
+    }
 });
 
 router.post('/:an/send-dc', authMiddleware, async (req, res) => {
@@ -855,6 +878,136 @@ router.post('/:an/pharmacy-pack-done', authMiddleware, async (req, res) => {
         'discharge_center',
         'PHARMACY_PACK_DONE'
     );
+});
+
+// Get patient details for pharmacy check modal by AN (or HN)
+router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) => {
+    let hisConn, dflowConn;
+    try {
+        const rawAn = String(req.params.an || '').trim();
+        const cleanAn = rawAn.replace(/^(an:?|hn:?)\s*/i, '').trim();
+        const strippedAn = cleanAn.replace(/^0+/, '');
+
+        hisConn = await getHisConnection();
+        const query = `
+            SELECT 
+                i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                p.pname, p.fname, p.lname, p.birthday, p.sex,
+                TIMESTAMPDIFF(YEAR, p.birthday, CURDATE()) as age_y,
+                w.name as ward_name,
+                w.ward as ward_code,
+                COALESCE(d.name, adm_d.name) as doctor_name,
+                COALESCE(
+                    (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                     FROM ipt_pttype ip
+                     JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                     WHERE ip.an = i.an),
+                    pt.name
+                ) AS pttype_name,
+                iptb.bedno,
+                i.dchdate, i.dchtime, i.dchstts,
+                dct.name as dchtype_name,
+                dcs.name as dchstts_name
+            FROM ipt i
+            LEFT JOIN patient p ON i.hn = p.hn
+            LEFT JOIN ward w ON i.ward = w.ward
+            LEFT JOIN doctor d ON i.dch_doctor = d.code
+            LEFT JOIN doctor adm_d ON i.admdoctor = adm_d.code
+            LEFT JOIN pttype pt ON i.pttype = pt.pttype
+            LEFT JOIN iptadm iptb ON i.an = iptb.an
+            LEFT JOIN dchtype dct ON i.dchtype = dct.dchtype
+            LEFT JOIN dchstts dcs ON i.dchstts = dcs.dchstts
+            WHERE i.an = ? OR i.an = ? OR i.hn = ? OR i.hn = ?
+            ORDER BY i.an DESC
+            LIMIT 1
+        `;
+
+        const hisRows = await hisConn.query(query, [cleanAn, strippedAn, cleanAn, strippedAn]);
+        if (hisRows.length === 0) {
+            return res.status(404).json({ error: `ไม่พบข้อมูลผู้ป่วยสำหรับรหัส "${cleanAn}"` });
+        }
+
+        const patient = hisRows[0];
+        for (const k in patient) {
+            if (typeof patient[k] === 'bigint') patient[k] = Number(patient[k]);
+        }
+
+        dflowConn = await getDflowConnection();
+        const detailRows = await dflowConn.query('SELECT * FROM an_detail WHERE an = ?', [patient.an]);
+        const detail = detailRows.length > 0 ? detailRows[0] : null;
+
+        res.json({
+            ...patient,
+            ...(detail || {}),
+            has_pack_done: Boolean(detail?.pharmacy_pack_date)
+        });
+    } catch (err) {
+        console.error('Fetch patient for check error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// Mark pharmacy pack/check done from modal (or anywhere)
+router.post('/pharmacy/pack-done/:an', authMiddleware, async (req, res) => {
+    let conn;
+    try {
+        const { an } = req.params;
+        const loginname = req.user.loginname;
+        conn = await getDflowConnection();
+
+        // 1. Check existing an_detail
+        const detailRows = await conn.query('SELECT * FROM an_detail WHERE an = ?', [an]);
+        const existing = detailRows.length > 0 ? detailRows[0] : null;
+
+        // If patient already in pharmacy_prepare or waiting in pharmacy
+        const shouldAdvanceToDc = existing && (
+            existing.workflow_status === 'pharmacy_prepare' ||
+            (existing.workflow_status === 'pharmacy' && !existing.dc_done_date && !existing.pharmacy_pack_date)
+        );
+
+        const newStatus = shouldAdvanceToDc ? 'discharge_center' : (existing?.workflow_status || null);
+
+        await conn.query(
+            `INSERT INTO an_detail (
+                an, pharmacy_pack_by, pharmacy_pack_date, phar_chk_hm, phar_chk_hm_date,
+                workflow_status, sent_dc_by, sent_dc_date
+             ) VALUES (
+                ?, ?, NOW(), 1, NOW(),
+                ?, ?, ?
+             ) ON DUPLICATE KEY UPDATE 
+                pharmacy_pack_by = VALUES(pharmacy_pack_by),
+                pharmacy_pack_date = VALUES(pharmacy_pack_date),
+                phar_chk_hm = 1,
+                phar_chk_hm_date = IFNULL(phar_chk_hm_date, NOW()),
+                workflow_status = IF(? = 'discharge_center', 'discharge_center', workflow_status),
+                sent_dc_by = IF(? = 'discharge_center', IFNULL(sent_dc_by, VALUES(sent_dc_by)), sent_dc_by),
+                sent_dc_date = IF(? = 'discharge_center', IFNULL(sent_dc_date, VALUES(sent_dc_date)), sent_dc_date)`,
+            [
+                an, loginname,
+                newStatus, shouldAdvanceToDc ? loginname : null, shouldAdvanceToDc ? new Date() : null,
+                newStatus, newStatus, newStatus
+            ]
+        );
+
+        await conn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, 'PHARMACY_PACK_DONE', loginname]
+        );
+
+        try {
+            getIO().emit('workflow:updated', { an, status: newStatus || 'pharmacy_pack_done' });
+        } catch (e) {}
+
+        res.json({ success: true, status: newStatus, message: 'บันทึกจ่ายยาเสร็จเรียบร้อย' });
+    } catch (err) {
+        console.error('Pharmacy pack done error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
+    }
 });
 
 router.post('/:an/pharmacy-done', authMiddleware, async (req, res) => {

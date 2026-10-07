@@ -767,14 +767,15 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                             try {
                               const returnDrugList = Object.entries(returnDrugQtys).map(([icode, qty]) => ({ icode, qty }));
                               const endpoint = chkHm === 1 ? `/workflow/${an}/send-pharmacy` : `/workflow/${an}/send-dc`;
-                              await api.post(endpoint, {
+                              const res = await api.post(endpoint, {
                                 phone: wardPhone,
                                 hm: chkHm,
                                 returnmed: chkReturnMed,
                                 return_drugs: chkReturnMed === 1 ? returnDrugList : []
                               });
                               isUserModifiedDrugs.current = false;
-                              setWorkflowStatus(chkHm === 1 ? 'pharmacy_prepare' : 'discharge_center');
+                              const nextSt = res.data?.status || (chkHm === 1 ? 'pharmacy_prepare' : 'discharge_center');
+                              setWorkflowStatus(nextSt);
                               if (fetchData) fetchData();
                               fetchDetail();
                             } catch(err) { 

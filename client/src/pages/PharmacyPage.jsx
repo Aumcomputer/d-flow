@@ -78,6 +78,24 @@ export default function PharmacyPage() {
   const [scannedHistory, setScannedHistory] = useState([])
   const scanInputRef = useRef(null)
 
+  // Check Done Modal States
+  const [showCheckDoneModal, setShowCheckDoneModal] = useState(false)
+  const [checkDoneAn, setCheckDoneAn] = useState('')
+  const [patientForCheck, setPatientForCheck] = useState(null)
+  const [loadingPatientForCheck, setLoadingPatientForCheck] = useState(false)
+  const [savingCheckDone, setSavingCheckDone] = useState(false)
+  const [checkDoneError, setCheckDoneError] = useState('')
+  const [checkDoneSuccess, setCheckDoneSuccess] = useState('')
+  const checkDoneInputRef = useRef(null)
+
+  const openCheckDoneModal = () => {
+    setShowCheckDoneModal(true)
+    setCheckDoneAn('')
+    setPatientForCheck(null)
+    setCheckDoneError('')
+    setCheckDoneSuccess('')
+  }
+
   const filterPatients = (list) => {
     const term = searchTerm.trim().toLowerCase()
     if (!term) return list
@@ -254,13 +272,14 @@ export default function PharmacyPage() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && showScanModal) {
-        setShowScanModal(false)
+      if (e.key === 'Escape') {
+        if (showScanModal) setShowScanModal(false)
+        if (showCheckDoneModal) setShowCheckDoneModal(false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showScanModal])
+  }, [showScanModal, showCheckDoneModal])
 
   useEffect(() => {
     if (showScanModal) {
@@ -270,6 +289,64 @@ export default function PharmacyPage() {
       return () => clearTimeout(timer)
     }
   }, [showScanModal])
+
+  useEffect(() => {
+    if (showCheckDoneModal) {
+      const timer = setTimeout(() => {
+        checkDoneInputRef.current?.focus()
+      }, 80)
+      return () => clearTimeout(timer)
+    }
+  }, [showCheckDoneModal])
+
+  const handleSearchPatientForCheck = async (e) => {
+    if (e) e.preventDefault()
+    const raw = checkDoneAn.trim()
+    if (!raw || loadingPatientForCheck) return
+    const clean = raw.replace(/^(an:?|hn:?)\s*/i, '').trim()
+
+    setLoadingPatientForCheck(true)
+    setCheckDoneError('')
+    setCheckDoneSuccess('')
+    try {
+      const res = await api.get(`/workflow/pharmacy/patient-for-check/${clean}`)
+      setPatientForCheck(res.data)
+    } catch (err) {
+      setPatientForCheck(null)
+      setCheckDoneError(err.response?.data?.error || `ไม่พบข้อมูลผู้ป่วยสำหรับ AN "${clean}"`)
+    } finally {
+      setLoadingPatientForCheck(false)
+    }
+  }
+
+  const handleSubmitCheckDone = async () => {
+    if (!patientForCheck || savingCheckDone) return
+    setSavingCheckDone(true)
+    setCheckDoneError('')
+    try {
+      await api.post(`/workflow/pharmacy/pack-done/${patientForCheck.an}`)
+      playScanBeep(true)
+      const pName = `${patientForCheck.pname || ''}${patientForCheck.fname} ${patientForCheck.lname}`
+      setCheckDoneSuccess(`บันทึกจ่ายยาเสร็จเรียบร้อย: ${pName} (AN: ${patientForCheck.an})`)
+      
+      // Clear patient and input, keep modal open
+      setPatientForCheck(null)
+      setCheckDoneAn('')
+      
+      // Refresh background table list
+      fetchPatients()
+
+      // Refocus input field
+      setTimeout(() => {
+        checkDoneInputRef.current?.focus()
+      }, 80)
+    } catch (err) {
+      playScanBeep(false)
+      setCheckDoneError(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึก')
+    } finally {
+      setSavingCheckDone(false)
+    }
+  }
 
   const handleScanSubmit = async (e) => {
     if (e) e.preventDefault()
@@ -460,6 +537,17 @@ export default function PharmacyPage() {
           </div>
         </div>
         <div className="flex items-center gap-2.5 w-full md:w-auto">
+          {activeTab === 'prepare' && (
+            <button
+              type="button"
+              onClick={openCheckDoneModal}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold rounded-xl shadow-xs transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer"
+              title="เช็คยาเสร็จแล้ว"
+            >
+              <ClipboardCheck className="w-4 h-4" />
+              <span>เช็คยาเสร็จแล้ว</span>
+            </button>
+          )}
           {activeTab === 'dispense' && (
             <button
               type="button"
@@ -1666,6 +1754,182 @@ export default function PharmacyPage() {
                 className="px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer"
               >
                 เสร็จสิ้น / ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal เช็คยาเสร็จแล้ว */}
+      {showCheckDoneModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setShowCheckDoneModal(false)}
+        >
+          <div 
+            className="bg-card border border-border rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white/20 p-2 rounded-xl backdrop-blur-xs">
+                  <ClipboardCheck className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg leading-tight">เช็คยาเสร็จแล้ว</h3>
+                  <p className="text-xs text-blue-100">คีย์หรือยิงบาร์โค้ด AN เพื่อบันทึกเช็คยาและส่งต่อศูนย์จำหน่าย</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCheckDoneModal(false)}
+                className="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4 flex-1">
+              {/* Form Input AN */}
+              <form onSubmit={handleSearchPatientForCheck} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Barcode className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    ref={checkDoneInputRef}
+                    type="text"
+                    value={checkDoneAn}
+                    onChange={(e) => setCheckDoneAn(e.target.value)}
+                    placeholder="ยิง Barcode หรือพิมพ์ AN แล้วกด Enter..."
+                    disabled={loadingPatientForCheck || savingCheckDone}
+                    className="w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-base font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-2xs"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loadingPatientForCheck || !checkDoneAn.trim()}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50 transition-colors shrink-0 shadow-xs cursor-pointer active:scale-95"
+                >
+                  <Search className="w-4 h-4" />
+                  <span>{loadingPatientForCheck ? 'กำลังค้นหา...' : 'ค้นหา'}</span>
+                </button>
+              </form>
+
+              {/* Feedback Alert: Success */}
+              {checkDoneSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-medium">{checkDoneSuccess}</span>
+                </div>
+              )}
+
+              {/* Feedback Alert: Error */}
+              {checkDoneError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{checkDoneError}</span>
+                </div>
+              )}
+
+              {/* Patient Details Display */}
+              {patientForCheck ? (
+                <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50/70 dark:bg-slate-900/40 space-y-4 animate-in fade-in duration-150">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-700">
+                    <div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <span>{patientForCheck.pname}{patientForCheck.fname} {patientForCheck.lname}</span>
+                        {patientForCheck.age_y ? (
+                          <span className="text-xs font-normal text-slate-500">
+                            ({patientForCheck.age_y} ปี)
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                        <span className="font-semibold text-blue-600 font-mono">AN: {patientForCheck.an}</span>
+                        <span>•</span>
+                        <span className="font-mono">HN: {patientForCheck.hn}</span>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-block ${
+                        patientForCheck.workflow_status === 'pharmacy_prepare' ? 'bg-blue-100 text-blue-800' :
+                        patientForCheck.workflow_status === 'discharge_center' ? 'bg-purple-100 text-purple-800' :
+                        patientForCheck.workflow_status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                        patientForCheck.pharmacy_pack_date ? 'bg-emerald-100 text-emerald-800' :
+                        'bg-amber-100 text-amber-800'
+                      }`}>
+                        {patientForCheck.workflow_status === 'pharmacy_prepare' ? 'รอเช็คยา (ตึกส่งแล้ว)' :
+                         patientForCheck.workflow_status === 'discharge_center' ? 'อยู่ที่ศูนย์จำหน่าย' :
+                         patientForCheck.workflow_status === 'completed' ? 'เสร็จสิ้นแล้ว' :
+                         patientForCheck.pharmacy_pack_date ? 'เช็คยาแล้ว' :
+                         'ตึกยังไม่ส่งต่อ (เช็คยาไว้ล่วงหน้า)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
+                    <div>
+                      <span className="text-muted-foreground block text-xs">หอผู้ป่วย:</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">
+                        {patientForCheck.ward_name || '-'} {patientForCheck.bedno ? `(เตียง ${patientForCheck.bedno})` : ''}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">แพทย์เจ้าของไข้:</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                        {patientForCheck.doctor_name || '-'}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground block text-xs">สิทธิ์การรักษา:</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">
+                        {patientForCheck.pttype_name || '-'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {patientForCheck.pharmacy_pack_date && (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>รายการนี้เคยบันทึกเช็คยาแล้วเมื่อ {new Date(patientForCheck.pharmacy_pack_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น. (สามารถกดบันทึกซ้ำได้)</span>
+                    </div>
+                  )}
+
+                  {/* Action Button บันทึกจ่ายยาเสร็จ */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSubmitCheckDone}
+                      disabled={savingCheckDone}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-base font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>{savingCheckDone ? 'กำลังบันทึก...' : 'บันทึกจ่ายยาเสร็จ'}</span>
+                    </button>
+                    <p className="text-[11px] text-center text-muted-foreground mt-2">
+                      เมื่อกดบันทึก ระบบจะลงประวัติเช็คยาสำเร็จ และล้างข้อมูลเพื่อพร้อมคีย์ AN รายถัดไปทันที
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-10 text-muted-foreground border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                  <Barcode className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">กรุณาคีย์หรือยิง Barcode AN เพื่อดูข้อมูลผู้ป่วย</p>
+                  <p className="text-xs text-slate-400 mt-1">สามารถคีย์ล่วงหน้าก่อนตึกส่งต่อได้ หรือเช็คเคสที่ตึกส่งมาแล้ว</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-border bg-muted/20 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowCheckDoneModal(false)}
+                className="px-4 py-2 border border-border text-slate-700 dark:text-slate-300 hover:bg-muted rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+              >
+                ปิดหน้าต่าง
               </button>
             </div>
           </div>
