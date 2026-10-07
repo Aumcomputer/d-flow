@@ -355,7 +355,7 @@ export default function WardPage() {
                     <th className="px-4 py-3 text-center">เวลาที่ Discharge</th>
                     <th className="px-4 py-3 text-center min-w-[130px]">Discharge ใน HOSxP</th>
                     <th className="px-4 py-3 text-center">เวลาที่เสร็จสิ้น</th>
-                    <th className="px-4 py-3 text-center">
+                    <th className="px-4 py-3 text-center min-w-[140px] whitespace-nowrap">
                       สถานะ
                     </th>
                     <th className="px-4 py-3 text-center min-w-[200px]">
@@ -484,7 +484,7 @@ export default function WardPage() {
                                   ? new Date(p.dc_done_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
                                   : '-'}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-3 text-center min-w-[140px] whitespace-nowrap">
                           <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                           p.workflow_status === 'pharmacy_prepare' ? 'bg-cyan-100 text-cyan-700' :
                           p.workflow_status === 'pharmacy' ? 'bg-blue-100 text-blue-700' :
@@ -566,21 +566,21 @@ export default function WardPage() {
                       {activeTab === 'admitted' ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDischarge(p.an); }}
-                          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-9 px-4"
+                          className="inline-flex items-center justify-center rounded-lg text-xs font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-7.5 px-3 shadow-xs"
                         >
                           Discharge
                         </button>
                       ) : (
                         <div className="flex items-center justify-end gap-2">
-                          {(p.discharge_date || p.workflow_status || p.dchstts) ? (
+                          {p.discharge_date ? (
                             <button
                               onClick={(e) => { e.stopPropagation(); openCancelModal(p); }}
-                              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-rose-200 text-rose-600 hover:bg-rose-50 h-9 px-3"
+                              className="inline-flex items-center justify-center rounded-lg text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-rose-200 text-rose-600 hover:bg-rose-50 h-7.5 px-2.5 whitespace-nowrap shadow-xs"
                             >
                               ยกเลิก Discharge
                             </button>
                           ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </div>
                       )}

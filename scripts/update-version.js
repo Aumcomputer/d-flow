@@ -23,7 +23,7 @@ function updateVersion() {
   const commitCount = isPreCommit ? count + 1 : count;
 
   const versionData = {
-    version: `1.0.${commitCount}`,
+    version: `1.1.${commitCount}`,
     commit: hash,
     updatedAt: new Date().toISOString()
   };

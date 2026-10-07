@@ -1,6 +1,6 @@
 import versionData from '../version.json'
 
-export const APP_VERSION = versionData.version || '1.0.0'
+export const APP_VERSION = versionData.version || '1.1.0'
 
 let hasNewVersion = false
 let latestServerVersion = null

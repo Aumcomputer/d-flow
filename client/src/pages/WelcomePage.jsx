@@ -56,7 +56,7 @@ export default function WelcomePage() {
               return (
                 <div key={m.path} className="block cursor-not-allowed opacity-55 select-none" title="คุณไม่มีสิทธิ์เข้าถึงโมดูลนี้ กรุณาติดต่อ Admin">
                   <Card className="glass-card h-full border border-dashed border-slate-300 overflow-hidden relative rounded-2xl bg-slate-50/70">
-                    <CardContent className="p-6 flex flex-col h-full">
+                    <CardContent className="p-5 flex flex-col h-full">
                       <div className="flex justify-between items-start mb-5">
                         <div className={`p-3.5 rounded-2xl bg-slate-200 text-slate-400 shadow-2xs`}>
                           <m.icon className="w-7 h-7" />
@@ -65,7 +65,7 @@ export default function WelcomePage() {
                           <Lock className="w-4 h-4" />
                         </div>
                       </div>
-                      <h3 className="text-xl font-bold text-slate-500 mb-1.5">{m.name}</h3>
+                      <h3 className="text-2xl sm:text-[26px] font-bold text-slate-500 mb-2 leading-tight tracking-tight">{m.name}</h3>
                       <p className="text-slate-400 text-xs mt-auto">ไม่มีสิทธิ์เข้าใช้งาน</p>
                     </CardContent>
                   </Card>
@@ -77,7 +77,7 @@ export default function WelcomePage() {
               <Link key={m.path} to={m.path} className="group block">
                 <Card className="glass-card h-full border-none overflow-hidden relative rounded-2xl group-hover:-translate-y-1 duration-300 shadow-sm hover:shadow-md transition-all">
                   <div className={`absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b ${m.color}`}></div>
-                  <CardContent className="p-6 flex flex-col h-full">
+                  <CardContent className="p-5 flex flex-col h-full">
                     <div className="flex justify-between items-start mb-5">
                       <div className={`p-3.5 rounded-2xl ${m.bg} ${m.text} shadow-2xs group-hover:scale-110 transition-transform duration-300`}>
                         <m.icon className="w-7 h-7" />
@@ -86,7 +86,7 @@ export default function WelcomePage() {
                         <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700" />
                       </div>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-1.5">{m.name}</h3>
+                    <h3 className="text-2xl sm:text-[26px] font-bold text-slate-800 mb-2 leading-tight tracking-tight">{m.name}</h3>
                     <p className="text-slate-500 text-sm font-medium mt-auto leading-relaxed">{m.desc}</p>
                   </CardContent>
                 </Card>
