@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Pill, Plus, Minus, Trash2, Check, AlertCircle, 
   User, Calendar, Clock, CheckCircle2, Bed, RotateCcw, 
-  FileText, CornerDownLeft, Sparkles, Building2, Stethoscope, Shield
+  FileText, CornerDownLeft, Sparkles, Building2, Stethoscope, Shield,
+  Pencil, Edit3, X, AlertTriangle
 } from 'lucide-react';
 import api from '../../services/api';
 import socket from '../../services/socket';
@@ -10,6 +11,8 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export default function AdmitReturnTab() {
   const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
+
   const [anInput, setAnInput] = useState('');
   const [currentAn, setCurrentAn] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,6 +30,23 @@ export default function AdmitReturnTab() {
   const [selectedDrugs, setSelectedDrugs] = useState([]);
   const [roundNote, setRoundNote] = useState('');
   const [savingRound, setSavingRound] = useState(false);
+
+  // Admin editing & deleting states
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editQty, setEditQty] = useState(1);
+  const [savingItemEdit, setSavingItemEdit] = useState(false);
+
+  const [editModalItem, setEditModalItem] = useState(null);
+  const [modalDrugName, setModalDrugName] = useState('');
+  const [modalQty, setModalQty] = useState(1);
+  const [modalUnits, setModalUnits] = useState('');
+  const [savingModal, setSavingModal] = useState(false);
+
+  const [editingRoundNoteId, setEditingRoundNoteId] = useState(null);
+  const [editRoundNoteText, setEditRoundNoteText] = useState('');
+  const [savingRoundNote, setSavingRoundNote] = useState(false);
+
+  const [deletingRoundId, setDeletingRoundId] = useState(null);
 
   // Custom drug search at bottom of right column
   const [customSearchQuery, setCustomSearchQuery] = useState('');
@@ -257,6 +277,141 @@ export default function AdmitReturnTab() {
       alert('ไม่สามารถบันทึกได้: ' + (err.response?.data?.error || err.message));
     } finally {
       setSavingRound(false);
+    }
+  };
+
+  // Admin handlers
+  const handleStartEditItem = (item) => {
+    setEditingItemId(item.id);
+    setEditQty(item.qty || 1);
+  };
+
+  const handleCancelEditItem = () => {
+    setEditingItemId(null);
+  };
+
+  const handleSaveEditItem = async (item, round) => {
+    const newQ = parseInt(editQty, 10);
+    if (isNaN(newQ) || newQ <= 0) {
+      alert('จำนวนยาคืนต้องมากกว่า 0');
+      return;
+    }
+    setSavingItemEdit(true);
+    try {
+      await api.put(`/workflow/pharmacy/admit-return/item/${item.id}`, {
+        qty: newQ,
+        source: round.is_audit_source ? 'discharge_audit' : 'admit_return'
+      });
+      setEditingItemId(null);
+      await fetchAdmitReturnData(currentAn, false);
+    } catch (err) {
+      console.error('Error saving item qty:', err);
+      alert('ไม่สามารถแก้ไขจำนวนได้: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSavingItemEdit(false);
+    }
+  };
+
+  const openItemModal = (item, round) => {
+    setEditModalItem({
+      ...item,
+      round_no: round.round_no,
+      source: round.is_audit_source ? 'discharge_audit' : 'admit_return'
+    });
+    setModalDrugName(item.drug_name || '');
+    setModalQty(item.qty || 1);
+    setModalUnits(item.units || '');
+  };
+
+  const handleSaveModalItem = async () => {
+    if (!editModalItem) return;
+    const newQ = parseInt(modalQty, 10);
+    if (isNaN(newQ) || newQ <= 0) {
+      alert('จำนวนยาคืนต้องมากกว่า 0');
+      return;
+    }
+    if (!modalDrugName.trim()) {
+      alert('กรุณาระบุชื่อยา');
+      return;
+    }
+    setSavingModal(true);
+    try {
+      await api.put(`/workflow/pharmacy/admit-return/item/${editModalItem.id}`, {
+        qty: newQ,
+        drug_name: modalDrugName.trim(),
+        units: modalUnits.trim(),
+        source: editModalItem.source
+      });
+      setEditModalItem(null);
+      await fetchAdmitReturnData(currentAn, false);
+    } catch (err) {
+      console.error('Error saving modal item:', err);
+      alert('ไม่สามารถแก้ไขรายการยาได้: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSavingModal(false);
+    }
+  };
+
+  const handleDeleteItem = async (item, round) => {
+    const targetRoundName = round.round_no ? (round.is_audit_source ? round.round_no : `รอบที่ ${round.round_no}`) : 'รอบคืนยา';
+    if (!confirm(`ยืนยันลบรายการยา "${item.drug_name}" จำนวน ${item.qty} ${item.units || ''} ออกจาก${targetRoundName} ใช่หรือไม่?`)) {
+      return;
+    }
+    try {
+      await api.delete(`/workflow/pharmacy/admit-return/item/${item.id}`, {
+        params: { source: round.is_audit_source ? 'discharge_audit' : 'admit_return' }
+      });
+      await fetchAdmitReturnData(currentAn, false);
+    } catch (err) {
+      console.error('Error deleting item:', err);
+      alert('ไม่สามารถลบรายการได้: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleDeleteRound = async (round) => {
+    const roundTitle = round.round_no ? (round.is_audit_source ? round.round_no : `รอบที่ ${round.round_no}`) : 'รอบนี้';
+    const itemCount = round.items?.length || 0;
+    if (!confirm(`ยืนยันลบการคืนยา "${roundTitle}" และรายการยาทั้งหมดในรอบนี้ (${itemCount} รายการ) ใช่หรือไม่?`)) {
+      return;
+    }
+    setDeletingRoundId(round.id);
+    try {
+      await api.delete(`/workflow/pharmacy/admit-return/round/${round.id}`);
+      await fetchAdmitReturnData(currentAn, false);
+    } catch (err) {
+      console.error('Error deleting round:', err);
+      alert('ไม่สามารถลบรอบได้: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setDeletingRoundId(null);
+    }
+  };
+
+  const handleSaveRoundNote = async (round) => {
+    setSavingRoundNote(true);
+    try {
+      await api.put(`/workflow/pharmacy/admit-return/round/${round.id}`, {
+        note: editRoundNoteText.trim()
+      });
+      setEditingRoundNoteId(null);
+      await fetchAdmitReturnData(currentAn, false);
+    } catch (err) {
+      console.error('Error saving round note:', err);
+      alert('ไม่สามารถบันทึกหมายเหตุได้: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSavingRoundNote(false);
+    }
+  };
+
+  const handleDeleteAllRounds = async () => {
+    if (!confirm(`คำเตือน: คุณต้องการลบประวัติการคืนยาทั้งหมด (${rounds.length} รอบ) ของ AN: ${currentAn} ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้`)) {
+      return;
+    }
+    try {
+      await api.delete(`/workflow/pharmacy/admit-return/all/${currentAn}`);
+      await fetchAdmitReturnData(currentAn, false);
+    } catch (err) {
+      console.error('Error deleting all rounds:', err);
+      alert('ไม่สามารถลบประวัติทั้งหมดได้: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -695,14 +850,37 @@ export default function AdmitReturnTab() {
       {/* ================= BOTTOM SECTION: History Cards (แต่ละรอบ) ================= */}
       {patient && (
         <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Clock className="w-5 h-5 text-emerald-600" />
               <span>ประวัติการคืนยาสำหรับ AN นี้ ({rounds.length} รอบ)</span>
             </h3>
-            <span className="text-xs text-muted-foreground">
-              บันทึกแล้วไม่สามารถแก้ไขได้ (Audit Trail)
-            </span>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {isAdmin ? (
+                <>
+                  <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                    <Shield className="w-3.5 h-3.5 text-amber-600" />
+                    <span>สิทธิ์ Admin (แก้ไขจำนวน / ลบรายการและรอบได้)</span>
+                  </span>
+                  {rounds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteAllRounds}
+                      className="px-2.5 py-1 text-xs font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      title="ลบประวัติการคืนยาทั้งหมดของ AN นี้"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>ลบทั้งหมด</span>
+                    </button>
+                  )}
+                </>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  บันทึกแล้วไม่สามารถแก้ไขได้ (Audit Trail)
+                </span>
+              )}
+            </div>
           </div>
 
           {rounds.length === 0 ? (
@@ -725,7 +903,7 @@ export default function AdmitReturnTab() {
                   >
                     {/* Card Header */}
                     <div>
-                      <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                      <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100 flex-wrap">
                         <div className="flex items-center gap-2">
                           {isAuditSource ? (
                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1.5">
@@ -739,57 +917,228 @@ export default function AdmitReturnTab() {
                           )}
                         </div>
 
-                        <div className="text-xs text-slate-400 flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          <span>
-                            {round.created_at
-                              ? new Date(round.created_at).toLocaleString('th-TH', {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                }) + ' น.'
-                              : '-'}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs text-slate-400 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>
+                              {round.created_at
+                                ? new Date(round.created_at).toLocaleString('th-TH', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  }) + ' น.'
+                                : '-'}
+                            </span>
+                          </div>
+
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRound(round)}
+                              disabled={deletingRoundId === round.id}
+                              className="px-2 py-0.5 text-[11px] font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                              title="ลบรอบการคืนยานี้และรายการยาทั้งหมดในรอบนี้"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>ลบรอบนี้</span>
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Note if any */}
-                      {round.note && (
-                        <div className="mt-2.5 px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-700">
-                          <strong className="text-slate-500">หมายเหตุ:</strong> {round.note}
+                      {/* Note if any / Admin edit note */}
+                      {editingRoundNoteId === round.id ? (
+                        <div className="mt-2.5 flex items-center gap-1.5 bg-blue-50/70 p-1.5 rounded-xl border border-blue-200 animate-in fade-in">
+                          <input
+                            type="text"
+                            value={editRoundNoteText}
+                            onChange={(e) => setEditRoundNoteText(e.target.value)}
+                            placeholder="แก้ไขหมายเหตุประจำรอบ..."
+                            className="flex-1 px-2.5 py-1 text-xs border border-blue-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveRoundNote(round)}
+                            disabled={savingRoundNote}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Check className="w-3 h-3" /> บันทึก
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingRoundNoteId(null)}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      )}
+                      ) : round.note ? (
+                        <div className="mt-2.5 px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-700 flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <strong className="text-slate-500">หมายเหตุ:</strong> {round.note}
+                          </div>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingRoundNoteId(round.id);
+                                setEditRoundNoteText(round.note || '');
+                              }}
+                              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors shrink-0 cursor-pointer"
+                              title="แก้ไขหมายเหตุ"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ) : isAdmin ? (
+                        <div className="mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingRoundNoteId(round.id);
+                              setEditRoundNoteText('');
+                            }}
+                            className="text-[11px] text-slate-400 hover:text-blue-600 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>เพิ่มหมายเหตุ</span>
+                          </button>
+                        </div>
+                      ) : null}
 
                       {/* Items List */}
                       <div className="mt-3.5 space-y-1.5">
-                        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                          รายการยาที่คืน ({round.items?.length || 0})
+                        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                          <span>รายการยาที่คืน ({round.items?.length || 0})</span>
+                          {isAdmin && (
+                            <span className="text-[10px] text-amber-600 font-normal">
+                              สิทธิ์ Admin: แก้ไขจำนวน / แก้ไข / ลบรายการ
+                            </span>
+                          )}
                         </div>
                         <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/40">
                           {round.items && round.items.length > 0 ? (
-                            round.items.map((it, itemIdx) => (
-                              <div
-                                key={it.id || itemIdx}
-                                className="px-3 py-2 flex items-center justify-between text-xs gap-2"
-                              >
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <span className="text-[10px] text-slate-400 w-4 font-mono">
-                                    {itemIdx + 1}.
-                                  </span>
-                                  <span className="font-medium text-slate-800 truncate">
-                                    {it.drug_name}
-                                  </span>
+                            round.items.map((it, itemIdx) => {
+                              const isEditingThisItem = editingItemId === it.id;
+                              return (
+                                <div
+                                  key={it.id || itemIdx}
+                                  className={`px-3 py-2 flex items-center justify-between text-xs gap-2 transition-colors ${
+                                    isEditingThisItem ? 'bg-blue-50/80 border-y border-blue-200' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <span className="text-[10px] text-slate-400 w-4 font-mono">
+                                      {itemIdx + 1}.
+                                    </span>
+                                    <span className="font-medium text-slate-800 truncate" title={it.drug_name}>
+                                      {it.drug_name}
+                                    </span>
+                                    {it.icode && (
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        [{it.icode}]
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {isEditingThisItem ? (
+                                    <div className="shrink-0 flex items-center gap-1.5 animate-in fade-in">
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditQty(q => Math.max(1, (parseInt(q, 10) || 1) - 1))}
+                                          className="w-6 h-6 flex items-center justify-center rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold cursor-pointer"
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={editQty}
+                                          onChange={(e) => setEditQty(e.target.value)}
+                                          className="w-14 h-6 text-center font-bold text-xs border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white font-mono"
+                                          autoFocus
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditQty(q => (parseInt(q, 10) || 1) + 1)}
+                                          className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold cursor-pointer"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                      <span className="text-slate-500 text-[11px]">{it.units || ''}</span>
+                                      
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveEditItem(it, round)}
+                                        disabled={savingItemEdit}
+                                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 shadow-2xs cursor-pointer"
+                                        title="บันทึกจำนวน"
+                                      >
+                                        {savingItemEdit ? (
+                                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                          <>
+                                            <Check className="w-3 h-3" />
+                                            <span>บันทึก</span>
+                                          </>
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={handleCancelEditItem}
+                                        disabled={savingItemEdit}
+                                        className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 rounded cursor-pointer"
+                                        title="ยกเลิก"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="shrink-0 flex items-center gap-1.5">
+                                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono">
+                                        {it.qty}
+                                      </span>
+                                      <span className="text-slate-500 text-[11px]">{it.units || ''}</span>
+
+                                      {isAdmin && (
+                                        <div className="flex items-center gap-1 ml-1.5 pl-1.5 border-l border-slate-200">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStartEditItem(it)}
+                                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                                            title="แก้ไขจำนวนยาคืนด่วน"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => openItemModal(it, round)}
+                                            className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                                            title="แก้ไขรายละเอียดรายการ (ชื่อยา/จำนวน/หน่วย)"
+                                          >
+                                            <Edit3 className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteItem(it, round)}
+                                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                                            title="ลบรายการยานี้"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="shrink-0 flex items-center gap-1.5">
-                                  <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono">
-                                    {it.qty}
-                                  </span>
-                                  <span className="text-slate-500 text-[11px]">{it.units || ''}</span>
-                                </div>
-                              </div>
-                            ))
+                              );
+                            })
                           ) : (
                             <div className="p-3 text-center text-xs text-slate-400">
                               ไม่มีรายการยา
@@ -814,6 +1163,129 @@ export default function AdmitReturnTab() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Admin Edit Item Modal */}
+      {editModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50/50 to-orange-50/30">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-800">แก้ไขรายการยาคืน (Admin)</h3>
+                  <p className="text-[11px] text-slate-500">
+                    {editModalItem.round_no ? (editModalItem.source === 'discharge_audit' ? editModalItem.round_no : `รอบที่ ${editModalItem.round_no}`) : ''}
+                    {editModalItem.icode ? ` • รหัส: ${editModalItem.icode}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditModalItem(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อยา</label>
+                <input
+                  type="text"
+                  value={modalDrugName}
+                  onChange={(e) => setModalDrugName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">จำนวนที่คืน</label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setModalQty(q => Math.max(1, (parseInt(q, 10) || 1) - 1))}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-300 cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={modalQty}
+                      onChange={(e) => setModalQty(e.target.value)}
+                      className="w-full h-8 text-center font-bold text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setModalQty(q => (parseInt(q, 10) || 1) + 1)}
+                      className="w-8 h-8 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold border border-amber-300 cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">หน่วย</label>
+                  <input
+                    type="text"
+                    value={modalUnits}
+                    onChange={(e) => setModalUnits(e.target.value)}
+                    className="w-full h-8 px-3 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  const item = editModalItem;
+                  setEditModalItem(null);
+                  handleDeleteItem(item, { round_no: item.round_no, is_audit_source: item.source === 'discharge_audit' });
+                }}
+                className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>ลบรายการนี้</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditModalItem(null)}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={savingModal}
+                  onClick={handleSaveModalItem}
+                  className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  {savingModal ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>บันทึกการแก้ไข</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

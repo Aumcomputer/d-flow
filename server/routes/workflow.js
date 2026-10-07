@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const { getHisConnection, getDflowConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { getIO } = require('../lib/socket');
-const { getParsedReturnMedFilters } = require('../services/settingsService');
+const { getParsedReturnMedFilters, isUserAdmin } = require('../services/settingsService');
 
 // Support BigInt serialization in JSON responses
 BigInt.prototype.toJSON = function() {
@@ -1426,6 +1426,299 @@ router.post('/pharmacy/admit-return/:an', authMiddleware, async (req, res) => {
         res.json({ success: true, round_id: roundId, round_no: roundNo });
     } catch (error) {
         console.error('Save pharmacy admit return error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// Admin: Edit a return drug item (quantity / name / units)
+router.put(['/pharmacy/admit-return/item/:itemId', '/pharmacy/admit-return-item/:itemId'], authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { itemId } = req.params;
+        const loginname = req.user?.loginname;
+        const isAdmin = await isUserAdmin(loginname);
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'คุณไม่มีสิทธิ์แก้ไขรายการยาคืน (Admin Only)' });
+        }
+
+        const { qty, drug_name, units, source } = req.body;
+        const newQty = parseInt(qty, 10);
+        if (isNaN(newQty) || newQty <= 0) {
+            return res.status(400).json({ error: 'จำนวนยาคืนต้องมากกว่า 0' });
+        }
+
+        dflowConn = await getDflowConnection();
+        let targetAn = null;
+
+        if (source === 'discharge_audit') {
+            const rows = await dflowConn.query('SELECT an, icode, qty, actual_qty FROM return_drugs WHERE id = ?', [itemId]);
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'ไม่พบรายการยาคืนนี้' });
+            }
+            targetAn = rows[0].an;
+            await dflowConn.query(
+                `UPDATE return_drugs 
+                 SET qty = ?, actual_qty = ?, updated_by = ?, updated_at = NOW() 
+                 WHERE id = ?`,
+                [newQty, newQty, loginname, itemId]
+            );
+        } else {
+            const rows = await dflowConn.query(
+                `SELECT pi.id, pi.round_id, pi.drug_name, pi.qty, pr.an 
+                 FROM pharmacy_return_items pi 
+                 JOIN pharmacy_return_rounds pr ON pi.round_id = pr.id 
+                 WHERE pi.id = ?`,
+                [itemId]
+            );
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'ไม่พบรายการยาคืนนี้' });
+            }
+            targetAn = rows[0].an;
+
+            let updateFields = ['qty = ?'];
+            let updateParams = [newQty];
+            if (drug_name && drug_name.trim()) {
+                updateFields.push('drug_name = ?');
+                updateParams.push(drug_name.trim());
+            }
+            if (units !== undefined) {
+                updateFields.push('units = ?');
+                updateParams.push(units ? units.trim() : null);
+            }
+            updateParams.push(itemId);
+
+            await dflowConn.query(
+                `UPDATE pharmacy_return_items SET ${updateFields.join(', ')} WHERE id = ?`,
+                updateParams
+            );
+        }
+
+        if (targetAn) {
+            await dflowConn.query(
+                'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+                [targetAn, 'PHARMACY_ADMIT_RETURN_EDIT_ITEM', loginname]
+            );
+            try {
+                getIO().emit('workflow:updated', { an: targetAn, type: 'pharmacy_admit_return' });
+            } catch (e) {}
+        }
+
+        res.json({ success: true, message: 'แก้ไขจำนวนยาคืนเรียบร้อยแล้ว' });
+    } catch (error) {
+        console.error('Edit admit return item error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// Admin: Delete a return drug item
+router.delete(['/pharmacy/admit-return/item/:itemId', '/pharmacy/admit-return-item/:itemId'], authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { itemId } = req.params;
+        const loginname = req.user?.loginname;
+        const isAdmin = await isUserAdmin(loginname);
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'คุณไม่มีสิทธิ์ลบรายการยาคืน (Admin Only)' });
+        }
+
+        const source = req.query.source || req.body?.source;
+        dflowConn = await getDflowConnection();
+        let targetAn = null;
+
+        if (source === 'discharge_audit') {
+            const rows = await dflowConn.query('SELECT an FROM return_drugs WHERE id = ?', [itemId]);
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'ไม่พบรายการยาคืนนี้' });
+            }
+            targetAn = rows[0].an;
+            await dflowConn.query('DELETE FROM return_drugs WHERE id = ?', [itemId]);
+        } else {
+            const rows = await dflowConn.query(
+                `SELECT pi.id, pi.round_id, pr.an 
+                 FROM pharmacy_return_items pi 
+                 JOIN pharmacy_return_rounds pr ON pi.round_id = pr.id 
+                 WHERE pi.id = ?`,
+                [itemId]
+            );
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'ไม่พบรายการยาคืนนี้' });
+            }
+            targetAn = rows[0].an;
+            const roundId = rows[0].round_id;
+
+            await dflowConn.query('DELETE FROM pharmacy_return_items WHERE id = ?', [itemId]);
+
+            // If round has no remaining items, clean up the empty round
+            const remaining = await dflowConn.query(
+                'SELECT COUNT(*) as cnt FROM pharmacy_return_items WHERE round_id = ?',
+                [roundId]
+            );
+            if (Number(remaining[0]?.cnt || 0) === 0) {
+                await dflowConn.query('DELETE FROM pharmacy_return_rounds WHERE id = ?', [roundId]);
+            }
+        }
+
+        if (targetAn) {
+            await dflowConn.query(
+                'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+                [targetAn, 'PHARMACY_ADMIT_RETURN_DELETE_ITEM', loginname]
+            );
+            try {
+                getIO().emit('workflow:updated', { an: targetAn, type: 'pharmacy_admit_return' });
+            } catch (e) {}
+        }
+
+        res.json({ success: true, message: 'ลบรายการยาคืนเรียบร้อยแล้ว' });
+    } catch (error) {
+        console.error('Delete admit return item error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// Admin: Edit a return round note
+router.put(['/pharmacy/admit-return/round/:roundId', '/pharmacy/admit-return-round/:roundId'], authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { roundId } = req.params;
+        const loginname = req.user?.loginname;
+        const isAdmin = await isUserAdmin(loginname);
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'คุณไม่มีสิทธิ์แก้ไขรอบยาคืน (Admin Only)' });
+        }
+
+        const { note } = req.body;
+        dflowConn = await getDflowConnection();
+        let targetAn = null;
+
+        if (String(roundId).startsWith('discharge_audit_')) {
+            targetAn = String(roundId).replace('discharge_audit_', '');
+            await dflowConn.query(
+                'UPDATE return_drugs SET remark = ? WHERE an = ? AND (checked_at IS NOT NULL OR checked_by IS NOT NULL)',
+                [note || null, targetAn]
+            );
+        } else {
+            const rows = await dflowConn.query('SELECT an FROM pharmacy_return_rounds WHERE id = ?', [roundId]);
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'ไม่พบรอบการคืนยานี้' });
+            }
+            targetAn = rows[0].an;
+            await dflowConn.query('UPDATE pharmacy_return_rounds SET note = ? WHERE id = ?', [note || null, roundId]);
+        }
+
+        if (targetAn) {
+            await dflowConn.query(
+                'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+                [targetAn, 'PHARMACY_ADMIT_RETURN_EDIT_ROUND', loginname]
+            );
+            try {
+                getIO().emit('workflow:updated', { an: targetAn, type: 'pharmacy_admit_return' });
+            } catch (e) {}
+        }
+
+        res.json({ success: true, message: 'บันทึกหมายเหตุรอบคืนยาเรียบร้อยแล้ว' });
+    } catch (error) {
+        console.error('Edit admit return round error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// Admin: Delete an entire return round
+router.delete(['/pharmacy/admit-return/round/:roundId', '/pharmacy/admit-return-round/:roundId'], authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { roundId } = req.params;
+        const loginname = req.user?.loginname;
+        const isAdmin = await isUserAdmin(loginname);
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'คุณไม่มีสิทธิ์ลบรอบยาคืน (Admin Only)' });
+        }
+
+        dflowConn = await getDflowConnection();
+        let targetAn = null;
+
+        if (String(roundId).startsWith('discharge_audit_')) {
+            targetAn = String(roundId).replace('discharge_audit_', '');
+            await dflowConn.query(
+                'DELETE FROM return_drugs WHERE an = ? AND (checked_at IS NOT NULL OR checked_by IS NOT NULL)',
+                [targetAn]
+            );
+        } else {
+            const rows = await dflowConn.query('SELECT an FROM pharmacy_return_rounds WHERE id = ?', [roundId]);
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'ไม่พบรอบการคืนยานี้' });
+            }
+            targetAn = rows[0].an;
+            await dflowConn.query('DELETE FROM pharmacy_return_items WHERE round_id = ?', [roundId]);
+            await dflowConn.query('DELETE FROM pharmacy_return_rounds WHERE id = ?', [roundId]);
+        }
+
+        if (targetAn) {
+            await dflowConn.query(
+                'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+                [targetAn, 'PHARMACY_ADMIT_RETURN_DELETE_ROUND', loginname]
+            );
+            try {
+                getIO().emit('workflow:updated', { an: targetAn, type: 'pharmacy_admit_return' });
+            } catch (e) {}
+        }
+
+        res.json({ success: true, message: 'ลบรอบการคืนยาเรียบร้อยแล้ว' });
+    } catch (error) {
+        console.error('Delete admit return round error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// Admin: Delete ALL return rounds and items for an AN
+router.delete('/pharmacy/admit-return/all/:an', authMiddleware, async (req, res) => {
+    let dflowConn;
+    try {
+        const { an } = req.params;
+        const loginname = req.user?.loginname;
+        const isAdmin = await isUserAdmin(loginname);
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'คุณไม่มีสิทธิ์ลบประวัติยาคืนทั้งหมด (Admin Only)' });
+        }
+
+        dflowConn = await getDflowConnection();
+        
+        // 1. Delete items and rounds from pharmacy_return_*
+        const roundRows = await dflowConn.query('SELECT id FROM pharmacy_return_rounds WHERE an = ?', [an]);
+        const roundIds = roundRows.map(r => r.id);
+        if (roundIds.length > 0) {
+            await dflowConn.query(`DELETE FROM pharmacy_return_items WHERE round_id IN (${roundIds.map(() => '?').join(',')})`, roundIds);
+            await dflowConn.query('DELETE FROM pharmacy_return_rounds WHERE an = ?', [an]);
+        }
+
+        // 2. Delete audited return items from return_drugs if any
+        await dflowConn.query(
+            'DELETE FROM return_drugs WHERE an = ? AND (checked_at IS NOT NULL OR checked_by IS NOT NULL)',
+            [an]
+        );
+
+        // 3. Log activity
+        await dflowConn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, 'PHARMACY_ADMIT_RETURN_DELETE_ALL', loginname]
+        );
+
+        try {
+            getIO().emit('workflow:updated', { an, type: 'pharmacy_admit_return' });
+        } catch (e) {}
+
+        res.json({ success: true, message: 'ลบประวัติการคืนยาของ AN นี้ทั้งหมดเรียบร้อยแล้ว' });
+    } catch (error) {
+        console.error('Delete all admit returns error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (dflowConn) dflowConn.release();
