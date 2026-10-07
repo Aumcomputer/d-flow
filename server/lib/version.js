@@ -24,9 +24,9 @@ function resolveVersion() {
 
   // 2. Try git rev-list
   try {
-    const count = execSync('git rev-list --count HEAD', { cwd: rootDir }).toString().trim();
-    if (count) {
-      return `1.1.${count}`;
+    const count = parseInt(execSync('git rev-list --count HEAD', { cwd: rootDir }).toString().trim(), 10);
+    if (!isNaN(count)) {
+      return `1.2.${Math.max(0, count - 105)}`;
     }
   } catch (err) {
     // Ignore and fallback
@@ -42,7 +42,7 @@ function resolveVersion() {
     // Ignore
   }
 
-  return '1.1.0';
+  return '1.2.0';
 }
 
 function getAppVersion() {

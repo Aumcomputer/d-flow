@@ -22,8 +22,11 @@ function updateVersion() {
   const isPreCommit = process.argv.includes('--pre-commit');
   const commitCount = isPreCommit ? count + 1 : count;
 
+  const BASE_COMMIT_OFFSET = 105;
+  const patchVersion = Math.max(0, commitCount - BASE_COMMIT_OFFSET);
+
   const versionData = {
-    version: `1.1.${commitCount}`,
+    version: `1.2.${patchVersion}`,
     commit: hash,
     updatedAt: new Date().toISOString()
   };

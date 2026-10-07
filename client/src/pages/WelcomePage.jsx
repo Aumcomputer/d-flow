@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { FileText, ShieldCheck, Building2, Pill, ClipboardList, Wallet, ChevronRight, Lock, Settings, HeartHandshake } from 'lucide-react'
+import { FileText, ShieldCheck, Building2, Pill, ClipboardList, Wallet, ChevronRight, Lock, HeartHandshake } from 'lucide-react'
 import { Card, CardContent } from '../components/ui/card'
-import { Button } from '../components/ui/button'
 
 const modules = [
   { key: 'documents', path: '/documents', name: 'เวชระเบียน', desc: 'จัดการเอกสารผู้ป่วยใน', icon: FileText, color: 'from-blue-500 to-indigo-500', bg: 'bg-blue-50', text: 'text-blue-600' },
@@ -33,14 +32,6 @@ export default function WelcomePage() {
           </p>
         </div>
         <div className="mt-4 md:mt-0 flex items-center gap-3">
-          {user?.isAdmin && (
-            <Link to="/settings">
-              <Button size="sm" variant="outline" className="rounded-full border-slate-200 text-slate-700 hover:text-slate-900 bg-white shadow-2xs gap-1.5">
-                <Settings className="w-4 h-4 text-blue-600" />
-                ตั้งค่าระบบ
-              </Button>
-            </Link>
-          )}
           <div className="text-slate-600 bg-white px-4 py-2 rounded-full shadow-2xs border border-slate-100 text-sm font-medium">
             {date}
           </div>
