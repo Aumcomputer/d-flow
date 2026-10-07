@@ -467,9 +467,6 @@ export default function SettingsPage() {
         >
           <Shield className="w-4 h-4" />
           <span>1. Admin Setting</span>
-          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 font-mono text-slate-600">
-            {admins.length}
-          </span>
         </button>
 
         <button
@@ -482,9 +479,6 @@ export default function SettingsPage() {
         >
           <Users className="w-4 h-4" />
           <span>2. Role Setting</span>
-          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 font-mono text-slate-600">
-            6 โมดูล
-          </span>
           {hasRoleChanges && (
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="มีการเปลี่ยนแปลงที่ยังไม่บันทึก" />
           )}
@@ -500,9 +494,6 @@ export default function SettingsPage() {
         >
           <Pill className="w-4 h-4" />
           <span>3. Drug Setting</span>
-          <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
-            ระบบยาคืน
-          </span>
           {hasDrugChanges && (
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="มีการเปลี่ยนแปลงที่ยังไม่บันทึก" />
           )}
