@@ -1134,9 +1134,19 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                       <div className="text-slate-800 text-xs sm:text-sm bg-white p-2.5 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed shadow-2xs">
                         {socialWorkRequest.social_worker_comment}
                       </div>
-                      <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1">
-                        <span className="truncate">ผู้ตอบ: <strong className="text-slate-700">{socialWorkRequest.social_worker_by_name || socialWorkRequest.social_worker_by}</strong></span>
-                        <span className="shrink-0">{formatDateTime(socialWorkRequest.social_worker_at)}</span>
+                      <div className="border-t border-emerald-100 pt-2.5 space-y-1.5 text-xs text-slate-600">
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-muted-foreground shrink-0">ผู้ตอบ:</span>
+                          <span className="font-semibold text-slate-800 truncate">
+                            {socialWorkRequest.social_worker_by_name || socialWorkRequest.social_worker_by || '-'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center gap-2">
+                          <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatDateTime(socialWorkRequest.social_worker_at)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )}
