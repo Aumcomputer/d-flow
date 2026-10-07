@@ -1,5 +1,7 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
+const { getDflowConnection } = require('../config/database');
+const { isUserAdmin } = require('../services/settingsService');
 const { getIO } = require('../lib/socket');
 const {
     getSocialWorkReasons,
@@ -114,22 +116,41 @@ router.put('/requests/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// 5. Cancel a pending request
+// 5. Cancel a request (Admin can cancel even if answered)
 router.post('/requests/:id/cancel', authMiddleware, async (req, res) => {
+    let conn;
     try {
         const { id } = req.params;
         const { cancel_reason } = req.body;
         const cancelled_by = req.user?.loginname || 'unknown';
         const cancelled_by_name = req.user?.name || cancelled_by;
+        const isAdmin = await isUserAdmin(cancelled_by);
 
-        await cancelSocialWorkRequest(id, {
+        conn = await getDflowConnection();
+        const rows = await conn.query('SELECT * FROM social_work_requests WHERE id = ?', [id]);
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'ไม่พบรายการส่งปรึกษานี้' });
+        }
+        const reqItem = rows[0];
+
+        if (reqItem.status === 'answered' && !isAdmin) {
+            return res.status(403).json({ error: 'รายการนี้ได้รับการตอบแล้ว ไม่สามารถยกเลิกได้ (เฉพาะผู้ดูแลระบบ Admin เท่านั้น)' });
+        }
+
+        const success = await cancelSocialWorkRequest(id, {
             cancelled_by,
             cancelled_by_name,
-            cancel_reason
+            cancel_reason,
+            isAdmin
         });
 
+        if (!success) {
+            return res.status(400).json({ error: 'ไม่สามารถยกเลิกได้ หรือรายการถูกยกเลิกไปแล้ว' });
+        }
+
         try {
-            getIO().emit('social_work:updated', { id, status: 'cancelled' });
+            getIO().emit('social_work:updated', { an: reqItem.an, id, status: 'cancelled' });
+            getIO().emit('workflow:updated', { an: reqItem.an, type: 'social_work_cancelled' });
         } catch (e) {}
 
         res.json({
@@ -139,6 +160,8 @@ router.post('/requests/:id/cancel', authMiddleware, async (req, res) => {
     } catch (err) {
         console.error('Error in POST /requests/:id/cancel:', err);
         res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (conn) conn.release();
     }
 });
 

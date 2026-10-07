@@ -144,17 +144,18 @@ async function updateSocialWorkRequest(id, { reason_id, reason_name, reason_othe
     }
 }
 
-async function cancelSocialWorkRequest(id, { cancelled_by, cancelled_by_name, cancel_reason }) {
+async function cancelSocialWorkRequest(id, { cancelled_by, cancelled_by_name, cancel_reason, isAdmin = false }) {
     let conn;
     try {
         conn = await getDflowConnection();
-        await conn.query(
+        const whereClause = isAdmin ? 'WHERE id = ?' : "WHERE id = ? AND status = 'pending'";
+        const result = await conn.query(
             `UPDATE social_work_requests 
              SET status = 'cancelled', cancelled_by = ?, cancelled_by_name = ?, cancelled_at = NOW(), cancel_reason = ?
-             WHERE id = ? AND status = 'pending'`,
+             ${whereClause}`,
             [cancelled_by, cancelled_by_name, cancel_reason || null, id]
         );
-        return true;
+        return result.affectedRows > 0;
     } finally {
         if (conn) conn.release();
     }

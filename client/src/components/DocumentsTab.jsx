@@ -75,6 +75,8 @@ function CidBadge({ extractedCid, patientCid }) {
 
 export default function DocumentsTab({ patient, details, fetchDetails }) {
   const { user } = useAuth()
+  const isAdmin = !!user?.isAdmin
+  const isPttypeAnswered = Boolean(details?.grant_pttype_date)
   const [documents, setDocuments] = useState([])
   const [completeness, setCompleteness] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(false)
@@ -948,26 +950,45 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                   </div>
 
                   {/* Top Right Buttons: แก้ไข & ยกเลิก */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={handleOpenEditModal}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors"
-                      title="แก้ไขข้อมูลส่งปรึกษา"
-                    >
-                      <Pencil className="w-3 h-3 text-slate-500" />
-                      <span>แก้ไข</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleOpenCancelModal}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors"
-                      title="ยกเลิกการส่งปรึกษา"
-                    >
-                      <RotateCcw className="w-3 h-3 text-rose-500" />
-                      <span>ยกเลิก</span>
-                    </button>
-                  </div>
+                  {isPttypeAnswered ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-semibold px-2 py-0.5">
+                        ห้องสิทธิ์ตอบแล้ว
+                      </Badge>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={handleOpenCancelModal}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
+                          title="ยกเลิกการส่งปรึกษา (สิทธิ์ Admin)"
+                        >
+                          <RotateCcw className="w-3 h-3 text-rose-500" />
+                          <span>ยกเลิก (Admin)</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleOpenEditModal}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors"
+                        title="แก้ไขข้อมูลส่งปรึกษา"
+                      >
+                        <Pencil className="w-3 h-3 text-slate-500" />
+                        <span>แก้ไข</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenCancelModal}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors"
+                        title="ยกเลิกการส่งปรึกษา"
+                      >
+                        <RotateCcw className="w-3 h-3 text-rose-500" />
+                        <span>ยกเลิก</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3 text-sm">
@@ -1073,9 +1094,25 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                       </button>
                     </div>
                   ) : (
-                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-semibold px-2 py-0.5">
-                      ตอบแล้ว
-                    </Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-semibold px-2 py-0.5">
+                        ตอบแล้ว
+                      </Badge>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCancelSocialWorkModalOpen(true)
+                            setCancelSocialWorkReason('')
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
+                          title="ยกเลิกการส่งปรึกษา (สิทธิ์ Admin)"
+                        >
+                          <RotateCcw className="w-3 h-3 text-rose-500" />
+                          <span>ยกเลิก (Admin)</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1732,6 +1769,11 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                 <span className="text-muted-foreground">AN:</span>
                 <span className="font-mono text-slate-700">{patient?.an}</span>
               </div>
+              {isPttypeAnswered && (
+                <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-1">
+                  ห้องสิทธิ์ตอบผลแล้ว (สิทธิ์ Admin สามารถยกเลิกได้)
+                </div>
+              )}
             </div>
 
             <div>
@@ -2158,6 +2200,11 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
             <p className="text-sm text-slate-600">
               คุณต้องการยกเลิกคำขอส่งปรึกษานักสังคมสงเคราะห์สำหรับผู้ป่วย AN: <strong>{patient?.an}</strong> ใช่หรือไม่?
             </p>
+            {socialWorkRequest?.status === 'answered' && (
+              <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                รายการนี้ได้รับการตอบแล้ว (สิทธิ์ Admin สามารถยกเลิกได้)
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 เหตุผลในการยกเลิก (ถ้ามี)

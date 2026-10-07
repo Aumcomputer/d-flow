@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { getHisConnection, getDflowConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { isUserAdmin } = require('../services/settingsService');
 
 const router = express.Router();
 
@@ -185,6 +186,12 @@ router.post('/consult/:an', authMiddleware, async (req, res) => {
 
         dflowConn = await getDflowConnection();
 
+        // Check if already answered by rights office
+        const existingDetailRows = await dflowConn.query('SELECT grant_pttype_date FROM an_detail WHERE an = ?', [an]);
+        if (existingDetailRows.length > 0 && Boolean(existingDetailRows[0].grant_pttype_date)) {
+            return res.status(400).json({ error: 'ห้องสิทธิ์ตอบผลแล้ว ไม่สามารถแก้ไขข้อมูลส่งปรึกษาได้' });
+        }
+
         // Upsert into an_detail
         await dflowConn.query(
             `INSERT INTO an_detail (
@@ -267,6 +274,17 @@ router.post('/cancel-consult/:an', authMiddleware, async (req, res) => {
         }
 
         dflowConn = await getDflowConnection();
+
+        // Check if already answered by rights office
+        const existingDetailRows = await dflowConn.query('SELECT grant_pttype_date FROM an_detail WHERE an = ?', [an]);
+        const isAnswered = existingDetailRows.length > 0 && Boolean(existingDetailRows[0].grant_pttype_date);
+        if (isAnswered) {
+            const isAdmin = await isUserAdmin(loginname);
+            if (!isAdmin) {
+                return res.status(403).json({ error: 'ห้องสิทธิ์ตอบผลแล้ว ไม่สามารถยกเลิกได้ (เฉพาะผู้ดูแลระบบ Admin เท่านั้น)' });
+            }
+        }
+
         await dflowConn.query(
             `UPDATE an_detail SET
                 consult_pttype_urgency = NULL,

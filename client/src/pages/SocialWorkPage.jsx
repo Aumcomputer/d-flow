@@ -15,7 +15,8 @@ import {
   Check, 
   ChevronRight,
   Eye,
-  FileText
+  FileText,
+  RotateCcw
 } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
@@ -28,6 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 
 export default function SocialWorkPage() {
   const { user } = useAuth()
+  const isAdmin = !!user?.isAdmin
   const { playAlert } = useSound()
   const navigate = useNavigate()
 
@@ -148,6 +150,23 @@ export default function SocialWorkPage() {
       setAnswerError(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึกความคิดเห็น')
     } finally {
       setSubmittingAnswer(false)
+    }
+  }
+
+  const handleAdminCancel = async (req) => {
+    if (!req?.id) return
+    const reason = window.prompt(`ยืนยันยกเลิกคำขอส่งปรึกษานักสังคมสงเคราะห์ AN: ${req.an} หรือไม่?\nกรุณาระบุเหตุผลในการยกเลิก (ถ้ามี):`, '')
+    if (reason === null) return
+    try {
+      await api.post(`/social-work/requests/${req.id}/cancel`, {
+        cancel_reason: reason.trim()
+      })
+      alert('ยกเลิกรายการส่งปรึกษาเรียบร้อยแล้ว')
+      setIsDetailModalOpen(false)
+      fetchRequests()
+    } catch (err) {
+      console.error('Cancel social work error:', err)
+      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการยกเลิก')
     }
   }
 
@@ -644,12 +663,23 @@ export default function SocialWorkPage() {
                 </div>
               </div>
 
-              <DialogFooter className="pt-2">
+              <DialogFooter className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2 gap-2">
+                {isAdmin ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => handleAdminCancel(viewingRequest)}
+                    className="rounded-xl gap-1.5 bg-rose-600 hover:bg-rose-700"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>ยกเลิกรายการนี้ (Admin)</span>
+                  </Button>
+                ) : <div />}
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="rounded-xl w-full"
+                  className="rounded-xl"
                 >
                   ปิด
                 </Button>
