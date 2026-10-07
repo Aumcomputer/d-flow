@@ -526,6 +526,10 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
       setSocialWorkError('กรุณาระบุสาเหตุอื่นๆ')
       return
     }
+    if (!nurseSocialWorkComment || !nurseSocialWorkComment.trim()) {
+      setSocialWorkError('กรุณากรอกความเห็นของพยาบาลหัวหน้าตึกหรือหัวหน้าเวร')
+      return
+    }
 
     setSubmittingSocialWork(true)
     setSocialWorkError('')
@@ -2034,10 +2038,10 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
               {patient?.age_y && <div>อายุ: <strong className="text-slate-900">{patient?.age_y} ปี</strong></div>}
             </div>
 
-            {/* 1. สาเหตุที่ส่งปรึกษานักสังคมสงเคราะห์ (เลือกได้แค่อันเดียว) */}
+            {/* 1. สาเหตุที่ส่งปรึกษานักสังคมสงเคราะห์ */}
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-slate-800">
-                สาเหตุที่ส่งปรึกษานักสังคมสงเคราะห์ <span className="text-xs text-slate-500 font-normal">(เลือกได้แค่อันเดียว)</span> <span className="text-red-500">*</span>
+                สาเหตุที่ส่งปรึกษานักสังคมสงเคราะห์ <span className="text-red-500">*</span>
               </label>
 
               <div className="space-y-2">
@@ -2091,7 +2095,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
             {/* 2. ความเห็นของพยาบาลหัวหน้าตึกหรือหัวหน้าเวร */}
             <div className="space-y-1.5 pt-1">
               <label className="block text-sm font-semibold text-slate-800">
-                ความเห็นของพยาบาลหัวหน้าตึกหรือหัวหน้าเวร
+                ความเห็นของพยาบาลหัวหน้าตึกหรือหัวหน้าเวร <span className="text-red-500">*</span>
               </label>
               <textarea
                 rows={3}
@@ -2100,9 +2104,6 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                 placeholder="ระบุความคิดเห็นของพยาบาล..."
                 className="w-full px-3.5 py-2.5 text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none shadow-2xs leading-relaxed"
               />
-              <p className="text-[11px] text-muted-foreground">
-                เมื่อกดบันทึก ระบบจะบันทึกชื่อผู้ส่ง ({user?.name || user?.loginname}) และลงเวลาให้อัตโนมัติ
-              </p>
             </div>
 
             {socialWorkError && (
@@ -2123,8 +2124,8 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
               </Button>
               <Button
                 type="submit"
-                disabled={submittingSocialWork || !selectedSocialWorkReasonId}
-                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white gap-1.5 shadow-2xs"
+                disabled={submittingSocialWork || !selectedSocialWorkReasonId || !nurseSocialWorkComment.trim()}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white gap-1.5 shadow-2xs disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
                 <span>{submittingSocialWork ? 'กำลังบันทึก...' : (isEditSocialWork ? 'บันทึกการแก้ไข' : 'บันทึกส่งปรึกษา')}</span>

@@ -43,6 +43,9 @@ router.post('/requests', authMiddleware, async (req, res) => {
         if (!an || !reason_name) {
             return res.status(400).json({ error: 'กรุณาระบุ AN และสาเหตุที่ส่งปรึกษา' });
         }
+        if (!nurse_comment || !nurse_comment.trim()) {
+            return res.status(400).json({ error: 'กรุณาระบุความเห็นของพยาบาลหัวหน้าตึกหรือหัวหน้าเวร' });
+        }
 
         const sent_by = req.user?.loginname || 'unknown';
         const sent_by_name = req.user?.name || sent_by;
@@ -52,7 +55,7 @@ router.post('/requests', authMiddleware, async (req, res) => {
             reason_id,
             reason_name,
             reason_other,
-            nurse_comment,
+            nurse_comment: nurse_comment.trim(),
             sent_by,
             sent_by_name
         });
@@ -79,6 +82,9 @@ router.put('/requests/:id', authMiddleware, async (req, res) => {
         const { reason_id, reason_name, reason_other, nurse_comment } = req.body;
         if (!reason_name) {
             return res.status(400).json({ error: 'กรุณาระบุสาเหตุที่ส่งปรึกษา' });
+        }
+        if (!nurse_comment || !nurse_comment.trim()) {
+            return res.status(400).json({ error: 'กรุณาระบุความเห็นของพยาบาลหัวหน้าตึกหรือหัวหน้าเวร' });
         }
 
         const updated_by = req.user?.loginname || 'unknown';
