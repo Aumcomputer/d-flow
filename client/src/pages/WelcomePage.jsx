@@ -19,14 +19,14 @@ export default function WelcomePage() {
   const date = new Date().toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   return (
-    <div className="container mx-auto p-6 w-full animate-fade-in relative z-10 flex flex-col h-full">
-      <div className="mb-10 mt-4 flex flex-col md:flex-row justify-between items-start md:items-end border-b pb-6 border-slate-200">
+    <div className="w-full px-6 lg:px-10 py-6 animate-fade-in relative z-10 flex flex-col min-h-[calc(100vh-4rem)]">
+      <div className="mb-8 mt-2 flex flex-col md:flex-row justify-between items-start md:items-end border-b pb-6 border-slate-200">
         <div>
-          <h1 className="text-4xl font-bold text-slate-800 mb-2">สวัสดี, {user?.name}</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">สวัสดี, {user?.name}</h1>
           <p className="text-slate-500 font-medium">
             ยินดีต้อนรับสู่ระบบ D-Flow : Hospital Discharge Management System
             {user?.groupname && (
-              <span className="ml-2 inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-xs font-normal">
+              <span className="ml-2 inline-block px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-xs font-normal">
                 กลุ่ม: {user.groupname}
               </span>
             )}
@@ -41,14 +41,14 @@ export default function WelcomePage() {
               </Button>
             </Link>
           )}
-          <div className="text-slate-600 bg-white px-4 py-2 rounded-full shadow-2xs border border-slate-100 text-sm">
+          <div className="text-slate-600 bg-white px-4 py-2 rounded-full shadow-2xs border border-slate-100 text-sm font-medium">
             {date}
           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-5">
+      <div className="flex-1 flex flex-col justify-center my-auto py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-5">
           {modules.map((m) => {
             const isAllowed = user?.isAdmin || (Array.isArray(user?.allowedModules) && user.allowedModules.includes(m.key))
 
@@ -56,16 +56,16 @@ export default function WelcomePage() {
               return (
                 <div key={m.path} className="block cursor-not-allowed opacity-55 select-none" title="คุณไม่มีสิทธิ์เข้าถึงโมดูลนี้ กรุณาติดต่อ Admin">
                   <Card className="glass-card h-full border border-dashed border-slate-300 overflow-hidden relative rounded-2xl bg-slate-50/70">
-                    <CardContent className="p-8 flex flex-col h-full">
-                      <div className="flex justify-between items-start mb-6">
-                        <div className={`p-4 rounded-2xl bg-slate-200 text-slate-400 shadow-2xs`}>
-                          <m.icon className="w-8 h-8" />
+                    <CardContent className="p-6 flex flex-col h-full">
+                      <div className="flex justify-between items-start mb-5">
+                        <div className={`p-3.5 rounded-2xl bg-slate-200 text-slate-400 shadow-2xs`}>
+                          <m.icon className="w-7 h-7" />
                         </div>
                         <div className="bg-slate-200/80 p-2 rounded-full text-slate-400">
                           <Lock className="w-4 h-4" />
                         </div>
                       </div>
-                      <h3 className="text-2xl font-bold text-slate-500 mb-2">{m.name}</h3>
+                      <h3 className="text-xl font-bold text-slate-500 mb-1.5">{m.name}</h3>
                       <p className="text-slate-400 text-xs mt-auto">ไม่มีสิทธิ์เข้าใช้งาน</p>
                     </CardContent>
                   </Card>
@@ -75,19 +75,19 @@ export default function WelcomePage() {
 
             return (
               <Link key={m.path} to={m.path} className="group block">
-                <Card className="glass-card h-full border-none overflow-hidden relative rounded-2xl group-hover:-translate-y-1 duration-300">
-                  <div className={`absolute top-0 left-0 w-1 h-full bg-gradient-to-b ${m.color}`}></div>
-                  <CardContent className="p-8 flex flex-col h-full">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className={`p-4 rounded-2xl ${m.bg} ${m.text} shadow-2xs group-hover:scale-110 transition-transform duration-300`}>
-                        <m.icon className="w-8 h-8" />
+                <Card className="glass-card h-full border-none overflow-hidden relative rounded-2xl group-hover:-translate-y-1 duration-300 shadow-sm hover:shadow-md transition-all">
+                  <div className={`absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b ${m.color}`}></div>
+                  <CardContent className="p-6 flex flex-col h-full">
+                    <div className="flex justify-between items-start mb-5">
+                      <div className={`p-3.5 rounded-2xl ${m.bg} ${m.text} shadow-2xs group-hover:scale-110 transition-transform duration-300`}>
+                        <m.icon className="w-7 h-7" />
                       </div>
                       <div className="bg-slate-50 p-2 rounded-full group-hover:bg-slate-100 transition-colors">
-                        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-700" />
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700" />
                       </div>
                     </div>
-                    <h3 className="text-2xl font-bold text-slate-800 mb-2">{m.name}</h3>
-                    <p className="text-slate-500 font-medium mt-auto">{m.desc}</p>
+                    <h3 className="text-xl font-bold text-slate-800 mb-1.5">{m.name}</h3>
+                    <p className="text-slate-500 text-sm font-medium mt-auto leading-relaxed">{m.desc}</p>
                   </CardContent>
                 </Card>
               </Link>
