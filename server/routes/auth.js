@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { getHisConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { getUserPermissions } = require('../services/settingsService');
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.post('/login', async (req, res) => {
 
         conn = await getHisConnection();
         const rows = await conn.query(
-            'SELECT loginname, name, account_disable FROM opduser WHERE loginname = ? AND passweb = ?',
+            'SELECT loginname, name, groupname, account_disable FROM opduser WHERE loginname = ? AND passweb = ?',
             [username, hashedPassword]
         );
 
@@ -31,7 +32,11 @@ router.post('/login', async (req, res) => {
             return res.status(403).json({ error: 'Account disabled' });
         }
 
-        const tokenPayload = { loginname: user.loginname, name: user.name };
+        const tokenPayload = { 
+            loginname: user.loginname, 
+            name: user.name,
+            groupname: user.groupname || ''
+        };
         const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '8h' });
 
         res.cookie('token', token, {
@@ -41,7 +46,16 @@ router.post('/login', async (req, res) => {
             maxAge: 8 * 60 * 60 * 1000 // 8 hours
         });
 
-        res.json({ success: true, user: tokenPayload });
+        const perms = await getUserPermissions(user.loginname, user.groupname);
+        const userResponse = {
+            loginname: user.loginname,
+            name: user.name,
+            groupname: user.groupname || '',
+            isAdmin: perms.isAdmin,
+            allowedModules: perms.allowedModules
+        };
+
+        res.json({ success: true, user: userResponse });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -55,8 +69,22 @@ router.post('/logout', (req, res) => {
     res.json({ success: true });
 });
 
-router.get('/me', authMiddleware, (req, res) => {
-    res.json({ user: req.user });
+router.get('/me', authMiddleware, async (req, res) => {
+    try {
+        const perms = await getUserPermissions(req.user.loginname, req.user.groupname);
+        res.json({
+            user: {
+                loginname: req.user.loginname,
+                name: req.user.name,
+                groupname: perms.groupname || req.user.groupname || '',
+                isAdmin: perms.isAdmin,
+                allowedModules: perms.allowedModules
+            }
+        });
+    } catch (err) {
+        console.error('Error in /me:', err);
+        res.json({ user: req.user });
+    }
 });
 
 module.exports = router;

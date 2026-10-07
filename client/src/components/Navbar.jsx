@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useSound } from '../contexts/SoundContext'
 import { Button } from './ui/button'
-import { LogOut, UserCircle, Volume2, VolumeX, RefreshCw } from 'lucide-react'
+import { LogOut, UserCircle, Volume2, VolumeX, RefreshCw, Settings } from 'lucide-react'
 import { APP_VERSION, getVersionStatus, subscribeVersion, performReload } from '../services/version'
 
 export default function Navbar() {
   const { user, logout } = useAuth()
   const { isSoundEnabled, toggleSound } = useSound()
   const navigate = useNavigate()
+  const location = useLocation()
   const [versionStatus, setVersionStatus] = useState(getVersionStatus())
 
   useEffect(() => {
@@ -63,7 +64,8 @@ export default function Navbar() {
         </div>
         <div className="flex items-center gap-6">
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Sound Toggle */}
             <button 
               onClick={toggleSound}
               className={`p-2 rounded-full transition-colors ${isSoundEnabled ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100'}`}
@@ -71,12 +73,40 @@ export default function Navbar() {
             >
               {isSoundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </button>
-            <div className="flex items-center gap-2 text-slate-600 font-medium bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-              <UserCircle className="w-5 h-5 text-slate-400" />
-              {user?.name || user?.loginname}
+
+            {/* Admin Settings Button */}
+            {user?.isAdmin && (
+              <Link
+                to="/settings"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  location.pathname === '/settings'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:text-slate-900'
+                }`}
+                title="ตั้งค่าระบบ (Admin Only)"
+              >
+                <Settings className="w-3.5 h-3.5 text-blue-600" />
+                <span>ตั้งค่าระบบ</span>
+              </Link>
+            )}
+
+            {/* User Profile */}
+            <div className="flex items-center gap-2 text-slate-600 font-medium bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 text-xs">
+              <UserCircle className="w-4 h-4 text-slate-400" />
+              <span className="font-semibold text-slate-800">{user?.name || user?.loginname}</span>
+              {user?.isAdmin ? (
+                <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-full border border-amber-200">
+                  Admin
+                </span>
+              ) : user?.groupname ? (
+                <span className="text-[10px] bg-slate-200/70 text-slate-600 px-1.5 py-0.2 rounded-full truncate max-w-[100px]" title={user.groupname}>
+                  {user.groupname}
+                </span>
+              ) : null}
             </div>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full px-4">
-              <LogOut className="w-4 h-4 mr-2" />
+
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full px-3 text-xs">
+              <LogOut className="w-3.5 h-3.5 mr-1.5" />
               ออกจากระบบ
             </Button>
           </div>

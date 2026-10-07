@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { SoundProvider } from './contexts/SoundContext'
@@ -13,20 +13,73 @@ import PharmacyPage from './pages/PharmacyPage'
 import DischargeCenterPage from './pages/DischargeCenterPage'
 import FinancePage from './pages/FinancePage'
 import DischargeDetailPage from './pages/DischargeDetailPage'
+import SettingsPage from './pages/SettingsPage'
 import Navbar from './components/Navbar'
+import { Lock } from 'lucide-react'
+import { Button } from './components/ui/button'
 
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth()
+const ProtectedRoute = ({ children, module, requireAdmin = false }) => {
+  const { user, isAuthenticated, loading } = useAuth()
   if (loading) return <div className="h-screen w-screen flex items-center justify-center">Loading...</div>
-  return isAuthenticated ? (
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+
+  // Admin Only Check
+  if (requireAdmin && !user?.isAdmin) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <Navbar />
+        <main className="pt-16 min-h-screen flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center">
+            <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">เฉพาะผู้ดูแลระบบ (Admin Only)</h2>
+            <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+              คุณไม่มีสิทธิ์เข้าถึงหน้านี้ เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถจัดการตั้งค่าระบบได้
+            </p>
+            <Link to="/">
+              <Button className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
+                กลับหน้าหลัก
+              </Button>
+            </Link>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Module Permission Check (Admin can access all modules)
+  if (module && !user?.isAdmin && !user?.allowedModules?.includes(module)) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <Navbar />
+        <main className="pt-16 min-h-screen flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">ไม่มีสิทธิ์เข้าถึงโมดูลนี้</h2>
+            <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+              กลุ่มงานของคุณ {user?.groupname ? `(${user.groupname})` : ''} ไม่ได้รับสิทธิ์เข้าใช้งานโมดูลนี้ กรุณาติดต่อผู้ดูแลระบบ (Admin) เพื่อขอสิทธิ์การใช้งาน
+            </p>
+            <Link to="/">
+              <Button className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
+                กลับหน้าหลัก
+              </Button>
+            </Link>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <main className="pt-16 min-h-screen">
         {children}
       </main>
     </div>
-  ) : (
-    <Navigate to="/login" replace />
   )
 }
 
@@ -35,13 +88,14 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<ProtectedRoute><WelcomePage /></ProtectedRoute>} />
-      <Route path="/documents" element={<ProtectedRoute><DocumentsPage /></ProtectedRoute>} />
-      <Route path="/pttype" element={<ProtectedRoute><PttypePage /></ProtectedRoute>} />
-      <Route path="/ward" element={<ProtectedRoute><WardPage /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute requireAdmin><SettingsPage /></ProtectedRoute>} />
+      <Route path="/documents" element={<ProtectedRoute module="documents"><DocumentsPage /></ProtectedRoute>} />
+      <Route path="/pttype" element={<ProtectedRoute module="pttype"><PttypePage /></ProtectedRoute>} />
+      <Route path="/ward" element={<ProtectedRoute module="ward"><WardPage /></ProtectedRoute>} />
       <Route path="/dcdetail/:an" element={<ProtectedRoute><DischargeDetailPage /></ProtectedRoute>} />
-      <Route path="/pharmacy" element={<ProtectedRoute><PharmacyPage /></ProtectedRoute>} />
-      <Route path="/discharge" element={<ProtectedRoute><DischargeCenterPage /></ProtectedRoute>} />
-      <Route path="/finance" element={<ProtectedRoute><FinancePage /></ProtectedRoute>} />
+      <Route path="/pharmacy" element={<ProtectedRoute module="pharmacy"><PharmacyPage /></ProtectedRoute>} />
+      <Route path="/discharge" element={<ProtectedRoute module="discharge"><DischargeCenterPage /></ProtectedRoute>} />
+      <Route path="/finance" element={<ProtectedRoute module="finance"><FinancePage /></ProtectedRoute>} />
     </Routes>
   )
 }

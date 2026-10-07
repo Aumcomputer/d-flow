@@ -51,6 +51,7 @@ app.use('/api/wards', wardRoutes);
 app.use('/api/workflow', require('./routes/workflow'));
 app.use('/api/pttype', require('./routes/pttype'));
 app.use('/api/referback', require('./routes/referback'));
+app.use('/api/settings', require('./routes/settings'));
 
 // System routes
 app.get('/api/system/version', (req, res) => {
@@ -171,6 +172,13 @@ async function migrateDB() {
             console.log('Database migrated: refer_backs table verified');
         } catch (e) {
             console.error('Migration refer_backs error:', e);
+        }
+
+        try {
+            const { initSettingsTables } = require('./services/settingsService');
+            await initSettingsTables();
+        } catch (e) {
+            console.error('Migration settings tables error:', e);
         }
     } catch (err) {
         console.error('Migration error:', err);
