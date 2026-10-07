@@ -83,8 +83,8 @@ export default function WardPage() {
   useEffect(() => {
     if (activeTab !== 'discharged' || !selectedWard) return
     const interval = setInterval(() => {
-      fetchPatients()
-    }, 15000)
+      fetchPatients(true)
+    }, 60000)
     return () => clearInterval(interval)
   }, [activeTab, selectedWard, selectedDate])
 
@@ -100,9 +100,9 @@ export default function WardPage() {
     }
   }
 
-  const fetchPatients = async () => {
+  const fetchPatients = async (isSilent = false) => {
     if (!selectedWard) return
-    setLoading(true)
+    if (!isSilent) setLoading(true)
     try {
       let endpoint = activeTab === 'admitted' 
         ? `/wards/${selectedWard}/patients` 
@@ -127,7 +127,7 @@ export default function WardPage() {
     } catch (err) {
       console.error('Fetch patients error:', err)
     } finally {
-      setLoading(false)
+      if (!isSilent) setLoading(false)
     }
   }
 
