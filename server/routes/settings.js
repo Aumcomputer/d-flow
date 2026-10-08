@@ -4,12 +4,19 @@ const { getDflowConnection, getHisConnection } = require('../config/database');
 const { 
     MODULE_KEYS, 
     DEFAULT_DRUG_SETTINGS,
+    DEFAULT_XRAY_SETTINGS,
     isUserAdmin, 
     getUserPermissions,
     getDrugSettingsSync,
     saveDrugSettings,
     getDrugDetailsByIcodes,
-    searchDrugitems
+    searchDrugitems,
+    getXraySettingsSync,
+    getParsedXrayFilters,
+    saveXraySettings,
+    getXrayGroupsList,
+    getXrayDetailsByIcodes,
+    searchXrayItems
 } = require('../services/settingsService');
 const { getIO } = require('../lib/socket');
 
@@ -429,6 +436,84 @@ router.get('/drugs/search', authMiddleware, requireAdmin, async (req, res) => {
         res.json({ drugs });
     } catch (err) {
         console.error('Error in GET /drugs/search:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 12. Get X-ray duplicate filter settings (Admin only)
+router.get('/xray', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const settings = getXraySettingsSync();
+        const parsed = getParsedXrayFilters();
+        const [allGroups, resolvedIcodes] = await Promise.all([
+            getXrayGroupsList(),
+            getXrayDetailsByIcodes(parsed.excludeIcodes)
+        ]);
+
+        res.json({
+            settings,
+            defaults: DEFAULT_XRAY_SETTINGS,
+            allGroups,
+            resolvedIcodes
+        });
+    } catch (err) {
+        console.error('Error in GET /xray:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 13. Update X-ray duplicate filter settings (Admin only)
+router.post('/xray', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { settings } = req.body;
+        if (!settings || typeof settings !== 'object') {
+            return res.status(400).json({ error: 'Invalid settings payload' });
+        }
+
+        const currentAdmin = req.user?.loginname || 'admin';
+        const updatedSettings = await saveXraySettings(settings, currentAdmin);
+        const parsed = getParsedXrayFilters();
+        const [allGroups, resolvedIcodes] = await Promise.all([
+            getXrayGroupsList(),
+            getXrayDetailsByIcodes(parsed.excludeIcodes)
+        ]);
+
+        try {
+            getIO().emit('settings:xray_updated', { settings: updatedSettings });
+        } catch (e) {}
+
+        res.json({
+            success: true,
+            message: 'บันทึกการตั้งค่ายกเว้นรายการ X-ray เรียบร้อยแล้ว',
+            settings: updatedSettings,
+            allGroups,
+            resolvedIcodes
+        });
+    } catch (err) {
+        console.error('Error in POST /xray:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 14. Search X-ray items from HOSxP (Admin only)
+router.get('/xray/search', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const query = req.query.q || '';
+        const items = await searchXrayItems(query);
+        res.json({ items });
+    } catch (err) {
+        console.error('Error in GET /xray/search:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 15. Get all X-ray groups master (Admin only)
+router.get('/xray/groups', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const groups = await getXrayGroupsList();
+        res.json({ groups });
+    } catch (err) {
+        console.error('Error in GET /xray/groups:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });

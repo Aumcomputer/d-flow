@@ -35,7 +35,8 @@ import {
   Code,
   Tag,
   CheckSquare,
-  HeartHandshake
+  HeartHandshake,
+  Radiation
 } from 'lucide-react'
 
 const MODULE_META = {
@@ -151,6 +152,21 @@ export default function SettingsPage() {
   const [rawViewMode, setRawViewMode] = useState(false)
   const [tagInputs, setTagInputs] = useState({})
 
+  // X-ray Setting State
+  const [xraySettings, setXraySettings] = useState({ XRAY_EXCLUDE_GROUPS: '7', XRAY_EXCLUDE_ICODES: '3011687' })
+  const [initialXraySettings, setInitialXraySettings] = useState({ XRAY_EXCLUDE_GROUPS: '7', XRAY_EXCLUDE_ICODES: '3011687' })
+  const [defaultXraySettings, setDefaultXraySettings] = useState({ XRAY_EXCLUDE_GROUPS: '7', XRAY_EXCLUDE_ICODES: '3011687' })
+  const [allXrayGroups, setAllXrayGroups] = useState([])
+  const [resolvedXrayIcodes, setResolvedXrayIcodes] = useState([])
+  const [loadingXray, setLoadingXray] = useState(false)
+  const [savingXray, setSavingXray] = useState(false)
+  const [xrayMessage, setXrayMessage] = useState(null)
+  const [xrayTagInputs, setXrayTagInputs] = useState({ XRAY_EXCLUDE_GROUPS: '', XRAY_EXCLUDE_ICODES: '' })
+  const [selectedGroupToAdd, setSelectedGroupToAdd] = useState('')
+  const [xraySearchQuery, setXraySearchQuery] = useState('')
+  const [xraySearchResults, setXraySearchResults] = useState([])
+  const [isSearchingXray, setIsSearchingXray] = useState(false)
+
   // Fetch Admins
   const fetchAdmins = async () => {
     setLoadingAdmins(true)
@@ -212,10 +228,37 @@ export default function SettingsPage() {
     }
   }
 
+  // Fetch Xray Settings
+  const fetchXraySettings = async () => {
+    setLoadingXray(true)
+    try {
+      const res = await api.get('/settings/xray')
+      if (res.data?.settings) {
+        setXraySettings(res.data.settings)
+        setInitialXraySettings(JSON.parse(JSON.stringify(res.data.settings)))
+      }
+      if (res.data?.defaults) {
+        setDefaultXraySettings(res.data.defaults)
+      }
+      if (res.data?.allGroups) {
+        setAllXrayGroups(res.data.allGroups)
+      }
+      if (res.data?.resolvedIcodes) {
+        setResolvedXrayIcodes(res.data.resolvedIcodes)
+      }
+    } catch (err) {
+      console.error('Failed to fetch xray settings:', err)
+      setXrayMessage({ type: 'error', text: err.response?.data?.error || 'เกิดข้อผิดพลาดในการโหลดการตั้งค่า X-ray' })
+    } finally {
+      setLoadingXray(false)
+    }
+  }
+
   useEffect(() => {
     fetchAdmins()
     fetchRolesData()
     fetchDrugSettings()
+    fetchXraySettings()
   }, [])
 
   // Live search users in HOSxP opduser
@@ -261,6 +304,28 @@ export default function SettingsPage() {
 
     return () => clearTimeout(timer)
   }, [drugSearchQuery])
+
+  // Live search X-ray items from HOSxP
+  useEffect(() => {
+    if (!xraySearchQuery.trim() || xraySearchQuery.trim().length < 2) {
+      setXraySearchResults([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingXray(true)
+      try {
+        const res = await api.get(`/settings/xray/search?q=${encodeURIComponent(xraySearchQuery.trim())}`)
+        setXraySearchResults(res.data.items || [])
+      } catch (err) {
+        console.error('Search xray error:', err)
+      } finally {
+        setIsSearchingXray(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [xraySearchQuery])
 
   // Add Admin Handler
   const handleAddAdmin = async (targetUser) => {
@@ -431,6 +496,68 @@ export default function SettingsPage() {
     }
   }
 
+  // X-ray Filter Helpers
+  const handleAddXrayTag = (fieldKey, valueToAdd) => {
+    if (!valueToAdd || !valueToAdd.trim()) return
+    const currentTags = parseCommaTags(xraySettings[fieldKey])
+    const cleanVal = valueToAdd.trim()
+    if (!currentTags.includes(cleanVal)) {
+      const newTags = [...currentTags, cleanVal]
+      setXraySettings(prev => ({ ...prev, [fieldKey]: newTags.join(',') }))
+    }
+    setXrayTagInputs(prev => ({ ...prev, [fieldKey]: '' }))
+  }
+
+  const handleRemoveXrayTag = (fieldKey, tagToRemove) => {
+    const currentTags = parseCommaTags(xraySettings[fieldKey])
+    const newTags = currentTags.filter(t => t !== tagToRemove)
+    setXraySettings(prev => ({ ...prev, [fieldKey]: newTags.join(',') }))
+
+    if (fieldKey === 'XRAY_EXCLUDE_ICODES') {
+      setResolvedXrayIcodes(prev => prev.filter(d => String(d.icode) !== String(tagToRemove)))
+    }
+  }
+
+  const handleAddXrayItemFromSearch = (item) => {
+    if (!item || !item.icode) return
+    handleAddXrayTag('XRAY_EXCLUDE_ICODES', item.icode)
+    if (!resolvedXrayIcodes.some(d => String(d.icode) === String(item.icode))) {
+      setResolvedXrayIcodes(prev => [...prev, item])
+    }
+    setXraySearchQuery('')
+    setXraySearchResults([])
+  }
+
+  // Save X-ray Settings
+  const handleSaveXraySettings = async () => {
+    setSavingXray(true)
+    setXrayMessage(null)
+    try {
+      const res = await api.post('/settings/xray', { settings: xraySettings })
+      setXrayMessage({ type: 'success', text: res.data.message || 'บันทึกการตั้งค่ายกเว้นรายการ X-ray เรียบร้อยแล้ว' })
+      setInitialXraySettings(JSON.parse(JSON.stringify(res.data.settings)))
+      if (res.data.resolvedIcodes) {
+        setResolvedXrayIcodes(res.data.resolvedIcodes)
+      }
+      if (res.data.allGroups) {
+        setAllXrayGroups(res.data.allGroups)
+      }
+    } catch (err) {
+      console.error('Save xray settings error:', err)
+      setXrayMessage({ type: 'error', text: err.response?.data?.error || 'ไม่สามารถบันทึกการตั้งค่า X-ray ได้' })
+    } finally {
+      setSavingXray(false)
+    }
+  }
+
+  // Reset X-ray Defaults
+  const handleResetXrayDefaults = () => {
+    if (window.confirm('คุณต้องการรีเซ็ตค่ายกเว้นรายการ X-ray กลับเป็นค่าเริ่มต้นมาตรฐานใช่หรือไม่? (กลุ่ม 7 และ icode 3011687)')) {
+      setXraySettings(JSON.parse(JSON.stringify(defaultXraySettings)))
+      setXrayMessage({ type: 'success', text: 'รีเซ็ตเป็นค่าเริ่มต้นเรียบร้อยแล้ว (อย่าลืมกดปุ่ม "บันทึกการตั้งค่า" เพื่อบันทึกผล)' })
+    }
+  }
+
   // Dirty Checks
   const hasRoleChanges = useMemo(() => {
     return JSON.stringify(roles) !== JSON.stringify(initialRoles)
@@ -439,6 +566,10 @@ export default function SettingsPage() {
   const hasDrugChanges = useMemo(() => {
     return JSON.stringify(drugSettings) !== JSON.stringify(initialDrugSettings)
   }, [drugSettings, initialDrugSettings])
+
+  const hasXrayChanges = useMemo(() => {
+    return JSON.stringify(xraySettings) !== JSON.stringify(initialXraySettings)
+  }, [xraySettings, initialXraySettings])
 
   return (
     <div className="container mx-auto p-6 max-w-7xl animate-fade-in relative z-10 pb-16">
@@ -505,6 +636,21 @@ export default function SettingsPage() {
           <Pill className="w-4 h-4" />
           <span>3. Drug Setting</span>
           {hasDrugChanges && (
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="มีการเปลี่ยนแปลงที่ยังไม่บันทึก" />
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('xray')}
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-t-xl font-medium text-sm transition-all border-b-2 ${
+            activeTab === 'xray'
+              ? 'border-blue-600 text-blue-600 bg-blue-50/50 shadow-xs'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <Radiation className="w-4 h-4 text-purple-600" />
+          <span>4. Xray-setting</span>
+          {hasXrayChanges && (
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="มีการเปลี่ยนแปลงที่ยังไม่บันทึก" />
           )}
         </button>
@@ -1578,6 +1724,401 @@ export default function SettingsPage() {
               </Card>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB 4: XRAY-SETTING */}
+      {/* ========================================================= */}
+      {activeTab === 'xray' && (
+        <div className="space-y-6">
+          {/* Header Info Card */}
+          <div className="bg-purple-50/70 border border-purple-200/80 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5 text-purple-900 text-sm">
+              <Radiation className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-purple-950 mb-0.5">การตั้งค่ารายการยกเว้นการตรวจสอบ X-ray ซ้ำซ้อน</p>
+                <p className="text-purple-800/90 leading-relaxed text-xs">
+                  ระบบตรวจสอบอัตโนมัติจะตรวจสอบรายการค่าใช้จ่าย X-ray ที่ยังไม่ confirm (<code className="font-mono bg-purple-100 px-1 py-0.5 rounded text-purple-900">xr.confirm = 'N'</code>) 
+                  โดยจะ<strong>ยกเว้นกลุ่มและรหัส X-ray ที่ระบุด้านล่างนี้</strong> ไม่นำมาแจ้งเตือนเป็นรายการซ้ำซ้อน
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetXrayDefaults}
+                className="rounded-xl border-purple-200 text-purple-700 hover:bg-purple-100 hover:text-purple-900 text-xs"
+                title="รีเซ็ตกลับเป็นค่าเริ่มต้นมาตรฐาน (กลุ่ม 7 และ icode 3011687)"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                คืนค่าเริ่มต้น
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveXraySettings}
+                disabled={savingXray}
+                className={`rounded-xl text-xs font-medium shadow-xs transition-all ${
+                  hasXrayChanges
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white animate-pulse'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white'
+                }`}
+              >
+                {savingXray ? (
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                บันทึกการตั้งค่า
+              </Button>
+            </div>
+          </div>
+
+          {/* Feedback Message */}
+          {xrayMessage && (
+            <div
+              className={`p-4 rounded-xl flex items-center justify-between gap-3 text-sm animate-fade-in ${
+                xrayMessage.type === 'success'
+                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                  : 'bg-red-50 border border-red-200 text-red-800'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {xrayMessage.type === 'success' ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+                )}
+                <span>{xrayMessage.text}</span>
+              </div>
+              <button
+                onClick={() => setXrayMessage(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Settings Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Card 1: Groups Exclusion */}
+            <Card className="border-slate-200 shadow-xs flex flex-col justify-between">
+              <div>
+                <CardHeader className="pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                      <Radiation className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base font-bold text-slate-800">
+                        1. กลุ่ม X-ray ที่ยกเว้น (xray_items_group)
+                      </CardTitle>
+                      <CardDescription className="text-xs text-slate-500">
+                        SQL: <code className="font-mono text-purple-700 bg-purple-50 px-1 py-0.5 rounded">xi.xray_items_group &lt;&gt; '...'</code> (ค่าเริ่มต้น: กลุ่ม 7)
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  {/* Select from master groups */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-700">
+                      เลือกกลุ่ม X-ray จากฐานข้อมูลเพื่อเพิ่ม:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedGroupToAdd}
+                        onChange={(e) => setSelectedGroupToAdd(e.target.value)}
+                        className="flex-1 h-9 px-3 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="">-- เลือกกลุ่ม X-ray --</option>
+                        {allXrayGroups.map((grp) => (
+                          <option key={grp.xray_items_group} value={grp.xray_items_group}>
+                            กลุ่ม {grp.xray_items_group} : {grp.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={!selectedGroupToAdd}
+                        onClick={() => {
+                          if (selectedGroupToAdd) {
+                            handleAddXrayTag('XRAY_EXCLUDE_GROUPS', selectedGroupToAdd)
+                            setSelectedGroupToAdd('')
+                          }
+                        }}
+                        className="h-9 px-3.5 text-xs rounded-xl bg-purple-100 text-purple-700 hover:bg-purple-200"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        เพิ่มกลุ่ม
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* List of currently excluded groups */}
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-700">
+                        รายการกลุ่มที่ถูกยกเว้นในปัจจุบัน:
+                      </label>
+                      <span className="text-[11px] text-slate-400">
+                        {parseCommaTags(xraySettings.XRAY_EXCLUDE_GROUPS).length} กลุ่ม
+                      </span>
+                    </div>
+
+                    <div className="min-h-[100px] p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-wrap gap-2 items-start content-start">
+                      {parseCommaTags(xraySettings.XRAY_EXCLUDE_GROUPS).length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-2">ยังไม่มีกลุ่มที่ถูกยกเว้น (ตรวจสอบทุกกลุ่ม)</p>
+                      ) : (
+                        parseCommaTags(xraySettings.XRAY_EXCLUDE_GROUPS).map((groupCode) => {
+                          const groupInfo = allXrayGroups.find(g => String(g.xray_items_group) === String(groupCode))
+                          return (
+                            <Badge
+                              key={groupCode}
+                              variant="secondary"
+                              className="px-3 py-1.5 text-xs bg-purple-50 text-purple-800 border border-purple-200 rounded-xl flex items-center gap-2 shadow-2xs"
+                            >
+                              <span className="font-mono font-bold">กลุ่ม {groupCode}</span>
+                              {groupInfo ? (
+                                <span className="font-normal text-slate-700">({groupInfo.name})</span>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveXrayTag('XRAY_EXCLUDE_GROUPS', groupCode)}
+                                className="text-purple-400 hover:text-red-600 transition-colors ml-1"
+                                title="ลบกลุ่มนี้"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </Badge>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </div>
+
+              {/* Direct group code input footer */}
+              <div className="p-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-500 text-[11px]">
+                  หรือพิมพ์รหัสกลุ่มโดยตรง:
+                </span>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="เช่น 7"
+                    value={xrayTagInputs.XRAY_EXCLUDE_GROUPS || ''}
+                    onChange={(e) => setXrayTagInputs(prev => ({ ...prev, XRAY_EXCLUDE_GROUPS: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddXrayTag('XRAY_EXCLUDE_GROUPS', xrayTagInputs.XRAY_EXCLUDE_GROUPS)
+                      }
+                    }}
+                    className="h-8 text-xs font-mono rounded-xl w-28"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddXrayTag('XRAY_EXCLUDE_GROUPS', xrayTagInputs.XRAY_EXCLUDE_GROUPS)}
+                    className="h-8 text-xs rounded-xl px-3"
+                  >
+                    + เพิ่ม
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            {/* Card 2: Icodes Exclusion */}
+            <Card className="border-slate-200 shadow-xs flex flex-col justify-between">
+              <div>
+                <CardHeader className="pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                      <Code className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base font-bold text-slate-800">
+                        2. รหัส X-ray ที่ยกเว้น (icode)
+                      </CardTitle>
+                      <CardDescription className="text-xs text-slate-500">
+                        SQL: <code className="font-mono text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded">o.icode &lt;&gt; '...'</code> (ค่าเริ่มต้น: 3011687 Additional Multiphase)
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  {/* Live Search input */}
+                  <div className="space-y-1.5 relative">
+                    <label className="text-xs font-semibold text-slate-700">
+                      ค้นหาและเพิ่มรหัสรายการ X-ray:
+                    </label>
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                      <Input
+                        placeholder="ค้นหาด้วยชื่อรายการ X-ray หรือรหัส icode (อย่างน้อย 2 ตัวอักษร)..."
+                        value={xraySearchQuery}
+                        onChange={(e) => setXraySearchQuery(e.target.value)}
+                        className="pl-9 h-9 text-xs rounded-xl border-slate-200 focus:ring-purple-500"
+                      />
+                      {isSearchingXray && (
+                        <div className="absolute right-3 top-2.5">
+                          <RefreshCw className="w-4 h-4 animate-spin text-purple-600" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Search results dropdown */}
+                    {xraySearchResults.length > 0 && (
+                      <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        {xraySearchResults.map((item) => {
+                          const isAlreadyAdded = parseCommaTags(xraySettings.XRAY_EXCLUDE_ICODES).includes(String(item.icode))
+                          return (
+                            <div
+                              key={item.icode}
+                              onClick={() => {
+                                if (!isAlreadyAdded) handleAddXrayItemFromSearch(item)
+                              }}
+                              className={`p-2.5 flex items-center justify-between text-xs transition-colors ${
+                                isAlreadyAdded
+                                  ? 'bg-slate-50 opacity-60 cursor-not-allowed'
+                                  : 'hover:bg-purple-50/60 cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                  {item.icode}
+                                </span>
+                                <div>
+                                  <div className="font-medium text-slate-800">{item.name}</div>
+                                  {item.group_name && (
+                                    <div className="text-[10px] text-slate-400">
+                                      กลุ่ม: {item.group_name} ({item.xray_items_group})
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-xs">
+                                {isAlreadyAdded ? (
+                                  <span className="text-slate-400 font-medium">เพิ่มแล้ว</span>
+                                ) : (
+                                  <span className="text-purple-600 font-medium hover:underline">+ เพิ่ม</span>
+                                )}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Table of excluded icodes */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-700">
+                        รายการรหัสที่ถูกยกเว้นในปัจจุบัน:
+                      </label>
+                      <span className="text-[11px] text-slate-400">
+                        {parseCommaTags(xraySettings.XRAY_EXCLUDE_ICODES).length} รายการ
+                      </span>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2">icode</th>
+                            <th className="px-3 py-2">ชื่อรายการ X-ray</th>
+                            <th className="px-3 py-2">กลุ่ม</th>
+                            <th className="px-3 py-2 text-right">จัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {parseCommaTags(xraySettings.XRAY_EXCLUDE_ICODES).length === 0 ? (
+                            <tr>
+                              <td colSpan="4" className="text-center py-6 text-slate-400 italic">
+                                ยังไม่มีรหัสที่ถูกยกเว้น
+                              </td>
+                            </tr>
+                          ) : (
+                            parseCommaTags(xraySettings.XRAY_EXCLUDE_ICODES).map((icode) => {
+                              const itemInfo = resolvedXrayIcodes.find(d => String(d.icode) === String(icode))
+                              return (
+                                <tr key={icode} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="px-3 py-2 font-mono font-bold text-indigo-700">
+                                    {icode}
+                                  </td>
+                                  <td className="px-3 py-2 font-medium text-slate-800">
+                                    {itemInfo ? (
+                                      <span>{itemInfo.name}</span>
+                                    ) : (
+                                      <span className="text-slate-400 italic">กำลังตรวจสอบชื่อจาก HOSxP...</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-slate-500">
+                                    {itemInfo?.group_name ? (
+                                      <span>{itemInfo.group_name}</span>
+                                    ) : (
+                                      '-'
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleRemoveXrayTag('XRAY_EXCLUDE_ICODES', icode)}
+                                      className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                      title="ลบออกจากรายการยกเว้น"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </td>
+                                </tr>
+                              )
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </CardContent>
+              </div>
+
+              {/* Direct icode typing footer */}
+              <div className="p-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-500 text-[11px]">
+                  หรือพิมพ์รหัส icode เพื่อเพิ่มโดยตรง:
+                </span>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="พิมพ์ icode เช่น 3011687..."
+                    value={xrayTagInputs.XRAY_EXCLUDE_ICODES || ''}
+                    onChange={(e) => setXrayTagInputs(prev => ({ ...prev, XRAY_EXCLUDE_ICODES: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddXrayTag('XRAY_EXCLUDE_ICODES', xrayTagInputs.XRAY_EXCLUDE_ICODES)
+                      }
+                    }}
+                    className="h-8 text-xs font-mono rounded-xl w-40"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddXrayTag('XRAY_EXCLUDE_ICODES', xrayTagInputs.XRAY_EXCLUDE_ICODES)}
+                    className="h-8 text-xs rounded-xl px-3"
+                  >
+                    + เพิ่ม icode
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
     </div>

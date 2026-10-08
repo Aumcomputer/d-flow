@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { getHisConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
-const { getParsedReturnMedFilters } = require('../services/settingsService');
+const { getParsedReturnMedFilters, getParsedXrayFilters } = require('../services/settingsService');
 
 const router = express.Router();
 
@@ -817,7 +817,24 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
         const totalOps = Number(opRows[0]?.total_ops || 0);
         const opnotesCompleted = Number(opRows[0]?.opnotes_completed || 0);
 
-        // 6. Duplicate X-ray charges (income = '08', xr.confirm = 'N', xi.xray_items_group <> '7', o.icode <> '3011687')
+        // 6. Duplicate X-ray charges (income = '08', xr.confirm = 'N', filtered by X-ray settings)
+        const { excludeGroups, excludeIcodes } = getParsedXrayFilters();
+
+        let xrayFilterSql = "";
+        const xrayParams = [an];
+
+        if (excludeGroups.length > 0) {
+            const groupPlaceholders = excludeGroups.map(() => '?').join(',');
+            xrayFilterSql += ` AND (xi.xray_items_group IS NULL OR xi.xray_items_group NOT IN (${groupPlaceholders}))`;
+            xrayParams.push(...excludeGroups);
+        }
+
+        if (excludeIcodes.length > 0) {
+            const icodePlaceholders = excludeIcodes.map(() => '?').join(',');
+            xrayFilterSql += ` AND o.icode NOT IN (${icodePlaceholders})`;
+            xrayParams.push(...excludeIcodes);
+        }
+
         const xrayDupRows = await conn.query(`
             SELECT 
                 o.icode,
@@ -833,10 +850,9 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
             WHERE o.an = ? 
               AND o.income = '08'
               AND xr.confirm = 'N'
-              AND xi.xray_items_group <> '7'
-              AND o.icode <> '3011687'
+              ${xrayFilterSql}
             ORDER BY order_date DESC, order_time DESC
-        `, [an]);
+        `, xrayParams);
 
         const duplicateXrays = xrayDupRows.map(r => {
             let dateStr = null;

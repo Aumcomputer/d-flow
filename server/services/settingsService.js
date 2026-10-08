@@ -53,7 +53,19 @@ const DEFAULT_DRUG_SETTINGS = {
     }
 };
 
+const DEFAULT_XRAY_SETTINGS = {
+    XRAY_EXCLUDE_GROUPS: {
+        value: process.env.XRAY_EXCLUDE_GROUPS || "7",
+        description: "กลุ่มรายการ X-ray ที่ยกเว้นจากการตรวจสอบซ้ำซ้อน (xray_items_group)"
+    },
+    XRAY_EXCLUDE_ICODES: {
+        value: process.env.XRAY_EXCLUDE_ICODES || "3011687",
+        description: "รหัสรายการ X-ray ที่ยกเว้นจากการตรวจสอบซ้ำซ้อน (icode)"
+    }
+};
+
 let cachedDrugSettings = null;
+let cachedXraySettings = null;
 
 async function initSettingsTables() {
     let conn;
@@ -144,8 +156,22 @@ async function initSettingsTables() {
             }
         }
 
-        // Preload drug settings into memory cache
+        // Seed default X-ray settings
+        for (const [key, item] of Object.entries(DEFAULT_XRAY_SETTINGS)) {
+            try {
+                await conn.query(
+                    `INSERT IGNORE INTO system_settings (setting_key, setting_value, description, updated_by)
+                     VALUES (?, ?, ?, 'system_bootstrap')`,
+                    [key, item.value, item.description]
+                );
+            } catch (e) {
+                console.error('Error seeding xray setting:', key, e.message);
+            }
+        }
+
+        // Preload settings into memory cache
         await loadDrugSettings();
+        await loadXraySettings();
 
         console.log('Settings tables initialized successfully');
     } catch (err) {
@@ -373,9 +399,165 @@ async function getUserPermissions(loginname, providedGroupName) {
     }
 }
 
+async function loadXraySettings() {
+    let conn;
+    try {
+        conn = await getDflowConnection();
+        const rows = await conn.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE "XRAY_%"');
+        const map = {};
+        for (const r of rows) {
+            map[r.setting_key] = r.setting_value;
+        }
+
+        cachedXraySettings = {
+            XRAY_EXCLUDE_GROUPS: map.XRAY_EXCLUDE_GROUPS !== undefined ? map.XRAY_EXCLUDE_GROUPS : DEFAULT_XRAY_SETTINGS.XRAY_EXCLUDE_GROUPS.value,
+            XRAY_EXCLUDE_ICODES: map.XRAY_EXCLUDE_ICODES !== undefined ? map.XRAY_EXCLUDE_ICODES : DEFAULT_XRAY_SETTINGS.XRAY_EXCLUDE_ICODES.value,
+        };
+        return cachedXraySettings;
+    } catch (e) {
+        console.error('Error loading xray settings:', e);
+        if (!cachedXraySettings) {
+            cachedXraySettings = {
+                XRAY_EXCLUDE_GROUPS: DEFAULT_XRAY_SETTINGS.XRAY_EXCLUDE_GROUPS.value,
+                XRAY_EXCLUDE_ICODES: DEFAULT_XRAY_SETTINGS.XRAY_EXCLUDE_ICODES.value,
+            };
+        }
+        return cachedXraySettings;
+    } finally {
+        if (conn) conn.release();
+    }
+}
+
+function getXraySettingsSync() {
+    if (!cachedXraySettings) {
+        return {
+            XRAY_EXCLUDE_GROUPS: DEFAULT_XRAY_SETTINGS.XRAY_EXCLUDE_GROUPS.value,
+            XRAY_EXCLUDE_ICODES: DEFAULT_XRAY_SETTINGS.XRAY_EXCLUDE_ICODES.value,
+        };
+    }
+    return cachedXraySettings;
+}
+
+function getParsedXrayFilters() {
+    const s = getXraySettingsSync();
+    return {
+        excludeGroups: (s.XRAY_EXCLUDE_GROUPS || '').split(',').map(x => x.trim()).filter(Boolean),
+        excludeIcodes: (s.XRAY_EXCLUDE_ICODES || '').split(',').map(x => x.trim()).filter(Boolean),
+    };
+}
+
+async function saveXraySettings(newSettings, updatedBy = 'system') {
+    let conn;
+    try {
+        conn = await getDflowConnection();
+        for (const [key, val] of Object.entries(newSettings)) {
+            if (DEFAULT_XRAY_SETTINGS[key]) {
+                const strVal = String(val ?? '').trim();
+                await conn.query(
+                    `INSERT INTO system_settings (setting_key, setting_value, description, updated_by)
+                     VALUES (?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE 
+                        setting_value = VALUES(setting_value),
+                        updated_by = VALUES(updated_by)`,
+                    [key, strVal, DEFAULT_XRAY_SETTINGS[key].description, updatedBy]
+                );
+            }
+        }
+        await loadXraySettings();
+        return cachedXraySettings;
+    } catch (e) {
+        console.error('Error saving xray settings:', e);
+        throw e;
+    } finally {
+        if (conn) conn.release();
+    }
+}
+
+async function getXrayGroupsList() {
+    let hisConn;
+    try {
+        hisConn = await getHisConnection();
+        const rows = await hisConn.query('SELECT xray_items_group, name FROM xray_items_group ORDER BY xray_items_group ASC');
+        return rows.map(r => ({
+            id: String(r.xray_items_group),
+            name: r.name || `กลุ่ม ${r.xray_items_group}`
+        }));
+    } catch (e) {
+        console.error('Error fetching xray groups:', e);
+        return [];
+    } finally {
+        if (hisConn) hisConn.release();
+    }
+}
+
+async function getXrayDetailsByIcodes(icodes) {
+    if (!Array.isArray(icodes) || icodes.length === 0) return [];
+    let hisConn;
+    try {
+        hisConn = await getHisConnection();
+        const rows = await hisConn.query(`
+            SELECT 
+                COALESCE(x.icode, n.icode) as icode,
+                COALESCE(x.xray_items_name, n.name) as xray_items_name,
+                x.xray_items_group,
+                g.name as group_name
+            FROM nondrugitems n
+            LEFT JOIN xray_items x ON x.icode = n.icode
+            LEFT JOIN xray_items_group g ON g.xray_items_group = x.xray_items_group
+            WHERE n.icode IN (?)
+        `, [icodes]);
+        return rows.map(r => ({
+            icode: String(r.icode || ''),
+            name: r.xray_items_name || r.icode,
+            group_id: r.xray_items_group != null ? String(r.xray_items_group) : null,
+            group_name: r.group_name || '-'
+        }));
+    } catch (e) {
+        console.error('Error in getXrayDetailsByIcodes:', e);
+        return [];
+    } finally {
+        if (hisConn) hisConn.release();
+    }
+}
+
+async function searchXrayItems(q) {
+    if (!q || !q.trim()) return [];
+    const term = `%${q.trim()}%`;
+    let hisConn;
+    try {
+        hisConn = await getHisConnection();
+        const rows = await hisConn.query(`
+            SELECT 
+                COALESCE(x.icode, n.icode) as icode,
+                COALESCE(x.xray_items_name, n.name) as xray_items_name,
+                x.xray_items_group,
+                g.name as group_name
+            FROM nondrugitems n
+            LEFT JOIN xray_items x ON x.icode = n.icode
+            LEFT JOIN xray_items_group g ON g.xray_items_group = x.xray_items_group
+            WHERE n.income = '08'
+              AND (n.icode LIKE ? OR n.name LIKE ? OR x.xray_items_name LIKE ?)
+            ORDER BY n.icode ASC
+            LIMIT 30
+        `, [term, term, term]);
+        return rows.map(r => ({
+            icode: String(r.icode || ''),
+            name: r.xray_items_name || r.icode,
+            group_id: r.xray_items_group != null ? String(r.xray_items_group) : null,
+            group_name: r.group_name || '-'
+        }));
+    } catch (e) {
+        console.error('Error searching xray items:', e);
+        return [];
+    } finally {
+        if (hisConn) hisConn.release();
+    }
+}
+
 module.exports = {
     MODULE_KEYS,
     DEFAULT_DRUG_SETTINGS,
+    DEFAULT_XRAY_SETTINGS,
     initSettingsTables,
     isUserAdmin,
     getUserPermissions,
@@ -384,5 +566,12 @@ module.exports = {
     getParsedReturnMedFilters,
     saveDrugSettings,
     getDrugDetailsByIcodes,
-    searchDrugitems
+    searchDrugitems,
+    loadXraySettings,
+    getXraySettingsSync,
+    getParsedXrayFilters,
+    saveXraySettings,
+    getXrayGroupsList,
+    getXrayDetailsByIcodes,
+    searchXrayItems
 };
