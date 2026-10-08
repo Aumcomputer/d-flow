@@ -38,7 +38,17 @@ export default function DrugProfileTab({ an, isFilterActive }) {
     }
   }
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-'
+  const formatDate = (d) => {
+    if (!d) return '-'
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [y, m, day] = d.split('-')
+      const thaiYear = String(parseInt(y, 10) + 543).slice(-2)
+      return `${day}/${m}/${thaiYear}`
+    }
+    try {
+      return new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    } catch { return d }
+  }
   const formatTime = (t) => t ? String(t).substring(0, 5) : ''
   const formatMoney = (v) => v ? Number(v).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'
 

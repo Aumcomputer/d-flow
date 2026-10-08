@@ -672,14 +672,14 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
         `, [an]);
         const labNoSpecimen = Number(labRows[0]?.cnt || 0);
 
-        // 2. Duplicate charges (same conditions as drug profile: exclude income 07, 81, 82)
+        // 2. Duplicate charges (exclude income 07, 81, 82, must match same order date and time)
         const dupRows = await conn.query(`
             SELECT COUNT(*) AS cnt FROM (
-                SELECT order_no, icode, COUNT(*) as c
+                SELECT icode, DATE_FORMAT(COALESCE(rxdate, vstdate), '%Y-%m-%d') as odate, COALESCE(rxtime, vsttime) as otime
                 FROM opitemrece
                 WHERE an = ? AND income NOT IN ('07', '81', '82')
-                GROUP BY order_no, icode
-                HAVING c > 1
+                GROUP BY icode, odate, otime
+                HAVING COUNT(*) > 1
             ) dup
         `, [an]);
         const duplicateCharges = Number(dupRows[0]?.cnt || 0);
@@ -913,19 +913,25 @@ router.get('/:an/drugs', authMiddleware, async (req, res) => {
         `;
         const rows = await conn.query(sql, [an]);
 
-        // Check for duplicate icode per order_no
+        // Check for duplicate items per order (same icode, order date and order time)
         if (rows.length > 0) {
             const orderNos = rows.map(r => r.order_no);
             const placeholders = orderNos.map(() => '?').join(',');
             const dupSql = `
-                SELECT order_no, icode, COUNT(*) as cnt
-                FROM opitemrece
-                WHERE an = ? AND order_no IN (${placeholders})
-                  AND income NOT IN ('07', '81', '82')
-                GROUP BY order_no, icode
-                HAVING cnt > 1
+                SELECT DISTINCT o.order_no
+                FROM opitemrece o
+                INNER JOIN (
+                    SELECT icode, DATE_FORMAT(COALESCE(rxdate, vstdate), '%Y-%m-%d') as odate, COALESCE(rxtime, vsttime) as otime
+                    FROM opitemrece
+                    WHERE an = ? AND income NOT IN ('07', '81', '82')
+                    GROUP BY icode, odate, otime
+                    HAVING COUNT(*) > 1
+                ) dup ON o.icode = dup.icode 
+                     AND DATE_FORMAT(COALESCE(o.rxdate, o.vstdate), '%Y-%m-%d') = dup.odate 
+                     AND COALESCE(o.rxtime, o.vsttime) = dup.otime
+                WHERE o.an = ? AND o.order_no IN (${placeholders})
             `;
-            const dupRows = await conn.query(dupSql, [an, ...orderNos]);
+            const dupRows = await conn.query(dupSql, [an, an, ...orderNos]);
             const dupOrderNos = new Set(dupRows.map(r => r.order_no));
 
             for (const row of rows) {
@@ -958,7 +964,7 @@ router.get('/:an/drugs/:orderNo', authMiddleware, async (req, res) => {
                    CONCAT(s.name, ' ', s.strength, ' ', s.units) AS drug_name,
                    o.qty, d.shortlist AS usage_note,
                    o.unitprice, o.sum_price,
-                   COALESCE(o.rxdate, o.vstdate) AS rxdate,
+                   DATE_FORMAT(COALESCE(o.rxdate, o.vstdate), '%Y-%m-%d') AS rxdate,
                    COALESCE(o.rxtime, o.vsttime) AS rxtime,
                    u.name as staff_name
             FROM opitemrece o
@@ -970,16 +976,22 @@ router.get('/:an/drugs/:orderNo', authMiddleware, async (req, res) => {
         `;
         const rows = await conn.query(sql, [an, orderNo]);
 
-        // Detect duplicate icodes within this order, ignoring income 81 and 82
-        const icodeCount = {};
+        // Detect duplicate icodes with same order date and time for this AN
+        const dupItems = await conn.query(`
+            SELECT icode, DATE_FORMAT(COALESCE(rxdate, vstdate), '%Y-%m-%d') as odate, COALESCE(rxtime, vsttime) as otime
+            FROM opitemrece
+            WHERE an = ? AND income NOT IN ('07', '81', '82')
+            GROUP BY icode, odate, otime
+            HAVING COUNT(*) > 1
+        `, [an]);
+
+        const dupSet = new Set(dupItems.map(d => `${d.icode}_${d.odate}_${String(d.otime || '').slice(0, 8)}`));
+
         for (const row of rows) {
             if (row.income != '07' && row.income != '81' && row.income != '82') {
-                icodeCount[row.icode] = (icodeCount[row.icode] || 0) + 1;
-            }
-        }
-        for (const row of rows) {
-            if (row.income != '07' && row.income != '81' && row.income != '82') {
-                row.is_duplicate = icodeCount[row.icode] > 1;
+                const dateKey = String(row.rxdate || '');
+                const timeKey = String(row.rxtime || '').slice(0, 8);
+                row.is_duplicate = dupSet.has(`${row.icode}_${dateKey}_${timeKey}`);
             } else {
                 row.is_duplicate = false;
             }
