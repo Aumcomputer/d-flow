@@ -817,9 +817,55 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
         const totalOps = Number(opRows[0]?.total_ops || 0);
         const opnotesCompleted = Number(opRows[0]?.opnotes_completed || 0);
 
+        // 6. Duplicate X-ray charges (income = '08', xr.confirm = 'N', xi.xray_items_group <> '7', o.icode <> '3011687')
+        const xrayDupRows = await conn.query(`
+            SELECT 
+                o.icode,
+                COALESCE(o.vstdate, o.rxdate, xr.request_date) as order_date,
+                COALESCE(o.vsttime, o.rxtime, xr.request_time, '') as order_time,
+                xr.confirm,
+                xr.confirm_read_film,
+                COALESCE(xi.xray_items_name, 'ไม่ระบุชื่อรายการ') as xray_items_name,
+                xi.xray_items_group
+            FROM opitemrece o
+            INNER JOIN xray_report xr ON xr.opitemrece_guid = o.hos_guid 
+            LEFT JOIN xray_items xi ON o.icode = xi.icode 
+            WHERE o.an = ? 
+              AND o.income = '08'
+              AND xr.confirm = 'N'
+              AND xi.xray_items_group <> '7'
+              AND o.icode <> '3011687'
+            ORDER BY order_date DESC, order_time DESC
+        `, [an]);
+
+        const duplicateXrays = xrayDupRows.map(r => {
+            let dateStr = null;
+            if (r.order_date) {
+                if (r.order_date instanceof Date) {
+                    const y = r.order_date.getFullYear();
+                    const m = String(r.order_date.getMonth() + 1).padStart(2, '0');
+                    const d = String(r.order_date.getDate()).padStart(2, '0');
+                    dateStr = `${y}-${m}-${d}`;
+                } else {
+                    dateStr = String(r.order_date).split('T')[0];
+                }
+            }
+            return {
+                icode: String(r.icode || ''),
+                order_date: dateStr,
+                order_time: r.order_time ? String(r.order_time).slice(0, 8) : '',
+                xray_items_name: r.xray_items_name || '',
+                confirm: r.confirm,
+                xray_items_group: r.xray_items_group != null ? Number(r.xray_items_group) : null
+            };
+        });
+        const duplicateXrayCount = duplicateXrays.length;
+
         res.json({
             labNoSpecimen,
             duplicateCharges,
+            duplicateXrays,
+            duplicateXrayCount,
             bedMissingDays,
             bedMissingDates,
             bedAuditInfo,

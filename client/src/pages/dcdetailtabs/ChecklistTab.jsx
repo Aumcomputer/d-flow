@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X, Calendar, RotateCcw, Lock, Plus, Minus } from 'lucide-react';
+import { Activity, User, FileText, CheckCircle2, Shield, AlertCircle, FlaskConical, DollarSign, Bed, Scissors, Pill, Building2, History, X, Calendar, RotateCcw, Lock, Plus, Minus, Radiation } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import socket from '../../services/socket';
@@ -266,6 +266,27 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
     } catch { return d }
   }
 
+  const formatDateTime = (dateStr, timeStr) => {
+    if (!dateStr) return '-'
+    try {
+      let formattedDate = dateStr
+      if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [y, m, d] = dateStr.split('-')
+        const thaiYear = String(parseInt(y, 10) + 543).slice(-2)
+        formattedDate = `${d}/${m}/${thaiYear}`
+      } else {
+        const d = new Date(dateStr)
+        if (!isNaN(d.getTime())) {
+          formattedDate = d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })
+        }
+      }
+      const formattedTime = timeStr ? ` ${String(timeStr).slice(0, 5)} น.` : ''
+      return `${formattedDate}${formattedTime}`
+    } catch {
+      return `${dateStr} ${timeStr || ''}`.trim()
+    }
+  }
+
   const auditItems = audit ? [
     {
       pass: audit.docComplete,
@@ -287,6 +308,14 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
       failLabel: `พบค่าใช้จ่ายซ้ำซ้อน ${audit.duplicateCharges} รายการ`,
       icon: DollarSign,
       tabId: 'drugs',
+    },
+    {
+      pass: (audit.duplicateXrayCount ?? audit.duplicateXrays?.length ?? 0) === 0,
+      passLabel: 'ไม่พบรายการ X-ray ซ้ำซ้อน',
+      failLabel: `พบรายการ X-ray ซ้ำซ้อน ${audit.duplicateXrayCount ?? audit.duplicateXrays?.length ?? 0} รายการ`,
+      icon: Radiation,
+      tabId: 'expenses',
+      itemsList: audit.duplicateXrays || [],
     },
     {
       pass: audit.bedMissingDays === 0,
@@ -355,6 +384,18 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                     </p>
                     {!item.pass && item.failDetail && (
                       <p className="text-xs text-red-600/70 mt-1">วันที่ขาด: {item.failDetail}</p>
+                    )}
+                    {!item.pass && item.itemsList && item.itemsList.length > 0 && (
+                      <div className="mt-2 space-y-1.5">
+                        {item.itemsList.map((x, i) => (
+                          <div key={i} className="text-xs text-red-800 bg-red-100/70 border border-red-200/80 px-2.5 py-1.5 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-1 shadow-2xs">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{x.xray_items_name}</span>
+                            <span className="text-[11px] text-red-700 font-mono shrink-0">
+                              {formatDateTime(x.order_date, x.order_time)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                   <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${item.pass ? 'text-emerald-400' : 'text-red-400'}`} />
