@@ -825,11 +825,14 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
                 COALESCE(o.vsttime, o.rxtime, xr.request_time, '') as order_time,
                 xr.confirm,
                 xr.confirm_read_film,
+                COALESCE(d.name, n.name, xi.xray_items_name, 'ไม่ระบุชื่อรายการ') as item_name,
                 COALESCE(xi.xray_items_name, 'ไม่ระบุชื่อรายการ') as xray_items_name,
                 xi.xray_items_group
             FROM opitemrece o
             INNER JOIN xray_report xr ON xr.opitemrece_guid = o.hos_guid 
             LEFT JOIN xray_items xi ON o.icode = xi.icode 
+            LEFT JOIN drugitems d ON d.icode = o.icode
+            LEFT JOIN nondrugitems n ON n.icode = o.icode
             WHERE o.an = ? 
               AND o.income = '08'
               AND xr.confirm = 'N'
@@ -854,7 +857,8 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
                 icode: String(r.icode || ''),
                 order_date: dateStr,
                 order_time: r.order_time ? String(r.order_time).slice(0, 8) : '',
-                xray_items_name: r.xray_items_name || '',
+                item_name: r.item_name || r.xray_items_name || '',
+                xray_items_name: r.item_name || r.xray_items_name || '',
                 confirm: r.confirm,
                 xray_items_group: r.xray_items_group != null ? Number(r.xray_items_group) : null
             };
