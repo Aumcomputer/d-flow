@@ -958,6 +958,8 @@ router.get('/:an/drugs/:orderNo', authMiddleware, async (req, res) => {
                    CONCAT(s.name, ' ', s.strength, ' ', s.units) AS drug_name,
                    o.qty, d.shortlist AS usage_note,
                    o.unitprice, o.sum_price,
+                   COALESCE(o.rxdate, o.vstdate) AS rxdate,
+                   COALESCE(o.rxtime, o.vsttime) AS rxtime,
                    u.name as staff_name
             FROM opitemrece o
             LEFT JOIN s_drugitems s ON s.icode = o.icode

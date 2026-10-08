@@ -108,6 +108,7 @@ export default function DrugProfileTab({ an, isFilterActive }) {
               <thead className="bg-muted/30 sticky top-0">
                 <tr className="text-muted-foreground">
                   <th className="px-3 py-2 text-left">#</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">วันเวลาที่สั่ง</th>
                   <th className="px-3 py-2 text-center">หมวด</th>
                   <th className="px-3 py-2 text-left">ชื่อเวชภัณฑ์</th>
                   <th className="px-3 py-2 text-right">จำนวน</th>
@@ -121,6 +122,9 @@ export default function DrugProfileTab({ an, isFilterActive }) {
                 {filteredDrugItems.map((d, idx) => (
                   <tr key={idx} className={`border-t border-border ${d.is_duplicate ? 'bg-red-50 text-red-800' : ''}`}>
                     <td className="px-3 py-2">{idx + 1}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">
+                      {d.rxdate ? `${formatDate(d.rxdate)} ${formatTime(d.rxtime)}`.trim() : '-'}
+                    </td>
                     <td className="px-3 py-2 text-center font-mono text-muted-foreground">{d.income || '-'}</td>
                     <td className="px-3 py-2 font-medium max-w-[250px]">
                       <div className="truncate" title={d.drug_name}>{d.drug_name || '-'}</div>
