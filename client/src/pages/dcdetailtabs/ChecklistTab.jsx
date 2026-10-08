@@ -389,7 +389,7 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
                       <div className="mt-2 space-y-1.5">
                         {item.itemsList.map((x, i) => (
                           <div key={i} className="text-xs text-red-800 bg-red-100/70 border border-red-200/80 px-2.5 py-1.5 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-1 shadow-2xs">
-                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{x.item_name || x.xray_items_name}</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{x.xray_items_name}</span>
                             <span className="text-[11px] text-red-700 font-mono shrink-0">
                               {formatDateTime(x.order_date, x.order_time)}
                             </span>
