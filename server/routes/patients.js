@@ -847,12 +847,11 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
             FROM opitemrece o
             INNER JOIN xray_report xr ON xr.opitemrece_guid = o.hos_guid 
             LEFT JOIN nondrugitems nd ON o.icode = nd.icode 
-            LEFT JOIN xray_items xi ON o.icode = xi.icode 
+            LEFT JOIN xray_items xi ON xr.xray_items_code = xi.xray_items_code 
             WHERE o.an = ? 
               AND o.income = '08'
               AND xr.confirm = 'N'
               ${xrayFilterSql}
-            GROUP BY o.hos_guid
             ORDER BY order_date DESC, order_time DESC
         `, xrayParams);
 
