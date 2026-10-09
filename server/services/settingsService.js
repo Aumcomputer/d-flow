@@ -498,7 +498,7 @@ async function getXrayDetailsByIcodes(icodes) {
         const rows = await hisConn.query(`
             SELECT 
                 COALESCE(x.icode, n.icode) as icode,
-                COALESCE(x.xray_items_name, n.name) as xray_items_name,
+                COALESCE(n.name, x.xray_items_name) as xray_items_name,
                 x.xray_items_group,
                 g.name as group_name
             FROM nondrugitems n
@@ -529,7 +529,7 @@ async function searchXrayItems(q) {
         const rows = await hisConn.query(`
             SELECT 
                 COALESCE(x.icode, n.icode) as icode,
-                COALESCE(x.xray_items_name, n.name) as xray_items_name,
+                COALESCE(n.name, x.xray_items_name) as xray_items_name,
                 x.xray_items_group,
                 g.name as group_name
             FROM nondrugitems n

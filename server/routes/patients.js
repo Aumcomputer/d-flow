@@ -842,15 +842,17 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
                 COALESCE(o.vsttime, o.rxtime, xr.request_time, '') as order_time,
                 xr.confirm,
                 xr.confirm_read_film,
-                COALESCE(xi.xray_items_name, 'ไม่ระบุชื่อรายการ') as xray_items_name,
+                COALESCE(nd.name, xi.xray_items_name, 'ไม่ระบุชื่อรายการ') as xray_items_name,
                 xi.xray_items_group
             FROM opitemrece o
             INNER JOIN xray_report xr ON xr.opitemrece_guid = o.hos_guid 
+            LEFT JOIN nondrugitems nd ON o.icode = nd.icode 
             LEFT JOIN xray_items xi ON o.icode = xi.icode 
             WHERE o.an = ? 
               AND o.income = '08'
               AND xr.confirm = 'N'
               ${xrayFilterSql}
+            GROUP BY o.hos_guid
             ORDER BY order_date DESC, order_time DESC
         `, xrayParams);
 
