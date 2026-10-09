@@ -120,7 +120,7 @@ router.get('/inpatients', async (req, res) => {
             hisConn = await getHisConnection();
             const hisQuery = `
                 SELECT 
-                    i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                    i.an, i.hn, i.vn, i.regdate as admit_date, i.regtime as admit_time,
                     p.pname, p.fname, p.lname, p.birthday,
                     (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
                     w.name AS ward_name,
@@ -164,6 +164,7 @@ router.get('/inpatients', async (req, res) => {
 
         // 2. Fetch documents, exempt pttypes, and API claim codes for these admitted ANs
         const ans = hisPatients.map(p => p.an);
+        const vns = hisPatients.map(p => p.vn).filter(Boolean);
         const placeholders = ans.map(() => '?').join(',');
         const [docs, exemptRows, authenRows] = await Promise.all([
             dflowConn.query(
@@ -171,17 +172,16 @@ router.get('/inpatients', async (req, res) => {
                 ans
             ),
             dflowConn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1'),
-            dflowConn.query(
-                `SELECT i.an, vna.claim_code 
-                 FROM vn_nhso_authen vna 
-                 INNER JOIN ipt i ON vna.vn = i.vn 
-                 WHERE i.an IN (${placeholders}) AND vna.claim_code IS NOT NULL AND vna.claim_code != ""`,
-                ans
-            ).catch(() => [])
+            vns.length > 0
+                ? dflowConn.query(
+                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${vns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != ''`,
+                    vns
+                  ).catch(() => [])
+                : []
         ]);
 
         const exemptCodes = new Set((exemptRows || []).map(r => String(r.code).trim().toUpperCase()));
-        const apiAuthenAnSet = new Set((authenRows || []).map(r => r.an));
+        const apiAuthenVnSet = new Set((authenRows || []).map(r => r.vn));
 
         const docMap = new Map();
         docs.forEach(d => {
@@ -198,7 +198,7 @@ router.get('/inpatients', async (req, res) => {
             const has_pttype_check = docSet.has(2);
             
             const isExempt = p.pttype_code && exemptCodes.has(String(p.pttype_code).trim().toUpperCase());
-            const hasApiAuthen = apiAuthenAnSet.has(p.an);
+            const hasApiAuthen = p.vn ? apiAuthenVnSet.has(p.vn) : false;
             const has_authen_code = docSet.has(3) || isExempt || hasApiAuthen;
 
             const doc_count = (has_id_card ? 1 : 0) + (has_pttype_check ? 1 : 0) + (has_authen_code ? 1 : 0);
@@ -505,13 +505,12 @@ router.get('/:an/completeness', async (req, res) => {
         conn = await getDflowConnection();
         hisConn = await getHisConnection();
         
-        const [reqTypesResult, docsResult, exemptRows, authenRows, patientRows] = await Promise.all([
+        const [reqTypesResult, docsResult, exemptRows, patientRows] = await Promise.all([
             conn.query('SELECT id, name FROM document_types WHERE id IN (1, 2, 3) ORDER BY id ASC'),
             conn.query('SELECT doc_type_id FROM documents WHERE an = ? AND is_deleted = 0 AND doc_type_id IN (1, 2, 3)', [an]),
             conn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1'),
-            conn.query('SELECT claim_code FROM vn_nhso_authen vna INNER JOIN ipt i ON vna.vn = i.vn WHERE i.an = ? AND vna.claim_code IS NOT NULL AND vna.claim_code != "" LIMIT 1', [an]),
             hisConn.query(`
-                SELECT i.pttype as ipt_pttype, o.pttype as ovst_pttype,
+                SELECT i.vn, i.pttype as ipt_pttype, o.pttype as ovst_pttype,
                        (SELECT GROUP_CONCAT(ip.pttype) FROM ipt_pttype ip WHERE ip.an = i.an) as all_ipt_pttypes
                 FROM ipt i
                 LEFT JOIN ovst o ON i.vn = o.vn
@@ -519,6 +518,11 @@ router.get('/:an/completeness', async (req, res) => {
                 LIMIT 1
             `, [an])
         ]);
+
+        const p = patientRows?.[0] || {};
+        const authenRows = p.vn
+            ? await conn.query('SELECT claim_code FROM vn_nhso_authen WHERE vn = ? AND claim_code IS NOT NULL AND claim_code != "" LIMIT 1', [p.vn]).catch(() => [])
+            : [];
 
         const reqTypes = reqTypesResult || [];
         const uploadedTypeIds = new Set((docsResult || []).map(d => d.doc_type_id));

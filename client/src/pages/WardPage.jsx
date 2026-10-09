@@ -364,9 +364,14 @@ export default function WardPage() {
                   </>
                 )}
                 {activeTab === 'admitted' && (
-                  <th className="px-4 py-3 text-center">
-                    เอกสารสิทธิ์
-                  </th>
+                  <>
+                    <th className="px-4 py-3 text-center cursor-pointer hover:bg-muted/80 transition-colors whitespace-nowrap" onClick={() => handleSort('isCheckedRight')}>
+                      ตรวจสอบสิทธิ์ {sortConfig.key === 'isCheckedRight' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="px-4 py-3 text-center cursor-pointer hover:bg-muted/80 transition-colors whitespace-nowrap" onClick={() => handleSort('hasAuthen')}>
+                      Authen {sortConfig.key === 'hasAuthen' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                    </th>
+                  </>
                 )}
                 <th className="px-4 py-3 text-right">
                   การจัดการ
@@ -376,13 +381,13 @@ export default function WardPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={activeTab === 'admitted' ? 11 : 12} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={activeTab === 'admitted' ? 13 : 12} className="px-4 py-8 text-center text-muted-foreground">
                     กำลังโหลดข้อมูล...
                   </td>
                 </tr>
               ) : sortedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={activeTab === 'admitted' ? 12 : 12} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={activeTab === 'admitted' ? 13 : 12} className="px-4 py-8 text-center text-muted-foreground">
                     ไม่พบข้อมูลผู้ป่วย
                   </td>
                 </tr>
@@ -554,13 +559,24 @@ export default function WardPage() {
                       </>
                     )}
                     {activeTab === 'admitted' && (
-                      <td className="px-4 py-3 text-center">
-                        {p.isComplete ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" title="เอกสารครบถ้วน" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-rose-400 mx-auto opacity-50" title="เอกสารไม่ครบ" />
-                        )}
-                      </td>
+                      <>
+                        <td className="px-4 py-3 text-center">
+                          {p.isCheckedRight ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" title={`ตรวจสอบสิทธิ์แล้ว (${p.chk_right})`} />
+                          ) : (
+                            <XCircle className="w-5 h-5 text-rose-500 mx-auto" title="ยังไม่ได้ตรวจสอบสิทธิ์" />
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {p.isAuthenExempt ? (
+                            <span className="text-muted-foreground font-semibold text-sm" title="ยกเว้นไม่ต้องมี Authen Code">-</span>
+                          ) : p.hasAuthen ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" title="มี Authen Code แล้ว" />
+                          ) : (
+                            <XCircle className="w-5 h-5 text-rose-500 mx-auto" title="ยังไม่มี Authen Code" />
+                          )}
+                        </td>
+                      </>
                     )}
                     <td className="px-4 py-3 text-right">
                       {activeTab === 'admitted' ? (

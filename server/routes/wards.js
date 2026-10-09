@@ -95,7 +95,10 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
         try {
             const cached = await redis.get(cacheKey);
             if (cached) {
-                rows = JSON.parse(cached);
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].vn !== undefined) {
+                    rows = parsed;
+                }
             }
         } catch (e) { console.error('Redis Get Error:', e); }
 
@@ -103,7 +106,7 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
             hisConn = await getHisConnection();
             const query = `
                 SELECT 
-                    i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                    i.an, i.hn, i.vn, i.regdate as admit_date, i.regtime as admit_time,
                     p.pname, p.fname, p.lname, p.birthday,
                     (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
                     w.name AS ward_name,
@@ -115,6 +118,8 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
                          WHERE ip.an = i.an),
                         pt.name
                     ) AS pttype_name,
+                    i.pttype AS pttype_code,
+                    (SELECT GROUP_CONCAT(ip.pttype) FROM ipt_pttype ip WHERE ip.an = i.an) AS all_pttype_codes,
                     iptb.bedno,
                     aa.income AS total_income,
                     aa.rcpt_money,
@@ -147,20 +152,52 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
         dflowConn = await getDflowConnection();
 
         const ans = rows.map(r => r.an);
-        const completeness = await getDocCompleteness(ans, dflowConn);
-        
-        // Fetch discharge status from D-Flow DB (just in case they were discharged in D-Flow but not HIS yet)
+        const vns = rows.map(r => r.vn).filter(Boolean);
         const placeholders = ans.map(() => '?').join(',');
-        const anDetailRows = await dflowConn.query(`SELECT an, discharge_date FROM an_detail WHERE an IN (${placeholders})`, ans);
-        const dischargedAns = new Set(anDetailRows.filter(r => r.discharge_date !== null).map(r => r.an));
+
+        const [completeness, anDetailRows, authenRows, exemptRows] = await Promise.all([
+            getDocCompleteness(ans, dflowConn),
+            dflowConn.query(`SELECT an, discharge_date, chk_right FROM an_detail WHERE an IN (${placeholders})`, ans),
+            vns.length > 0
+                ? dflowConn.query(
+                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${vns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != ''`,
+                    vns
+                  ).catch(() => [])
+                : [],
+            dflowConn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1').catch(() => [])
+        ]);
+
+        const anDetailMap = new Map((anDetailRows || []).map(r => [r.an, r]));
+        const authenVnSet = new Set((authenRows || []).map(r => r.vn));
+        const exemptCodes = new Set((exemptRows || []).map(r => String(r.code).trim().toUpperCase()));
+
+        const dischargedAns = new Set(
+            (anDetailRows || []).filter(r => r.discharge_date !== null).map(r => r.an)
+        );
 
         // Format result, filtering out those already discharged in D-Flow
         const result = rows
             .filter(row => !dischargedAns.has(row.an))
-            .map(row => ({
-                ...row,
-                isComplete: completeness[row.an] || false
-            }));
+            .map(row => {
+                const detail = anDetailMap.get(row.an);
+                const chkRight = detail?.chk_right != null ? String(detail.chk_right).trim() : '';
+                const isCheckedRight = chkRight !== '';
+
+                const pttypeCandidates = [row.pttype_code, ...(row.all_pttype_codes ? String(row.all_pttype_codes).split(',') : [])]
+                    .filter(Boolean)
+                    .map(c => String(c).trim().toUpperCase());
+                const isAuthenExempt = pttypeCandidates.some(c => exemptCodes.has(c));
+                const hasAuthen = authenVnSet.has(row.vn);
+
+                return {
+                    ...row,
+                    isComplete: completeness[row.an] || false,
+                    chk_right: chkRight,
+                    isCheckedRight,
+                    isAuthenExempt,
+                    hasAuthen
+                };
+            });
 
 
 
@@ -198,7 +235,7 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
         // Fetch details from HIS, filtering by ward
         const query = `
             SELECT 
-                i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                i.an, i.hn, i.vn, i.regdate as admit_date, i.regtime as admit_time,
                 p.pname, p.fname, p.lname, p.birthday,
                 (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
                 w.name AS ward_name,
@@ -210,6 +247,8 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
                      WHERE ip.an = i.an),
                     pt.name
                 ) AS pttype_name,
+                i.pttype AS pttype_code,
+                (SELECT GROUP_CONCAT(ip.pttype) FROM ipt_pttype ip WHERE ip.an = i.an) AS all_pttype_codes,
                 iptb.bedno,
                 aa.income AS total_income,
                 aa.rcpt_money,
@@ -295,13 +334,41 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
             }
         }
         
+        // Fetch Authen and Exempt statuses
+        const allVns = rows.map(r => r.vn).filter(Boolean);
+        const [authenRows, exemptRows] = await Promise.all([
+            allVns.length > 0
+                ? dflowConn.query(
+                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${allVns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != ''`,
+                    allVns
+                  ).catch(() => [])
+                : [],
+            dflowConn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1').catch(() => [])
+        ]);
+
+        const authenVnSet = new Set((authenRows || []).map(r => r.vn));
+        const exemptCodes = new Set((exemptRows || []).map(r => String(r.code).trim().toUpperCase()));
+
         // Merge D-Flow discharge details
         const result = rows.map(row => {
             const detail = allAnDetailRows.find(d => d.an === row.an);
+            const chkRight = detail?.chk_right != null ? String(detail.chk_right).trim() : '';
+            const isCheckedRight = chkRight !== '';
+
+            const pttypeCandidates = [row.pttype_code, ...(row.all_pttype_codes ? String(row.all_pttype_codes).split(',') : [])]
+                .filter(Boolean)
+                .map(c => String(c).trim().toUpperCase());
+            const isAuthenExempt = pttypeCandidates.some(c => exemptCodes.has(c));
+            const hasAuthen = authenVnSet.has(row.vn);
+
             return {
                 ...row,
                 ...detail,
-                isComplete: completeness[row.an] || false
+                isComplete: completeness[row.an] || false,
+                chk_right: chkRight,
+                isCheckedRight,
+                isAuthenExempt,
+                hasAuthen
             };
         });
 
