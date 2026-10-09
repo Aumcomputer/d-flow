@@ -63,12 +63,39 @@ const teamcom3Pool = mariadb.createPool({
     minimumIdle: 1
 });
 
+let hisWritePool = null;
+
+function getHisWritePool() {
+    if (!hisWritePool) {
+        if (!process.env.HIS_WRITE_DB_USER) {
+            throw new Error('ยังไม่ได้กำหนด HIS_WRITE_DB_USER ใน .env (กรุณาระบุ Username และ Password สำหรับเขียนลงฐานข้อมูล HOSxP)');
+        }
+        hisWritePool = mariadb.createPool({
+            host: process.env.HIS_WRITE_DB_HOST || process.env.HIS_DB_HOST,
+            user: process.env.HIS_WRITE_DB_USER,
+            password: process.env.HIS_WRITE_DB_PASSWORD,
+            database: process.env.HIS_WRITE_DB_NAME || process.env.HIS_DB_NAME,
+            port: Number(process.env.HIS_WRITE_DB_PORT || process.env.HIS_DB_PORT) || 3306,
+            charset: 'tis620',
+            initSql: "SET NAMES tis620",
+            connectionLimit: 10,
+            acquireTimeout: 30000,
+            connectTimeout: 10000,
+            socketTimeout: 30000,
+            idleTimeout: 60,
+            minimumIdle: 1
+        });
+    }
+    return hisWritePool;
+}
+
 module.exports = {
     hisPool,
     dflowPool,
     smartorPool,
     teamcom3Pool,
     getHisConnection: () => hisPool.getConnection(),
+    getHisWriteConnection: () => getHisWritePool().getConnection(),
     getDflowConnection: () => dflowPool.getConnection(),
     getSmartorConnection: () => smartorPool.getConnection(),
     getTeamcom3Connection: () => teamcom3Pool.getConnection()

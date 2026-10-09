@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Skeleton } from '../components/ui/skeleton'
 import DocumentsTab from '../components/DocumentsTab'
+import NhsoRightsCheckTab from '../components/NhsoRightsCheckTab'
 import { 
   FileText, 
   Search, 
@@ -14,6 +15,7 @@ import {
   Calendar, 
   Stethoscope, 
   Shield, 
+  ShieldCheck,
   CreditCard, 
   Building2, 
   AlertCircle,
@@ -48,9 +50,9 @@ export default function DocumentsPage() {
   // Inpatient list tabs state
   const [activeTab, setActiveTabState] = useState(() => {
     const urlTab = searchParams.get('tab')
-    if (urlTab === 'no_docs' || urlTab === 'incomplete') return urlTab
+    if (urlTab === 'no_docs' || urlTab === 'incomplete' || urlTab === 'check_rights') return urlTab
     const savedTab = sessionStorage.getItem('doc_activeTab')
-    if (savedTab === 'no_docs' || savedTab === 'incomplete') return savedTab
+    if (savedTab === 'no_docs' || savedTab === 'incomplete' || savedTab === 'check_rights') return savedTab
     return 'no_docs'
   })
 
@@ -556,6 +558,19 @@ export default function DocumentsPage() {
               {incompletePatients.length}
             </span>
           </button>
+
+          {/* Tab 3: ตรวจสอบสิทธิ์ (HOSxP - NHSO) */}
+          <button
+            onClick={() => handleTabClick('check_rights')}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+              activeTab === 'check_rights'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/50 rounded-t-xl'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>ตรวจสอบสิทธิ์</span>
+          </button>
         </div>
       )}
 
@@ -722,6 +737,13 @@ export default function DocumentsPage() {
             fetchDetails={fetchDetails} 
           />
         </div>
+      ) : !loading && activeTab === 'check_rights' ? (
+        <NhsoRightsCheckTab 
+          onSelectPatient={(an) => {
+            setSearchAN(an);
+            fetchPatient(an);
+          }}
+        />
       ) : !loading && (
         /* Inpatient Lists Table for active tab (คล้าย /pttype?tab=check) */
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">

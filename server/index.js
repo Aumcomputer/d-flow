@@ -53,6 +53,7 @@ app.use('/api/pttype', require('./routes/pttype'));
 app.use('/api/referback', require('./routes/referback'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/social-work', require('./routes/socialWork'));
+app.use('/api/nhso-authen', require('./routes/nhsoAuthen'));
 
 // System routes
 app.get('/api/system/version', (req, res) => {
