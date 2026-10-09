@@ -1146,7 +1146,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                             </div>
 
                             {comments.length > 0 && (
-                              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                              <div className="space-y-2">
                                 {comments.map((c) => (
                                   <div key={c.id} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm shadow-2xs space-y-1">
                                     <p className="text-slate-800 whitespace-pre-wrap font-normal leading-relaxed">{c.comment}</p>
