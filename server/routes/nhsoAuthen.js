@@ -50,8 +50,8 @@ router.get('/inpatients', async (req, res) => {
         const ans = patients.map(p => p.an);
         const vns = patients.map(p => p.vn).filter(Boolean);
 
-        // 2. Fetch ipt_pttype, visit_pttype, and opduser concurrently
-        const [iptPttypeRows, visitPttypeRows, staffRows, nhsoRows] = await Promise.all([
+        // 2. Fetch ipt_pttype, visit_pttype, opduser, authen, and sub-centers concurrently
+        const [iptPttypeRows, visitPttypeRows, staffRows, nhsoRows, subCenterRows, exemptRows] = await Promise.all([
             hisConn.query(`
                 SELECT ip.an, ip.pttype_number, ip.pttype, p.name as pttype_name,
                        ip.pttypeno, ip.hospmain, ip.hospsub, ip.begin_date, ip.expire_date,
@@ -81,8 +81,13 @@ router.get('/inpatients', async (req, res) => {
                     FROM vn_nhso_authen
                     WHERE vn IN (?)
                 `, [vns])
-                : []
+                : [],
+            dflowConn.query('SELECT UPPER(hospcode) as code FROM nhso_ucs_sub_centers WHERE is_active = 1').catch(() => []),
+            dflowConn.query('SELECT UPPER(pttype) as code FROM nhso_exempt_pttypes WHERE is_active = 1').catch(() => [])
         ]);
+
+        const dynamicSubCenters = Array.isArray(subCenterRows) && subCenterRows.length > 0 ? subCenterRows.map(r => r.code) : null;
+        const exemptCodes = Array.isArray(exemptRows) && exemptRows.length > 0 ? exemptRows.map(r => r.code) : [];
 
         // Build Staff Name Lookup
         const staffMap = new Map();
@@ -165,6 +170,48 @@ router.get('/inpatients', async (req, res) => {
             const primaryStaffCode = p.ipt_staff || '';
             const primaryStaffName = primaryStaffCode ? (staffMap.get(String(primaryStaffCode).trim()) || primaryStaffCode) : '';
 
+            // Match checking between ipt_pttype and NHSO API
+            let mappedPttype = null;
+            let isRightsMatch = false;
+            let isHospmainMatch = true;
+            let isHospsubMatch = true;
+            let isHospMatch = true;
+            let isMismatch = false;
+
+            if (hasChecked && nhso) {
+                const currentPttype = p.ipt_pttype || p.ovst_pttype || '';
+                const isExempt = currentPttype && exemptCodes.includes(String(currentPttype).trim().toUpperCase());
+                if (isExempt) {
+                    mappedPttype = currentPttype;
+                } else {
+                    mappedPttype = mapNhsoToHosPttype(
+                        nhso.maininscl_id,
+                        nhso.subinscl_id,
+                        nhso.hospmain_code,
+                        nhso.hospsub_code,
+                        currentPttype,
+                        dynamicSubCenters
+                    );
+                }
+
+                if (mappedPttype) {
+                    isRightsMatch = iptList.some(ip => String(ip.pttype || '').trim().toLowerCase() === String(mappedPttype).trim().toLowerCase());
+                }
+
+                const nhsoMainCode = nhso.hospmain_code ? String(nhso.hospmain_code).trim() : '';
+                const nhsoSubCode = nhso.hospsub_code ? String(nhso.hospsub_code).trim() : '';
+
+                if (nhsoMainCode) {
+                    isHospmainMatch = iptList.some(ip => String(ip.hospmain || '').trim() === nhsoMainCode);
+                }
+                if (nhsoSubCode) {
+                    isHospsubMatch = iptList.some(ip => String(ip.hospsub || '').trim() === nhsoSubCode);
+                }
+
+                isHospMatch = isHospmainMatch && isHospsubMatch;
+                isMismatch = !isRightsMatch || !isHospMatch;
+            }
+
             return {
                 an: p.an,
                 vn: p.vn,
@@ -176,6 +223,16 @@ router.get('/inpatients', async (req, res) => {
                 admit_time: p.admit_time ? String(p.admit_time).slice(0, 5) : '',
                 ward_code: p.ward_code,
                 ward_name: p.ward_name,
+                is_mismatch: isMismatch,
+                comparison: {
+                    has_checked: hasChecked,
+                    mapped_pttype: mappedPttype,
+                    is_rights_match: isRightsMatch,
+                    is_hospmain_match: isHospmainMatch,
+                    is_hospsub_match: isHospsubMatch,
+                    is_hosp_match: isHospMatch,
+                    is_mismatch: isMismatch
+                },
                 
                 // 1. ovst
                 ovst: {

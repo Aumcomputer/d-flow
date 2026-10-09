@@ -665,16 +665,36 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                 </tr>
               ) : (
                 paginatedPatients.map((p) => {
-                  const isCheckedWithNhso = Boolean(p.nhso?.has_checked);
+                  const isCheckedWithNhso = Boolean(p.nhso?.has_checked || p.nhso?.right_check_date);
                   const isCheckingThis = checkingVns.has(p.vn);
                   const isSelected = selectedAnList.has(p.an);
+
+                  const nhsoMainCode = p.nhso?.hospmain_code ? String(p.nhso.hospmain_code).trim() : '';
+                  const nhsoSubCode = p.nhso?.hospsub_code ? String(p.nhso.hospsub_code).trim() : '';
+
+                  const isHospmainMatch = nhsoMainCode 
+                    ? (p.ipt_pttype_list?.some(ip => String(ip.hospmain || '').trim() === nhsoMainCode) ?? false)
+                    : true;
+                  const isHospsubMatch = nhsoSubCode 
+                    ? (p.ipt_pttype_list?.some(ip => String(ip.hospsub || '').trim() === nhsoSubCode) ?? false)
+                    : true;
+                  const isHospMatch = isHospmainMatch && isHospsubMatch;
+
+                  // ตรวจสอบ mismatch: ถ้าเช็คแล้ว และสิทธิ์ไม่ตรง หรือ รพ.หลัก/รอง ไม่ตรง
+                  const isMismatch = p.is_mismatch !== undefined
+                    ? p.is_mismatch
+                    : (isCheckedWithNhso && (p.comparison ? p.comparison.is_mismatch : (!p.comparison?.is_rights_match || !isHospMatch)));
 
                   return (
                     <tr 
                       key={p.an} 
                       onClick={() => handleRowClick(p)}
-                      className={`hover:bg-sky-50/60 cursor-pointer transition-colors ${
-                        isSelected ? 'bg-sky-50/40' : ''
+                      className={`cursor-pointer transition-colors ${
+                        isMismatch 
+                          ? 'bg-red-50/90 hover:bg-red-100/90 border-b border-red-200' 
+                          : isSelected 
+                          ? 'bg-sky-50/60 hover:bg-sky-50/80' 
+                          : 'hover:bg-sky-50/40'
                       }`}
                       title="คลิกเพื่อดูรายละเอียดสิทธิ์และเปรียบเทียบกับ สปสช. (API)"
                     >
@@ -754,30 +774,41 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                       </td>
 
                       {/* ipt_pttype (แสดงทุกสิทธิ์: pttype, hospmain, hospsub, authen_code) */}
-                      <td className="p-3 bg-sky-50/20">
+                      <td className={`p-3 ${isMismatch ? 'bg-red-50/40' : 'bg-sky-50/20'}`}>
                         {p.ipt_pttype_list && p.ipt_pttype_list.length > 0 ? (
                           <div className="space-y-1.5 min-w-[190px]">
-                            {p.ipt_pttype_list.map((ip, idx) => (
-                              <div key={idx} className="bg-white/90 p-2 rounded-lg border border-sky-100 shadow-2xs text-xs space-y-1">
-                                <div className="font-semibold text-slate-900 flex items-center justify-between gap-1">
-                                  <div className="truncate">
-                                    <span className="bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded font-mono font-bold mr-1 text-[11px]">
-                                      {p.ipt_pttype_list.length > 1 ? `#${ip.pttype_number} ` : ''}{ip.pttype}
+                            {p.ipt_pttype_list.map((ip, idx) => {
+                              const ipHospmain = String(ip.hospmain || '').trim();
+                              const ipHospsub = String(ip.hospsub || '').trim();
+                              const mainMatches = nhsoMainCode && ipHospmain === nhsoMainCode;
+                              const subMatches = nhsoSubCode && ipHospsub === nhsoSubCode;
+
+                              return (
+                                <div key={idx} className="bg-white/90 p-2 rounded-lg border border-sky-100 shadow-2xs text-xs space-y-1">
+                                  <div className="font-semibold text-slate-900 flex items-center justify-between gap-1">
+                                    <div className="truncate">
+                                      <span className="bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded font-mono font-bold mr-1 text-[11px]">
+                                        {p.ipt_pttype_list.length > 1 ? `#${ip.pttype_number} ` : ''}{ip.pttype}
+                                      </span>
+                                      <span className="text-slate-700 text-[11px]">{ip.pttype_name}</span>
+                                    </div>
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                                    <span>
+                                      รพ.หลัก/รอง: <strong className="font-mono text-slate-700">{ip.hospmain || '-'}/{ip.hospsub || '-'}</strong>
                                     </span>
-                                    <span className="text-slate-700 text-[11px]">{ip.pttype_name}</span>
+                                    {mainMatches && <span className="text-emerald-600 font-bold text-xs" title="รหัส รพ.หลัก ตรงกับ สปสช.">✓</span>}
+                                    {subMatches && <span className="text-emerald-600 font-bold text-xs" title="รหัส รพ.รอง ตรงกับ สปสช.">✓</span>}
+                                  </div>
+                                  <div className="text-[10px] flex items-center gap-1 font-mono">
+                                    <span className="text-muted-foreground">Auth:</span>
+                                    <span className={`font-semibold ${ip.auth_code ? 'text-emerald-700 bg-emerald-50 px-1 rounded' : 'text-slate-400'}`}>
+                                      {ip.auth_code || ip.claim_code || '-'}
+                                    </span>
                                   </div>
                                 </div>
-                                <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                  <span>รพ.หลัก/รอง: <strong className="font-mono text-slate-700">{ip.hospmain || '-'}/{ip.hospsub || '-'}</strong></span>
-                                </div>
-                                <div className="text-[10px] flex items-center gap-1 font-mono">
-                                  <span className="text-muted-foreground">Auth:</span>
-                                  <span className={`font-semibold ${ip.auth_code ? 'text-emerald-700 bg-emerald-50 px-1 rounded' : 'text-slate-400'}`}>
-                                    {ip.auth_code || ip.claim_code || '-'}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="text-xs text-slate-700 min-w-[160px]">
@@ -791,9 +822,9 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                       </td>
 
                       {/* สิทธิ สปสช. (API) */}
-                      <td className="p-3 bg-emerald-50/20">
+                      <td className={`p-3 ${isMismatch ? 'bg-red-50/40' : 'bg-emerald-50/20'}`}>
                         {isCheckedWithNhso ? (
-                          <div className="space-y-0.5 min-w-[160px]">
+                          <div className="space-y-0.5 min-w-[170px]">
                             <div className="font-semibold text-emerald-900">
                               <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-mono mr-1">
                                 {p.nhso.maininscl_id || '-'}
@@ -801,20 +832,23 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                               <span>{p.nhso.subinscl_name || p.nhso.maininscl_name || '-'}</span>
                             </div>
                             {(p.nhso.hospmain_name || p.nhso.hospmain_code) && (
-                              <div className="text-[10px] text-muted-foreground">
-                                รพ.หลัก: {p.nhso.hospmain_name || p.nhso.hospmain_code}
+                              <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <span>รพ.หลัก: {p.nhso.hospmain_code ? `${p.nhso.hospmain_code} ` : ''}{p.nhso.hospmain_name || ''}</span>
+                                {isHospmainMatch && <span className="text-emerald-600 font-bold text-xs" title="รหัส รพ.หลัก ตรงกับ HOS">✓</span>}
                               </div>
                             )}
                             {(p.nhso.hospsub_name || p.nhso.hospsub_code) && (
-                              <div className="text-[10px] text-muted-foreground">
-                                รพ.รอง: {p.nhso.hospsub_name || p.nhso.hospsub_code}
+                              <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <span>รพ.รอง: {p.nhso.hospsub_code ? `${p.nhso.hospsub_code} ` : ''}{p.nhso.hospsub_name || ''}</span>
+                                {isHospsubMatch && <span className="text-emerald-600 font-bold text-xs" title="รหัส รพ.รอง ตรงกับ HOS">✓</span>}
                               </div>
                             )}
-                            {p.nhso.right_start_date && (
-                              <div className="text-[10px] text-muted-foreground font-mono">
-                                วันเริ่มสิทธิ: {p.nhso.right_start_date}
-                              </div>
-                            )}
+                            <div className="text-[10px] flex items-center gap-1 font-mono">
+                              <span className="text-muted-foreground">Auth:</span>
+                              <span className={`font-semibold ${p.nhso.claim_code ? 'text-emerald-700 bg-emerald-50 px-1 rounded' : 'text-slate-400'}`}>
+                                {p.nhso.claim_code || '-'}
+                              </span>
+                            </div>
                           </div>
                         ) : (
                           <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">
@@ -824,7 +858,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                       </td>
 
                       {/* Authen Code (API) */}
-                      <td className="p-3 whitespace-nowrap bg-emerald-50/30">
+                      <td className={`p-3 whitespace-nowrap ${isMismatch ? 'bg-red-50/40' : 'bg-emerald-50/30'}`}>
                         {p.nhso?.claim_code ? (
                           <div className="space-y-0.5">
                             <div className="font-mono font-bold text-emerald-700 text-xs flex items-center gap-1">
@@ -841,11 +875,6 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                                 )}
                               </button>
                             </div>
-                            {p.nhso.source_channel && (
-                              <div className="text-[10px] text-muted-foreground font-mono">
-                                ช่องทาง: {p.nhso.source_channel}
-                              </div>
-                            )}
                           </div>
                         ) : isCheckedWithNhso ? (
                           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">
