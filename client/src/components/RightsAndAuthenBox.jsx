@@ -591,9 +591,6 @@ export default function RightsAndAuthenBox({ an, patient }) {
                     </Badge>
                   )}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  รายละเอียดของ Authen Code และข้อมูลการยืนยันตัวตน สปสช.
-                </p>
               </div>
             </div>
 
@@ -652,7 +649,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                   {(data.authen.create_date || data.authen.received_datetime) && (
                     <div className="text-xs font-mono text-slate-600 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100 flex items-center gap-1.5 justify-end">
                       <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                      <span>ขอเมื่อ: <strong className="text-slate-800">{formatThDateTime(data.authen.create_date || data.authen.received_datetime)}</strong></span>
+                      <span>วันที่ขอ Authen Code: <strong className="text-slate-800">{formatThDateTime(data.authen.create_date || data.authen.received_datetime)}</strong></span>
                     </div>
                   )}
 
