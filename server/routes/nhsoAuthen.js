@@ -875,8 +875,9 @@ router.post('/sync-ipt-pttype', async (req, res) => {
             ? ipRows.find(r => Number(r.pttype_number) === Number(target.pttype_number))
             : null) || ipRows[0];
 
-        // 2. อัปเดตเฉพาะ ipt_pttype แถวที่ตรงกัน (คง staff เดิม!)
-        const authCodeVal = target.auth_code || target.claim_code || null;
+        // 2. อัปเดตเฉพาะ ipt_pttype แถวที่ตรงกัน (คง staff เดิม และไม่ update claim_code!)
+        const authCodeVal = (target.auth_code && target.auth_code !== '-' ? target.auth_code : null) || 
+                            (target.claim_code && target.claim_code !== '-' ? target.claim_code : null);
         let pttypenoVal = (target.pttypeno && target.pttypeno !== '-') ? target.pttypeno : null;
         if (!pttypenoVal) {
             const pRows = await hisWriteConn.query('SELECT p.cid FROM ipt i JOIN patient p ON i.hn=p.hn WHERE i.an = ?', [an]);
@@ -884,6 +885,12 @@ router.post('/sync-ipt-pttype', async (req, res) => {
                 pttypenoVal = formatCid(pRows[0].cid);
             }
         }
+
+        const hospmainVal = (target.hospmain && target.hospmain !== '-' && String(target.hospmain).trim() !== '') ? target.hospmain : null;
+        const hospsubVal = (target.hospsub && target.hospsub !== '-' && String(target.hospsub).trim() !== '') ? target.hospsub : null;
+        const beginDateVal = (target.begin_date && target.begin_date !== '-' && String(target.begin_date).trim() !== '') ? target.begin_date : null;
+        // expire_date: ถ้าไม่มีค่า return จาก API หรือเป็นค่าว่าง ให้ใช้ค่าเดิมจาก HOS (COALESCE เก็บค่าเดิม)
+        const expireDateVal = (target.expire_date && target.expire_date !== '-' && String(target.expire_date).trim() !== '') ? target.expire_date : null;
 
         await hisWriteConn.query(`
             UPDATE ipt_pttype 
@@ -893,16 +900,14 @@ router.post('/sync-ipt-pttype', async (req, res) => {
                 hospsub = COALESCE(?, hospsub),
                 begin_date = COALESCE(?, begin_date),
                 expire_date = COALESCE(?, expire_date),
-                auth_code = COALESCE(?, auth_code),
-                claim_code = COALESCE(?, claim_code)
+                auth_code = COALESCE(?, auth_code)
             WHERE an = ? AND pttype = ? AND pttype_number = ?
         `, [
             pttypenoVal || null,
-            target.hospmain || null,
-            target.hospsub || null,
-            target.begin_date || null,
-            target.expire_date || null,
-            authCodeVal,
+            hospmainVal,
+            hospsubVal,
+            beginDateVal,
+            expireDateVal,
             authCodeVal,
             an,
             target.pttype,

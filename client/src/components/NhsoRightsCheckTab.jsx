@@ -404,10 +404,9 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
           pttypeno: (apiRow?.pttypeno && apiRow.pttypeno !== '-') ? apiRow.pttypeno : (detailData?.cid ? formatCid(detailData.cid) : null),
           hospmain: apiRow?.hospmain !== '-' ? apiRow?.hospmain : null,
           hospsub: apiRow?.hospsub !== '-' ? apiRow?.hospsub : null,
-          begin_date: apiRow?.begin_date !== '-' ? apiRow?.begin_date : null,
-          expire_date: apiRow?.expire_date !== '-' ? apiRow?.expire_date : null,
-          auth_code: authCodeVal,
-          claim_code: authCodeVal
+          begin_date: (apiRow?.begin_date && apiRow.begin_date !== '-') ? apiRow.begin_date : null,
+          expire_date: (apiRow?.expire_date && apiRow.expire_date !== '-') ? apiRow.expire_date : null,
+          auth_code: authCodeVal
         }
       });
 
