@@ -22,7 +22,7 @@ router.get('/inpatients', async (req, res) => {
         // 1. Base query for all admitted inpatients (ipt.dchdate IS NULL)
         const patients = await hisConn.query(`
             SELECT 
-                i.an, i.vn, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                i.an, i.vn, i.hn, DATE_FORMAT(i.regdate, '%Y-%m-%d') as admit_date, i.regtime as admit_time,
                 p.pname, p.fname, p.lname, p.cid,
                 TIMESTAMPDIFF(YEAR, p.birthday, CURDATE()) as age_y,
                 w.ward as ward_code, w.name as ward_name,
@@ -172,7 +172,7 @@ router.get('/inpatients', async (req, res) => {
                 cid: p.cid,
                 ptname: `${p.pname || ''}${p.fname || ''} ${p.lname || ''}`.trim(),
                 age_y: p.age_y,
-                admit_date: formatDateOnly(p.admit_date),
+                admit_date: p.admit_date,
                 admit_time: p.admit_time ? String(p.admit_time).slice(0, 5) : '',
                 ward_code: p.ward_code,
                 ward_name: p.ward_name,
@@ -258,23 +258,48 @@ router.get('/inpatients', async (req, res) => {
 });
 
 // ============================================================
-// 2. POST /check: Trigger NHSO right search and authen history
+// 2. POST /check: Trigger NHSO right search and authen history by admit date
 // ============================================================
 router.post('/check', async (req, res) => {
+    let hisConn, dflowConn;
     try {
-        const { vn, cid, vstdate, force = true } = req.body;
+        const { vn, an, cid, vstdate, admit_date, force = true } = req.body;
         if (!vn || !cid) {
             return res.status(400).json({ error: 'VN and CID are required' });
         }
 
+        hisConn = await hisPool.getConnection();
+
+        // 1. Determine exact admit date from ipt table in HOSxP (วันที่ admit)
+        let targetAdmitDate = admit_date || vstdate;
+        if (!targetAdmitDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetAdmitDate)) {
+            try {
+                const iptRows = await hisConn.query(
+                    "SELECT DATE_FORMAT(regdate, '%Y-%m-%d') as admit_date FROM ipt WHERE vn = ? OR an = ? LIMIT 1",
+                    [vn, an || '']
+                );
+                if (iptRows.length > 0 && iptRows[0].admit_date) {
+                    targetAdmitDate = iptRows[0].admit_date;
+                }
+            } catch (err) {
+                console.warn('[NhsoAuthen] Failed to resolve admit date from ipt:', err.message);
+            }
+        }
+
+        if (!targetAdmitDate) {
+            targetAdmitDate = new Date().toISOString().slice(0, 10);
+        }
+
         const nhsoUrl = getNhsoBaseUrl();
+
+        // 2. Call check-and-save on nhso-authen microservice with admit date
         const response = await fetch(`${nhsoUrl}/api/vn-authen/check-and-save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 vn,
                 cid,
-                vstdate: vstdate || new Date().toISOString().slice(0, 10),
+                vstdate: targetAdmitDate, // ส่งวันที่ admit ไปตรวจสอบ Authen Code
                 force: Boolean(force)
             })
         });
@@ -287,10 +312,55 @@ router.post('/check', async (req, res) => {
             });
         }
 
+        let savedData = result.data;
+
+        // 3. Fallback: If claim_code is still missing, search authen-history API for the admit date
+        if (!savedData?.claim_code) {
+            try {
+                const todayStr = new Date().toISOString().slice(0, 10);
+                const authRes = await fetch(`${nhsoUrl}/api/authen-history/${cid}?claimDateFrom=${targetAdmitDate}&claimDateTo=${todayStr}`);
+                if (authRes.ok) {
+                    const authJson = await authRes.json();
+                    if (authJson.success && Array.isArray(authJson.data) && authJson.data.length > 0) {
+                        // Pick latest matching authen code
+                        const latestAuth = authJson.data[0];
+                        if (latestAuth.claimCode) {
+                            dflowConn = await dflowPool.getConnection();
+                            await dflowConn.query(`
+                                UPDATE vn_nhso_authen
+                                SET 
+                                    claim_code = ?,
+                                    claim_type = COALESCE(?, claim_type),
+                                    claim_type_name = COALESCE(?, claim_type_name),
+                                    source_channel = COALESCE(?, source_channel),
+                                    create_date = COALESCE(?, create_date),
+                                    authen_json = ?
+                                WHERE vn = ?
+                            `, [
+                                latestAuth.claimCode,
+                                latestAuth.claimType || null,
+                                latestAuth.claimTypeName || null,
+                                latestAuth.sourceChannel || null,
+                                latestAuth.createDate || null,
+                                JSON.stringify(latestAuth),
+                                vn
+                            ]);
+                            savedData.claim_code = latestAuth.claimCode;
+                            savedData.claim_type_name = latestAuth.claimTypeName;
+                            savedData.source_channel = latestAuth.sourceChannel;
+                        }
+                    }
+                }
+            } catch (authErr) {
+                console.warn('[NhsoAuthen] Fallback authen query error:', authErr.message);
+            }
+        }
+
         res.json({
             success: true,
-            message: 'ตรวจสอบสิทธิ์ สปสช. สำเร็จ',
-            data: result.data
+            message: `ตรวจสอบสิทธิ์และ Authen Code สปสช. สำเร็จ (วันที่ admit: ${targetAdmitDate})`,
+            admit_date: targetAdmitDate,
+            data: savedData
         });
 
     } catch (error) {
@@ -298,6 +368,9 @@ router.post('/check', async (req, res) => {
         res.status(500).json({
             error: `ไม่สามารถเชื่อมต่อระบบ สปสช. (${getNhsoBaseUrl()}): ${error.message}`
         });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
     }
 });
 

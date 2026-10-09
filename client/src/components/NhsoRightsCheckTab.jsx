@@ -145,7 +145,9 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
     try {
       const res = await api.post('/nhso-authen/check', {
         vn: p.vn,
+        an: p.an,
         cid: p.cid,
+        admit_date: p.admit_date,
         vstdate: p.admit_date,
         force: true
       });
@@ -236,7 +238,9 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
       try {
         const res = await api.post('/nhso-authen/check', {
           vn: p.vn,
+          an: p.an,
           cid: p.cid,
+          admit_date: p.admit_date,
           vstdate: p.admit_date,
           force: true
         });
