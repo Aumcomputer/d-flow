@@ -161,8 +161,8 @@ router.get('/inpatients', async (req, res) => {
             const iptList = iptPttypeMap.get(p.an) || [];
             const visitList = visitPttypeMap.get(p.vn) || [];
 
-            // Primary staff determination (from ipt_pttype or visit_pttype or ipt or ovst)
-            const primaryStaffCode = (iptList[0]?.staff) || (visitList[0]?.staff) || p.ipt_staff || p.ovst_staff || '';
+            // Staff determination: ดึงจาก ovst.staff เท่านั้น
+            const primaryStaffCode = p.ovst_staff || '';
             const primaryStaffName = primaryStaffCode ? (staffMap.get(String(primaryStaffCode).trim()) || primaryStaffCode) : '';
 
             return {
