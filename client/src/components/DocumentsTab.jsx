@@ -921,56 +921,19 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
           </div>
         </div>
 
-        {/* คอลัมน์ขวา: ส่งปรึกษาสิทธิการรักษา & ส่งสังคมสงเคราะห์ (row เดียวกัน) และสำหรับเจ้าหน้าที่งานสิทธิ์ */}
-        <div className="lg:col-span-6 xl:col-span-6 space-y-5">
-          {/* กล่องส่งปรึกษาสิทธิการรักษา และ สำหรับเจ้าหน้าที่งานสิทธิ์ (รวมอยู่ในกล่องเดียวกัน) */}
-          <div className="bg-card rounded-2xl border border-sky-200/80 shadow-sm overflow-hidden divide-y divide-border/60">
-            {/* Header รวมของงานสิทธิ์ */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-sky-50/80 via-blue-50/50 to-indigo-50/30 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center border border-sky-200 shadow-2xs shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-base sm:text-lg flex items-center gap-2">
-                    <span>งานสิทธิ์การรักษา</span>
-                    {details?.grant_pttype_date ? (
-                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs px-2.5 py-0.5 font-semibold">
-                        ✓ ให้สิทธิ์แล้ว
-                      </Badge>
-                    ) : details?.consult_pttype_date ? (
-                      <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-xs px-2.5 py-0.5 font-semibold">
-                        รอห้องสิทธิ์ตอบ
-                      </Badge>
-                    ) : null}
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    ส่งปรึกษาสิทธิการรักษา และ บันทึกการให้สิทธิ์โดยเจ้าหน้าที่งานสิทธิ์
-                  </p>
-                </div>
-              </div>
-
-              {!details?.consult_pttype_date && (
-                <button
-                  type="button"
-                  onClick={handleOpenConsultModal}
-                  className="inline-flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-semibold py-2 px-3.5 text-xs sm:text-sm rounded-xl shadow-sm transition-all"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>ส่งปรึกษาสิทธิ</span>
-                </button>
-              )}
-            </div>
-
-            {/* ส่วนที่ 1: ข้อมูลส่งปรึกษาสิทธิการรักษา */}
-            <div className="p-4 sm:p-5 space-y-3.5 bg-sky-50/20">
-              <div className="flex items-center justify-between border-b border-sky-100 pb-2.5 gap-2">
+        {/* คอลัมน์ขวา: Row 1 = ส่งปรึกษาสิทธิการรักษา & ส่งสังคมสงเคราะห์ (อยู่ row เดียวกัน) / Row 2 = สำหรับเจ้าหน้าที่งานสิทธิ์ */}
+        <div className="lg:col-span-6 xl:col-span-6 space-y-4">
+          {/* Row 1: ส่งปรึกษาสิทธิการรักษา (ลดความกว้าง) และ ส่งสังคมสงเคราะห์ (ขึ้นมาอยู่ row เดียวกัน) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+            {/* กล่อง 1: ส่งปรึกษาสิทธิการรักษา */}
+            <div className="bg-card rounded-2xl border border-sky-200/80 shadow-sm overflow-hidden flex flex-col justify-between">
+              <div className="p-4 bg-sky-50/30 border-b border-sky-100 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
                   <ShieldAlert className="w-4 h-4 text-sky-600 shrink-0" />
-                  <span>ส่งปรึกษาสิทธิการรักษา</span>
+                  <span className="truncate">ส่งปรึกษาสิทธิการรักษา</span>
                 </div>
 
-                {details?.consult_pttype_date && (
+                {details?.consult_pttype_date ? (
                   isPttypeAnswered ? (
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-semibold px-2 py-0.5">
@@ -993,7 +956,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                       <button
                         type="button"
                         onClick={handleOpenEditModal}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
                         title="แก้ไขข้อมูลส่งปรึกษา"
                       >
                         <Pencil className="w-3 h-3 text-slate-500" />
@@ -1002,7 +965,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                       <button
                         type="button"
                         onClick={handleOpenCancelModal}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
                         title="ยกเลิกการส่งปรึกษา"
                       >
                         <RotateCcw className="w-3 h-3 text-rose-500" />
@@ -1010,487 +973,89 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                       </button>
                     </div>
                   )
-                )}
+                ) : null}
               </div>
 
-              {!details?.consult_pttype_date ? (
-                <div className="text-center py-4 text-muted-foreground text-xs sm:text-sm space-y-2">
-                  <p>ยังไม่มีการส่งปรึกษาสิทธิการรักษาสำหรับผู้ป่วยรายนี้</p>
-                  <button
-                    type="button"
-                    onClick={handleOpenConsultModal}
-                    className="inline-flex items-center gap-1.5 text-sky-600 hover:text-sky-700 font-semibold underline text-xs"
-                  >
-                    คลิกที่นี่เพื่อส่งปรึกษาสิทธิการรักษา
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นแพทย์เจ้าของไข้</span>
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs sm:text-sm font-bold border ${
-                        details.consult_pttype_urgency === 'ฉุกเฉิน'
-                          ? 'bg-rose-100 text-rose-700 border-rose-200'
-                          : 'bg-sky-100 text-sky-700 border-sky-200'
-                      }`}>
-                        <span className={`w-2 h-2 rounded-full ${details.consult_pttype_urgency === 'ฉุกเฉิน' ? 'bg-rose-600 animate-pulse' : 'bg-sky-600'}`} />
-                        {details.consult_pttype_urgency || 'ไม่ฉุกเฉิน'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {details.consult_pttype_reason && (
-                    <div>
-                      <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
-                      <div className="text-slate-800 bg-white p-3 rounded-xl border border-sky-100 text-xs sm:text-sm whitespace-pre-line leading-relaxed shadow-2xs font-normal">
-                        {details.consult_pttype_reason}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="border-t border-sky-100 pt-2.5 space-y-1.5 text-xs text-slate-700">
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-muted-foreground shrink-0">รศส. แพทย์:</span>
-                      <span className="font-semibold text-slate-900 text-right truncate">
-                        {details.consult_pttype_doctor_name || '-'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-muted-foreground shrink-0">ผู้บันทึก:</span>
-                      <span className="font-semibold text-slate-900 truncate">
-                        {details.consult_pttype_by_name || details.consult_pttype_by || '-'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatDateTime(details.consult_pttype_date)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ส่วนที่ 2: สำหรับเจ้าหน้าที่งานสิทธิ์มากรอกให้สิทธิ์ */}
-            <div className="p-4 sm:p-5">
-              {details?.grant_pttype_date && !isEditingGrant ? (
-                /* ข้อมูลผลการให้สิทธิ์แล้ว */
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-emerald-100 pb-3 gap-2">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 text-base sm:text-lg">
-                      <BookmarkCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <span>สำหรับเจ้าหน้าที่งานสิทธิ์</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditingGrant(true)
-                          setIsOtherPttype(Boolean(details.grant_pttype_is_other))
-                          setOtherPttypeText(details.grant_pttype_other_text || '')
-                          setAsmType(details.grant_pttype_asm_type || null)
-                          if (details.grant_pttype_code || details.grant_pttype_name) {
-                            setSelectedPttype({
-                              pttype: details.grant_pttype_code || '',
-                              name: details.grant_pttype_name || ''
-                            })
-                            setPttypeSearch(details.grant_pttype_name || '')
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors"
-                        title="แก้ไขข้อมูลให้สิทธิ์"
-                      >
-                        <Pencil className="w-3.5 h-3.5 text-slate-500" />
-                        <span>แก้ไข</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCancelGrantModalOpen(true)
-                          setCancelGrantPassword('')
-                          setCancelGrantError('')
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors"
-                        title="ยกเลิกข้อมูลให้สิทธิ์"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
-                        <span>ยกเลิก</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 text-base">
-                    <div>
-                      <span className="text-muted-foreground text-sm font-medium block mb-1">สิทธิ์ที่ให้</span>
-                      <div className="font-semibold text-slate-900 bg-emerald-50/40 p-3.5 rounded-xl border border-emerald-200 text-base sm:text-lg shadow-2xs flex items-center gap-2">
-                        <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-                        <span>
-                          {details.grant_pttype_code ? `[${details.grant_pttype_code}] ` : ''}
-                          {details.grant_pttype_name}
-                        </span>
-                      </div>
-                    </div>
-
-                    {details.grant_pttype_asm_type && (
-                      <div>
-                        <span className="text-muted-foreground text-sm font-medium block mb-1">
-                          กรณีใช้สิทธิ อสม. ลดหย่อนส่วนเกินค่าห้อง
-                        </span>
-                        <div className="text-slate-800 bg-white p-3 rounded-xl border border-emerald-100 text-xs sm:text-sm leading-relaxed shadow-2xs">
-                          {details.grant_pttype_asm_type === 'asm_self' ? (
-                            <span>
-                              <strong>กรณีผู้ป่วยเป็น อสม.</strong> ถ่ายสำเนาบัตร อสม. แนบเพื่อใช้สิทธิตามระเบียบกระทรวงสาธารณสุข ว่าด้วยการช่วยเหลือในการรักษาพยาบาล (ฉบับ 8) พ.ศ. 2562 ลงวันที่ 25 ธันวาคม 2562
-                            </span>
-                          ) : (
-                            <span>
-                              <strong>กรณีผู้ป่วยเป็น ครอบครัว อสม.</strong> ทำหนังสือรับรองสิทธิจากหน่วยงาน ใช้สิทธิลดหย่อนส่วนเกินสิทธิ ตามระเบียบกระทรวงสาธารณสุขข้างต้น
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="border-t border-slate-100 pt-3.5 space-y-2 text-sm text-slate-700">
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="text-muted-foreground text-sm font-medium shrink-0">ผู้บันทึก:</span>
-                        <span className="font-semibold text-slate-900">
-                          {details.grant_pttype_by_name || details.grant_pttype_by || '-'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="text-muted-foreground text-sm font-medium shrink-0">วันที่ เวลา:</span>
-                        <span className="font-semibold text-slate-900">
-                          {formatDateTime(details.grant_pttype_date)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-slate-100 pt-3.5 space-y-3">
-                      <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
-                        <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>ความเห็นเจ้าหน้าที่ ({comments.length})</span>
-                      </div>
-
-                      {comments.length > 0 && (
-                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                          {comments.map((c) => (
-                            <div key={c.id} className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs sm:text-sm shadow-2xs space-y-1.5">
-                              <p className="text-slate-800 whitespace-pre-wrap font-normal leading-relaxed">{c.comment}</p>
-                              <div className="flex justify-between items-center text-[11px] sm:text-xs text-muted-foreground pt-1.5 border-t border-slate-200">
-                                <span className="font-semibold text-slate-700">{c.created_by_name || c.created_by}</span>
-                                <span>{formatDateTime(c.created_at)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="space-y-2 pt-2">
-                        <textarea
-                          rows={2}
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          placeholder="พิมพ์ความเห็นเพิ่มเติม..."
-                          className="w-full px-3.5 py-2 text-xs sm:text-sm border border-input rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none shadow-2xs"
-                        />
-                        {commentError && (
-                          <div className="text-xs text-rose-500 font-medium">{commentError}</div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleAddComment}
-                          disabled={submittingComment || !newComment.trim()}
-                          className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors disabled:opacity-50"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          <span>{submittingComment ? 'กำลังบันทึก...' : 'เพิ่มความเห็น'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* ฟอร์มกรอกให้สิทธิ์ */
-                <form onSubmit={handleSaveGrant} className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-border pb-3">
-                    <div className="flex items-center gap-2 font-bold text-slate-900 text-base sm:text-lg">
-                      <BookmarkCheck className="w-5 h-5 text-sky-600" />
-                      <span>สำหรับเจ้าหน้าที่งานสิทธิ์</span>
-                    </div>
-                    {isEditingGrant && (
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingGrant(false)}
-                        className="text-xs text-muted-foreground hover:text-slate-800 underline"
-                      >
-                        ยกเลิกแก้ไข
-                      </button>
-                    )}
-                  </div>
-
-                  {/* 1. ช่อง Select ให้เลือกสิทธิ์ (ค้นหาชื่อสิทธิ์ หรือ code ได้) */}
-                  <div className="relative">
-                    <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-                      เลือกสิทธิ์การรักษา {!isOtherPttype && <span className="text-red-500">*</span>}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        disabled={isOtherPttype}
-                        value={pttypeSearch}
-                        onChange={(e) => {
-                          setPttypeSearch(e.target.value)
-                          setIsPttypeDropdownOpen(true)
-                        }}
-                        onFocus={() => {
-                          if (!isOtherPttype) setIsPttypeDropdownOpen(true)
-                        }}
-                        placeholder={isOtherPttype ? "ปิดการเลือกเนื่องจากเลือกสิทธิ์อื่นๆ" : "พิมพ์ค้นหาชื่อสิทธิ์ หรือ รหัสสิทธิ์..."}
-                        className={`w-full pl-10 pr-9 py-2.5 text-base border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-                          isOtherPttype ? 'bg-slate-100 opacity-60 cursor-not-allowed text-slate-400' : 'bg-background'
-                        }`}
-                      />
-                      <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      {!isOtherPttype && (
-                        <button
-                          type="button"
-                          onClick={() => setIsPttypeDropdownOpen(!isPttypeDropdownOpen)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground p-1"
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Pttype Dropdown Menu */}
-                    {!isOtherPttype && isPttypeDropdownOpen && (
-                      <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 max-h-60 overflow-y-auto divide-y divide-slate-100">
-                        {filteredPttypes.length === 0 ? (
-                          <div className="p-4 text-sm text-center text-muted-foreground">
-                            ไม่พบสิทธิ์การรักษาที่ค้นหา
-                          </div>
-                        ) : (
-                          filteredPttypes.map(p => {
-                            const isSelected = selectedPttype?.pttype === p.pttype
-                            return (
-                              <button
-                                key={p.pttype}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedPttype(p)
-                                  setPttypeSearch(p.name)
-                                  setIsPttypeDropdownOpen(false)
-                                }}
-                                className={`w-full text-left px-4 py-2.5 text-sm sm:text-base flex items-center justify-between hover:bg-sky-50 transition-colors ${
-                                  isSelected ? 'bg-sky-50 font-semibold text-sky-700' : 'text-slate-700'
-                                }`}
-                              >
-                                <span className="truncate pr-2">{p.name}</span>
-                                <span className="text-xs text-muted-foreground font-mono shrink-0">[{p.pttype}]</span>
-                              </button>
-                            )
-                          })
-                        )}
-                      </div>
-                    )}
-
-                    {!isOtherPttype && selectedPttype?.name && (
-                      <div className="mt-2 flex items-center gap-2 text-xs sm:text-sm text-sky-700 bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100">
-                        <Check className="w-4 h-4 text-sky-600" />
-                        <span>สิทธิ์ที่เลือก: <strong>[{selectedPttype.pttype}] {selectedPttype.name}</strong></span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 2. Checkbox สิทธิ์อื่นๆ */}
-                  <div className="space-y-2">
-                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={isOtherPttype}
-                        onChange={(e) => {
-                          const checked = e.target.checked
-                          setIsOtherPttype(checked)
-                          if (checked) {
-                            setIsPttypeDropdownOpen(false)
-                          }
-                        }}
-                        className="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500"
-                      />
-                      <span className="text-sm font-semibold text-slate-800">เลือกสิทธิ์อื่นๆ</span>
-                    </label>
-
-                    {isOtherPttype && (
-                      <div className="animate-in fade-in duration-200">
-                        <input
-                          type="text"
-                          value={otherPttypeText}
-                          onChange={(e) => setOtherPttypeText(e.target.value)}
-                          placeholder="พิมพ์ระบุสิทธิ์อื่นๆ..."
-                          autoFocus
-                          className="w-full px-3.5 py-2.5 text-base border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 3. กรณีใช้สิทธิ อสม. ลดหย่อนส่วนเกินค่าห้อง */}
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-sm font-semibold text-slate-800">
-                        กรณีใช้สิทธิ อสม. ลดหย่อนส่วนเกินค่าห้อง
-                      </label>
-                      {asmType && (
-                        <button
-                          type="button"
-                          onClick={() => setAsmType(null)}
-                          className="text-xs text-rose-600 hover:underline font-normal"
-                        >
-                          ล้างตัวเลือก
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <div
-                        onClick={() => setAsmType(prev => prev === 'asm_self' ? null : 'asm_self')}
-                        className={`p-3 rounded-xl border text-xs sm:text-sm cursor-pointer transition-all flex items-start gap-2.5 ${
-                          asmType === 'asm_self'
-                            ? 'bg-sky-50 border-sky-500 text-sky-900 shadow-2xs ring-1 ring-sky-500'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="asm_type_choice"
-                          checked={asmType === 'asm_self'}
-                          onChange={() => {}}
-                          className="mt-0.5 text-sky-600 focus:ring-sky-500"
-                        />
-                        <span className="leading-relaxed">
-                          <strong>กรณีผู้ป่วยเป็น อสม.</strong> ถ่ายสำเนาบัตร อสม. แนบเพื่อใช้สิทธิตามระเบียบกระทรวงสาธารณสุข ว่าด้วยการช่วยเหลือในการรักษาพยาบาล (ฉบับ 8) พ.ศ. 2562 ลงวันที่ 25 ธันวาคม 2562
-                        </span>
-                      </div>
-
-                      <div
-                        onClick={() => setAsmType(prev => prev === 'asm_family' ? null : 'asm_family')}
-                        className={`p-3 rounded-xl border text-xs sm:text-sm cursor-pointer transition-all flex items-start gap-2.5 ${
-                          asmType === 'asm_family'
-                            ? 'bg-sky-50 border-sky-500 text-sky-900 shadow-2xs ring-1 ring-sky-500'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="asm_type_choice"
-                          checked={asmType === 'asm_family'}
-                          onChange={() => {}}
-                          className="mt-0.5 text-sky-600 focus:ring-sky-500"
-                        />
-                        <span className="leading-relaxed">
-                          <strong>กรณีผู้ป่วยเป็น ครอบครัว อสม.</strong> ทำหนังสือรับรองสิทธิจากหน่วยงาน ใช้สิทธิลดหย่อนส่วนเกินสิทธิ ตามระเบียบกระทรวงสาธารณสุขข้างต้น
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 4. Textbox ความเห็น */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                    <label className="block text-sm font-semibold text-slate-800">
-                      ความเห็น
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={grantComment}
-                      onChange={(e) => setGrantComment(e.target.value)}
-                      placeholder="พิมพ์ความเห็น..."
-                      className="w-full px-3.5 py-2.5 text-sm sm:text-base border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
-                    />
-                  </div>
-
-                  {/* แสดงรายการความเห็นที่มีอยู่แล้ว */}
-                  {comments.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                        <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
-                        <span>ความเห็นที่บันทึกไว้ก่อนหน้า ({comments.length})</span>
-                      </div>
-                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        {comments.map((c) => (
-                          <div key={c.id} className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs shadow-2xs space-y-1">
-                            <p className="text-slate-800 whitespace-pre-wrap">{c.comment}</p>
-                            <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1 border-t border-slate-200">
-                              <span className="font-medium text-slate-700">{c.created_by_name || c.created_by}</span>
-                              <span>{formatDateTime(c.created_at)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {grantError && (
-                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 shrink-0" />
-                      <span>{grantError}</span>
-                    </div>
-                  )}
-
-                  {/* ปุ่มบันทึก */}
-                  <div className="pt-2">
+              <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                {!details?.consult_pttype_date ? (
+                  <div className="text-center py-5 text-muted-foreground text-xs space-y-3 my-auto">
+                    <p className="leading-relaxed">ยังไม่มีการส่งปรึกษาสิทธิการรักษา</p>
                     <button
-                      type="submit"
-                      disabled={submittingGrant}
-                      className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-3 px-5 text-base rounded-xl shadow-sm transition-all duration-200 hover:shadow disabled:opacity-50"
+                      type="button"
+                      onClick={handleOpenConsultModal}
+                      className="inline-flex items-center justify-center gap-1.5 w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-semibold py-2 px-3 text-xs sm:text-sm rounded-xl shadow-sm transition-all"
                     >
-                      <Check className="w-5 h-5" />
-                      <span>{submittingGrant ? 'กำลังบันทึก...' : 'บันทึกให้สิทธิ์'}</span>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>ส่งปรึกษาสิทธิการรักษา</span>
                     </button>
                   </div>
-                </form>
-              )}
-            </div>
-          </div>
+                ) : (
+                  <div className="space-y-3 text-xs sm:text-sm flex-1 flex flex-col justify-between">
+                    <div className="space-y-2.5">
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นแพทย์เจ้าของไข้</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border ${
+                            details.consult_pttype_urgency === 'ฉุกเฉิน'
+                              ? 'bg-rose-100 text-rose-700 border-rose-200'
+                              : 'bg-sky-100 text-sky-700 border-sky-200'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${details.consult_pttype_urgency === 'ฉุกเฉิน' ? 'bg-rose-600 animate-pulse' : 'bg-sky-600'}`} />
+                            {details.consult_pttype_urgency || 'ไม่ฉุกเฉิน'}
+                          </span>
+                        </div>
+                      </div>
 
-          {/* กล่องส่งสังคมสงเคราะห์ */}
-          <div>
-            {!socialWorkRequest ? (
-              <div className="bg-card rounded-2xl p-5 border border-border shadow-sm space-y-3.5 text-center flex flex-col justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100 shadow-sm">
-                  <HeartHandshake className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="font-bold text-slate-800 text-base">ส่งสังคมสงเคราะห์</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    ส่งปรึกษานักสังคมสงเคราะห์ กรณีผู้ป่วยมีปัญหาด้านค่าใช้จ่ายหรือครอบครัว
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleOpenSocialWorkModal}
-                  className="w-full inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-semibold py-2.5 px-4 text-sm rounded-xl shadow-sm transition-all duration-200 hover:shadow"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>ส่งสังคมสงเคราะห์</span>
-                </button>
-              </div>
-            ) : (
-              <div className="bg-card rounded-2xl p-4 sm:p-5 border border-rose-200 bg-rose-50/20 shadow-sm space-y-3.5">
-                <div className="flex items-center justify-between border-b border-rose-100 pb-2.5 gap-2">
-                  <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
-                    <HeartHandshake className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span className="truncate">ส่งสังคมสงเคราะห์</span>
+                      {details.consult_pttype_reason && (
+                        <div>
+                          <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
+                          <div className="text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs whitespace-pre-line leading-relaxed font-normal">
+                            {details.consult_pttype_reason}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-2.5 space-y-1 text-xs text-slate-600">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-muted-foreground shrink-0">รศส. แพทย์:</span>
+                        <span className="font-semibold text-slate-800 text-right truncate">
+                          {details.consult_pttype_doctor_name || '-'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-muted-foreground shrink-0">ผู้บันทึก:</span>
+                        <span className="font-semibold text-slate-800 truncate">
+                          {details.consult_pttype_by_name || details.consult_pttype_by || '-'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatDateTime(details.consult_pttype_date)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
+                )}
+              </div>
+            </div>
 
-                  {socialWorkRequest.status === 'pending' ? (
+            {/* กล่อง 2: ส่งสังคมสงเคราะห์ (ขึ้นมาอยู่ row เดียวกัน) */}
+            <div className="bg-card rounded-2xl border border-rose-200/80 shadow-sm overflow-hidden flex flex-col justify-between">
+              <div className="p-4 bg-rose-50/30 border-b border-rose-100 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
+                  <HeartHandshake className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="truncate">ส่งสังคมสงเคราะห์</span>
+                </div>
+
+                {socialWorkRequest && (
+                  socialWorkRequest.status === 'pending' ? (
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={handleOpenEditSocialWorkModal}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
                         title="แก้ไขข้อมูลส่งปรึกษา"
                       >
                         <Pencil className="w-3 h-3 text-slate-500" />
@@ -1502,7 +1067,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                           setIsCancelSocialWorkModalOpen(true)
                           setCancelSocialWorkReason('')
                         }}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
                         title="ยกเลิกการส่งปรึกษา"
                       >
                         <RotateCcw className="w-3 h-3 text-rose-500" />
@@ -1529,83 +1094,486 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                         </button>
                       )}
                     </div>
-                  )}
-                </div>
-
-                <div className="space-y-3 text-sm">
-                  {socialWorkRequest.status === 'pending' && (
-                    <div>
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                        รอนักสังคมสงเคราะห์ตอบ
-                      </span>
-                    </div>
-                  )}
-
-                  <div>
-                    <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
-                    <div className="text-slate-800 bg-white p-3 rounded-xl border border-rose-100 text-xs sm:text-sm leading-relaxed shadow-2xs font-medium">
-                      {socialWorkRequest.reason_name}
-                      {socialWorkRequest.reason_other ? (
-                        <span className="block text-slate-600 text-xs mt-1 bg-rose-50/50 p-1.5 rounded border border-rose-100 font-normal">
-                          ระบุ: {socialWorkRequest.reason_other}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {socialWorkRequest.nurse_comment && (
-                    <div>
-                      <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นพยาบาล</span>
-                      <div className="text-slate-700 bg-white p-3 rounded-xl border border-rose-100 text-xs sm:text-sm leading-relaxed shadow-2xs whitespace-pre-wrap">
-                        {socialWorkRequest.nurse_comment}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="border-t border-rose-100 pt-2.5 space-y-1.5 text-xs text-slate-600">
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-muted-foreground shrink-0">ผู้ส่ง:</span>
-                      <span className="font-semibold text-slate-800 truncate">
-                        {socialWorkRequest.sent_by_name || socialWorkRequest.sent_by || '-'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
-                      <span className="font-semibold text-slate-800">
-                        {formatDateTime(socialWorkRequest.sent_at)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {socialWorkRequest.status === 'answered' && (
-                    <div className="mt-3 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
-                      </div>
-                      <div className="text-slate-800 text-xs sm:text-sm bg-white p-2.5 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed shadow-2xs">
-                        {socialWorkRequest.social_worker_comment}
-                      </div>
-                      <div className="border-t border-emerald-100 pt-2.5 space-y-1.5 text-xs text-slate-600">
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-muted-foreground shrink-0">ผู้ตอบ:</span>
-                          <span className="font-semibold text-slate-800 truncate">
-                            {socialWorkRequest.social_worker_by_name || socialWorkRequest.social_worker_by || '-'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center gap-2">
-                          <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
-                          <span className="font-semibold text-slate-800">
-                            {formatDateTime(socialWorkRequest.social_worker_at)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  )
+                )}
               </div>
-            )}
+
+              <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                {!socialWorkRequest ? (
+                  <div className="text-center py-5 text-muted-foreground text-xs space-y-3 my-auto">
+                    <p className="leading-relaxed">
+                      กรณีผู้ป่วยมีปัญหาด้านค่าใช้จ่ายหรือครอบครัว
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleOpenSocialWorkModal}
+                      className="inline-flex items-center justify-center gap-1.5 w-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-semibold py-2 px-3 text-xs sm:text-sm rounded-xl shadow-sm transition-all duration-200 hover:shadow"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>ส่งสังคมสงเคราะห์</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-xs sm:text-sm flex-1 flex flex-col justify-between">
+                    <div className="space-y-2.5">
+                      {socialWorkRequest.status === 'pending' && (
+                        <div>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            รอนักสังคมสงเคราะห์ตอบ
+                          </span>
+                        </div>
+                      )}
+
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
+                        <div className="text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs leading-relaxed font-normal">
+                          {socialWorkRequest.reason_name}
+                          {socialWorkRequest.reason_other ? (
+                            <span className="block text-slate-600 text-xs mt-1 bg-white p-1.5 rounded border border-slate-200 font-normal">
+                              ระบุ: {socialWorkRequest.reason_other}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {socialWorkRequest.nurse_comment && (
+                        <div>
+                          <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นพยาบาล</span>
+                          <div className="text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs leading-relaxed whitespace-pre-wrap">
+                            {socialWorkRequest.nurse_comment}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-2.5 space-y-1 text-xs text-slate-600">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-muted-foreground shrink-0">ผู้ส่ง:</span>
+                        <span className="font-semibold text-slate-800 truncate">
+                          {socialWorkRequest.sent_by_name || socialWorkRequest.sent_by || '-'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatDateTime(socialWorkRequest.sent_at)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {socialWorkRequest.status === 'answered' && (
+                      <div className="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
+                        </div>
+                        <div className="text-slate-800 text-xs bg-white p-2 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed">
+                          {socialWorkRequest.social_worker_comment}
+                        </div>
+                        <div className="border-t border-emerald-100 pt-1.5 space-y-1 text-xs text-slate-600">
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="text-muted-foreground shrink-0">ผู้ตอบ:</span>
+                            <span className="font-semibold text-slate-800 truncate">
+                              {socialWorkRequest.social_worker_by_name || socialWorkRequest.social_worker_by || '-'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
+                            <span className="font-semibold text-slate-800">
+                              {formatDateTime(socialWorkRequest.social_worker_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: สำหรับเจ้าหน้าที่งานสิทธิ์ */}
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-4 sm:p-5">
+              {details?.grant_pttype_date && !isEditingGrant ? (
+                /* ข้อมูลผลการให้สิทธิ์แล้ว */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-border pb-3 gap-2">
+                    <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
+                      <BookmarkCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>สำหรับเจ้าหน้าที่งานสิทธิ์</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingGrant(true)
+                          setIsOtherPttype(Boolean(details.grant_pttype_is_other))
+                          setOtherPttypeText(details.grant_pttype_other_text || '')
+                          setAsmType(details.grant_pttype_asm_type || null)
+                          if (details.grant_pttype_code || details.grant_pttype_name) {
+                            setSelectedPttype({
+                              pttype: details.grant_pttype_code || '',
+                              name: details.grant_pttype_name || ''
+                            })
+                            setPttypeSearch(details.grant_pttype_name || '')
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+                        title="แก้ไขข้อมูลให้สิทธิ์"
+                      >
+                        <Pencil className="w-3 h-3 text-slate-500" />
+                        <span>แก้ไข</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCancelGrantModalOpen(true)
+                          setCancelGrantPassword('')
+                          setCancelGrantError('')
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
+                        title="ยกเลิกข้อมูลให้สิทธิ์"
+                      >
+                        <RotateCcw className="w-3 h-3 text-rose-500" />
+                        <span>ยกเลิก</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3.5 text-xs sm:text-sm">
+                    <div>
+                      <span className="text-muted-foreground text-xs font-medium block mb-1">สิทธิ์ที่ให้</span>
+                      <div className="font-semibold text-slate-900 bg-emerald-50/50 p-3 rounded-xl border border-emerald-200 text-sm sm:text-base shadow-2xs flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          {details.grant_pttype_code ? `[${details.grant_pttype_code}] ` : ''}
+                          {details.grant_pttype_name}
+                        </span>
+                      </div>
+                    </div>
+
+                    {details.grant_pttype_asm_type && (
+                      <div>
+                        <span className="text-muted-foreground text-xs font-medium block mb-1">
+                          กรณีใช้สิทธิ อสม. ลดหย่อนส่วนเกินค่าห้อง
+                        </span>
+                        <div className="text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs leading-relaxed shadow-2xs">
+                          {details.grant_pttype_asm_type === 'asm_self' ? (
+                            <span>
+                              <strong>กรณีผู้ป่วยเป็น อสม.</strong> ถ่ายสำเนาบัตร อสม. แนบเพื่อใช้สิทธิตามระเบียบกระทรวงสาธารณสุข ว่าด้วยการช่วยเหลือในการรักษาพยาบาล (ฉบับ 8) พ.ศ. 2562 ลงวันที่ 25 ธันวาคม 2562
+                            </span>
+                          ) : (
+                            <span>
+                              <strong>กรณีผู้ป่วยเป็น ครอบครัว อสม.</strong> ทำหนังสือรับรองสิทธิจากหน่วยงาน ใช้สิทธิลดหย่อนส่วนเกินสิทธิ ตามระเบียบกระทรวงสาธารณสุขข้างต้น
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="border-t border-slate-100 pt-3 space-y-1.5 text-xs text-slate-600">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-muted-foreground text-xs font-medium shrink-0">ผู้บันทึก:</span>
+                        <span className="font-semibold text-slate-800">
+                          {details.grant_pttype_by_name || details.grant_pttype_by || '-'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-muted-foreground text-xs font-medium shrink-0">วันที่ เวลา:</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatDateTime(details.grant_pttype_date)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-3 space-y-2.5">
+                      <div className="flex items-center gap-2 font-bold text-slate-900 text-xs sm:text-sm">
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>ความเห็นเจ้าหน้าที่ ({comments.length})</span>
+                      </div>
+
+                      {comments.length > 0 && (
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                          {comments.map((c) => (
+                            <div key={c.id} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs shadow-2xs space-y-1">
+                              <p className="text-slate-800 whitespace-pre-wrap font-normal leading-relaxed">{c.comment}</p>
+                              <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1 border-t border-slate-200">
+                                <span className="font-semibold text-slate-700">{c.created_by_name || c.created_by}</span>
+                                <span>{formatDateTime(c.created_at)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="space-y-2 pt-1">
+                        <textarea
+                          rows={2}
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="พิมพ์ความเห็นเพิ่มเติม..."
+                          className="w-full px-3 py-2 text-xs sm:text-sm border border-input rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none shadow-2xs"
+                        />
+                        {commentError && (
+                          <div className="text-xs text-rose-500 font-medium">{commentError}</div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleAddComment}
+                          disabled={submittingComment || !newComment.trim()}
+                          className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>{submittingComment ? 'กำลังบันทึก...' : 'เพิ่มความเห็น'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ฟอร์มกรอกให้สิทธิ์ */
+                <form onSubmit={handleSaveGrant} className="space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-border pb-2.5">
+                    <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
+                      <BookmarkCheck className="w-4 h-4 text-sky-600" />
+                      <span>สำหรับเจ้าหน้าที่งานสิทธิ์</span>
+                    </div>
+                    {isEditingGrant && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingGrant(false)}
+                        className="text-xs text-muted-foreground hover:text-slate-800 underline cursor-pointer"
+                      >
+                        ยกเลิกแก้ไข
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 1. ช่อง Select ให้เลือกสิทธิ์ (ค้นหาชื่อสิทธิ์ หรือ code ได้) */}
+                  <div className="relative">
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-800 mb-1">
+                      เลือกสิทธิ์การรักษา {!isOtherPttype && <span className="text-red-500">*</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        disabled={isOtherPttype}
+                        value={pttypeSearch}
+                        onChange={(e) => {
+                          setPttypeSearch(e.target.value)
+                          setIsPttypeDropdownOpen(true)
+                        }}
+                        onFocus={() => {
+                          if (!isOtherPttype) setIsPttypeDropdownOpen(true)
+                        }}
+                        placeholder={isOtherPttype ? "ปิดการเลือกเนื่องจากเลือกสิทธิ์อื่นๆ" : "พิมพ์ค้นหาชื่อสิทธิ์ หรือ รหัสสิทธิ์..."}
+                        className={`w-full pl-9 pr-8 py-2 text-xs sm:text-sm border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                          isOtherPttype ? 'bg-slate-100 opacity-60 cursor-not-allowed text-slate-400' : 'bg-background'
+                        }`}
+                      />
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      {!isOtherPttype && (
+                        <button
+                          type="button"
+                          onClick={() => setIsPttypeDropdownOpen(!isPttypeDropdownOpen)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground p-1"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Pttype Dropdown Menu */}
+                    {!isOtherPttype && isPttypeDropdownOpen && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        {filteredPttypes.length === 0 ? (
+                          <div className="p-3 text-xs text-center text-muted-foreground">
+                            ไม่พบสิทธิ์การรักษาที่ค้นหา
+                          </div>
+                        ) : (
+                          filteredPttypes.map(p => {
+                            const isSelected = selectedPttype?.pttype === p.pttype
+                            return (
+                              <button
+                                key={p.pttype}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPttype(p)
+                                  setPttypeSearch(p.name)
+                                  setIsPttypeDropdownOpen(false)
+                                }}
+                                className={`w-full text-left px-3 py-2 text-xs sm:text-sm flex items-center justify-between hover:bg-sky-50 transition-colors ${
+                                  isSelected ? 'bg-sky-50 font-semibold text-sky-700' : 'text-slate-700'
+                                }`}
+                              >
+                                <span className="truncate pr-2">{p.name}</span>
+                                <span className="text-[11px] text-muted-foreground font-mono shrink-0">[{p.pttype}]</span>
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
+                    )}
+
+                    {!isOtherPttype && selectedPttype?.name && (
+                      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-100">
+                        <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span className="truncate">สิทธิ์ที่เลือก: <strong>[{selectedPttype.pttype}] {selectedPttype.name}</strong></span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Checkbox สิทธิ์อื่นๆ */}
+                  <div className="space-y-1.5">
+                    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isOtherPttype}
+                        onChange={(e) => {
+                          const checked = e.target.checked
+                          setIsOtherPttype(checked)
+                          if (checked) {
+                            setIsPttypeDropdownOpen(false)
+                          }
+                        }}
+                        className="w-3.5 h-3.5 text-sky-600 rounded border-slate-300 focus:ring-sky-500"
+                      />
+                      <span className="text-xs sm:text-sm font-semibold text-slate-800">เลือกสิทธิ์อื่นๆ</span>
+                    </label>
+
+                    {isOtherPttype && (
+                      <div className="animate-in fade-in duration-200">
+                        <input
+                          type="text"
+                          value={otherPttypeText}
+                          onChange={(e) => setOtherPttypeText(e.target.value)}
+                          placeholder="พิมพ์ระบุสิทธิ์อื่นๆ..."
+                          autoFocus
+                          className="w-full px-3 py-2 text-xs sm:text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. กรณีใช้สิทธิ อสม. ลดหย่อนส่วนเกินค่าห้อง */}
+                  <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs sm:text-sm font-semibold text-slate-800">
+                        กรณีใช้สิทธิ อสม. ลดหย่อนส่วนเกินค่าห้อง
+                      </label>
+                      {asmType && (
+                        <button
+                          type="button"
+                          onClick={() => setAsmType(null)}
+                          className="text-xs text-rose-600 hover:underline font-normal cursor-pointer"
+                        >
+                          ล้างตัวเลือก
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div
+                        onClick={() => setAsmType(prev => prev === 'asm_self' ? null : 'asm_self')}
+                        className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-2 ${
+                          asmType === 'asm_self'
+                            ? 'bg-sky-50 border-sky-500 text-sky-900 shadow-2xs ring-1 ring-sky-500'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="asm_type_choice"
+                          checked={asmType === 'asm_self'}
+                          onChange={() => {}}
+                          className="mt-0.5 text-sky-600 focus:ring-sky-500"
+                        />
+                        <span className="leading-relaxed">
+                          <strong>กรณีผู้ป่วยเป็น อสม.</strong> ถ่ายสำเนาบัตร อสม. แนบเพื่อใช้สิทธิตามระเบียบกระทรวงสาธารณสุข ว่าด้วยการช่วยเหลือในการรักษาพยาบาล (ฉบับ 8) พ.ศ. 2562 ลงวันที่ 25 ธันวาคม 2562
+                        </span>
+                      </div>
+
+                      <div
+                        onClick={() => setAsmType(prev => prev === 'asm_family' ? null : 'asm_family')}
+                        className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-2 ${
+                          asmType === 'asm_family'
+                            ? 'bg-sky-50 border-sky-500 text-sky-900 shadow-2xs ring-1 ring-sky-500'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="asm_type_choice"
+                          checked={asmType === 'asm_family'}
+                          onChange={() => {}}
+                          className="mt-0.5 text-sky-600 focus:ring-sky-500"
+                        />
+                        <span className="leading-relaxed">
+                          <strong>กรณีผู้ป่วยเป็น ครอบครัว อสม.</strong> ทำหนังสือรับรองสิทธิจากหน่วยงาน ใช้สิทธิลดหย่อนส่วนเกินสิทธิ ตามระเบียบกระทรวงสาธารณสุขข้างต้น
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Textbox ความเห็น */}
+                  <div className="space-y-1 pt-1.5 border-t border-slate-100">
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-800">
+                      ความเห็น
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={grantComment}
+                      onChange={(e) => setGrantComment(e.target.value)}
+                      placeholder="พิมพ์ความเห็น..."
+                      className="w-full px-3 py-2 text-xs sm:text-sm border border-input rounded-xl bg-background focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
+                    />
+                  </div>
+
+                  {/* แสดงรายการความเห็นที่มีอยู่แล้ว */}
+                  {comments.length > 0 && (
+                    <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                        <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+                        <span>ความเห็นที่บันทึกไว้ก่อนหน้า ({comments.length})</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                        {comments.map((c) => (
+                          <div key={c.id} className="bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs shadow-2xs space-y-0.5">
+                            <p className="text-slate-800 whitespace-pre-wrap">{c.comment}</p>
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-0.5 border-t border-slate-200">
+                              <span className="font-medium text-slate-700">{c.created_by_name || c.created_by}</span>
+                              <span>{formatDateTime(c.created_at)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {grantError && (
+                    <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{grantError}</span>
+                    </div>
+                  )}
+
+                  {/* ปุ่มบันทึก */}
+                  <div className="pt-1.5">
+                    <button
+                      type="submit"
+                      disabled={submittingGrant}
+                      className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-2.5 px-4 text-xs sm:text-sm rounded-xl shadow-sm transition-all duration-200 hover:shadow disabled:opacity-50 cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>{submittingGrant ? 'กำลังบันทึก...' : 'บันทึกให้สิทธิ์'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       </div>
