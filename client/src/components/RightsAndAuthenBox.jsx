@@ -181,7 +181,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <th
                             key={col.source_key || idx}
-                            className={`py-3 px-3.5 whitespace-nowrap min-w-[190px] text-center ${
+                            className={`py-3 px-3.5 whitespace-nowrap min-w-[155px] text-center ${
                               isApi
                                 ? 'bg-purple-100/70 border-b border-purple-200'
                                 : isIpt
