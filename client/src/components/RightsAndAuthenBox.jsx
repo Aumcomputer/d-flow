@@ -392,12 +392,13 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs">auth_code</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">รหัสอนุมัติ</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">รหัสอนุมัติ (Auth / Claim Code)</span>
                         </div>
                       </td>
                       {data?.rows?.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
+                        const hasCode = col.auth_code && col.auth_code !== '-';
                         return (
                           <td
                             key={col.source_key || idx}
@@ -405,7 +406,9 @@ export default function RightsAndAuthenBox({ an, patient }) {
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
-                            <span className="font-mono text-slate-600 text-center block">
+                            <span className={`font-mono text-center block ${
+                              hasCode ? (isApi ? 'font-semibold text-purple-700 select-all' : 'font-semibold text-emerald-700 select-all') : 'text-slate-600'
+                            }`}>
                               {col.auth_code || '-'}
                             </span>
                           </td>
@@ -418,12 +421,13 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs">claim_code</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">รหัสเคลม / Authen</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">รหัสเคลม (Auth / Claim Code)</span>
                         </div>
                       </td>
                       {data?.rows?.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
+                        const hasCode = col.claim_code && col.claim_code !== '-';
                         return (
                           <td
                             key={col.source_key || idx}
@@ -431,7 +435,9 @@ export default function RightsAndAuthenBox({ an, patient }) {
                               isApi ? 'bg-purple-50/20 font-bold' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
-                            <span className="font-mono font-semibold text-purple-700 text-center block select-all">
+                            <span className={`font-mono text-center block ${
+                              hasCode ? 'font-semibold text-purple-700 select-all' : 'text-slate-600'
+                            }`}>
                               {col.claim_code || '-'}
                             </span>
                           </td>
@@ -475,7 +481,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                 </table>
               </div>
 
-              {/* สรุปด้านล่างตาราง: สิทธิ์ใน ipt ตรงกับ api ไหม */}
+              {/* สรุปด้านล่างตาราง: สิทธิ์ใน ipt_pttype ตรงกับ api ไหม */}
               {data?.comparison && (
                 <div className="pt-1">
                   {data.comparison.has_api ? (
@@ -486,13 +492,22 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                           <div>
                             <div className="font-bold text-xs sm:text-sm text-emerald-900 flex items-center gap-1.5">
-                              <span>✓ สิทธิ์ใน ipt ตรงกับ สปสช. (API)</span>
+                              <span>✓ สิทธิ์ใน ipt_pttype ตรงกับ สปสช. (API)</span>
                               <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0 border-0">
                                 ตรงกัน (Match)
                               </Badge>
                             </div>
                             <div className="text-xs text-emerald-700 mt-0.5">
-                              สิทธิ์ตรงกัน: <strong className="font-mono">{data.comparison.ipt_pttype}</strong> ({data.comparison.ipt_pttype_name})
+                              {data.comparison.matched_row ? (
+                                <>
+                                  ตรงกับสิทธิ์ลำดับที่ <strong className="font-mono">#{data.comparison.matched_row.number}</strong>:{' '}
+                                  <strong className="font-mono">[{data.comparison.matched_row.pttype}]</strong> {data.comparison.matched_row.pttype_name}
+                                </>
+                              ) : (
+                                <>
+                                  สิทธิ์ตรงกัน: <strong className="font-mono">[{data.comparison.api_pttype}]</strong> {data.comparison.api_pttype_name}
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -507,15 +522,31 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
                           <div>
                             <div className="font-bold text-xs sm:text-sm text-rose-900 flex items-center gap-1.5">
-                              <span>✗ สิทธิ์ใน ipt ไม่ตรงกับ สปสช. (API)</span>
+                              <span>✗ สิทธิ์ใน ipt_pttype ไม่ตรงกับ สปสช. (API)</span>
                               <Badge className="bg-rose-600 text-white text-[10px] px-2 py-0 border-0">
                                 ไม่ตรงกัน (Mismatch)
                               </Badge>
                             </div>
-                            <div className="text-xs text-rose-700 mt-0.5">
-                              ipt: <strong className="font-mono">{data.comparison.ipt_pttype}</strong> ({data.comparison.ipt_pttype_name})
-                              {' • '}
-                              สปสช. API: <strong className="font-mono text-purple-700">{data.comparison.api_pttype}</strong> ({data.comparison.api_pttype_name})
+                            <div className="text-xs text-rose-700 mt-0.5 space-y-1">
+                              <div>
+                                ipt_pttype ({data.comparison.ipt_pttypes?.length || 0} สิทธิ์):{' '}
+                                {data.comparison.ipt_pttypes && data.comparison.ipt_pttypes.length > 0 ? (
+                                  data.comparison.ipt_pttypes.map((p, idx) => (
+                                    <span key={idx} className="mr-2 inline-block">
+                                      <span className="font-mono font-semibold bg-rose-100/90 px-1 py-0.2 rounded text-rose-900">
+                                        #{p.number} [{p.pttype}]
+                                      </span>{' '}
+                                      {p.pttype_name}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <strong className="font-mono">[{data.comparison.ipt_pttype}] {data.comparison.ipt_pttype_name}</strong>
+                                )}
+                              </div>
+                              <div>
+                                สปสช. API:{' '}
+                                <strong className="font-mono text-purple-700">[{data.comparison.api_pttype}]</strong> ({data.comparison.api_pttype_name})
+                              </div>
                             </div>
                           </div>
                         </div>

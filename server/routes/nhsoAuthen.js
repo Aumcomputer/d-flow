@@ -963,6 +963,7 @@ router.get('/rights-summary/:an', async (req, res) => {
             });
         } else {
             vpRows.forEach((r, idx) => {
+                const code = r.auth_code || r.claim_code || '-';
                 rows.push({
                     source_key: `visit_pttype_${r.pttype_number || idx + 1}`,
                     source_name: 'visit_pttype',
@@ -976,8 +977,8 @@ router.get('/rights-summary/:an', async (req, res) => {
                     hospsub_name: hospMap.get(String(r.hospsub).trim()) || '-',
                     begin_date: formatDateOnly(r.begin_date) || '-',
                     expire_date: formatDateOnly(r.expire_date) || '-',
-                    auth_code: r.auth_code || '-',
-                    claim_code: r.claim_code || '-',
+                    auth_code: code,
+                    claim_code: code,
                     staff: r.staff || '-',
                     staff_name: staffMap.get(String(r.staff).trim()) || '-'
                 });
@@ -1026,6 +1027,7 @@ router.get('/rights-summary/:an', async (req, res) => {
             });
         } else {
             ipRows.forEach((r, idx) => {
+                const code = r.auth_code || r.claim_code || '-';
                 rows.push({
                     source_key: `ipt_pttype_${r.pttype_number || idx + 1}`,
                     source_name: 'ipt_pttype',
@@ -1039,8 +1041,8 @@ router.get('/rights-summary/:an', async (req, res) => {
                     hospsub_name: hospMap.get(String(r.hospsub).trim()) || '-',
                     begin_date: formatDateOnly(r.begin_date) || '-',
                     expire_date: formatDateOnly(r.expire_date) || '-',
-                    auth_code: r.auth_code || '-',
-                    claim_code: r.claim_code || '-',
+                    auth_code: code,
+                    claim_code: code,
                     staff: r.staff || '-',
                     staff_name: staffMap.get(String(r.staff).trim()) || '-'
                 });
@@ -1072,25 +1074,43 @@ router.get('/rights-summary/:an', async (req, res) => {
             hospsub_name: apiHospsubName,
             begin_date: apiBeginDate,
             expire_date: apiExpireDate,
-            auth_code: '-',
+            auth_code: apiClaimCode,
             claim_code: apiClaimCode,
             staff: hasApiData ? 'สปสช. (API)' : '-',
             staff_name: hasApiData ? 'ระบบ สปสช.' : '-'
         });
 
-        // 5. Comparison summary
-        const iptPttype = patient.ipt_pttype || '';
-        const isMatch = hasApiData ? (String(iptPttype).trim() === String(mappedPttype).trim()) : null;
+        // 5. Comparison summary: ตรวจสอบกับ ipt_pttype ซึ่งมีหลายสิทธิ์ ถ้าตรงสักสิทธิ์ ถือว่าใช้ได้
+        const iptPttypeList = (ipRows && ipRows.length > 0)
+            ? ipRows.map((r, idx) => ({
+                number: r.pttype_number || idx + 1,
+                pttype: String(r.pttype || '').trim(),
+                pttype_name: r.pttype_name || '-'
+            }))
+            : (patient.ipt_pttype ? [{
+                number: 1,
+                pttype: String(patient.ipt_pttype).trim(),
+                pttype_name: patient.ipt_pttype_name || '-'
+            }] : []);
+
+        const matchedRow = (hasApiData && mappedPttype)
+            ? iptPttypeList.find(r => r.pttype.toLowerCase() === String(mappedPttype).trim().toLowerCase())
+            : null;
+
+        const isMatch = hasApiData ? Boolean(matchedRow) : null;
         let matchStatus = 'unchecked';
         let matchMessage = 'ยังไม่ได้ตรวจสอบสิทธิ์ สปสช. (API)';
 
         if (hasApiData) {
             if (isMatch) {
                 matchStatus = 'match';
-                matchMessage = `สิทธิ์ใน ipt (${patient.ipt_pttype}: ${patient.ipt_pttype_name || ''}) ตรงกับ สปสช. API (${mappedPttype}: ${targetPttypeName || ''})`;
+                matchMessage = `สิทธิ์ใน ipt_pttype (ลำดับที่ ${matchedRow.number}: [${matchedRow.pttype}] ${matchedRow.pttype_name}) ตรงกับ สปสช. API ([${mappedPttype}] ${targetPttypeName || ''})`;
             } else {
                 matchStatus = 'mismatch';
-                matchMessage = `สิทธิ์ใน ipt (${patient.ipt_pttype}: ${patient.ipt_pttype_name || ''}) ไม่ตรงกับ สปสช. API (${mappedPttype}: ${targetPttypeName || ''})`;
+                const iptPttypeDisplay = iptPttypeList.length > 0
+                    ? iptPttypeList.map(r => `[#${r.number}] ${r.pttype}`).join(', ')
+                    : (patient.ipt_pttype ? `[${patient.ipt_pttype}]` : '-');
+                matchMessage = `สิทธิ์ใน ipt_pttype (${iptPttypeDisplay}) ไม่ตรงกับ สปสช. API ([${mappedPttype}] ${targetPttypeName || ''})`;
             }
         }
 
@@ -1139,6 +1159,8 @@ router.get('/rights-summary/:an', async (req, res) => {
                 has_api: hasApiData,
                 ipt_pttype: patient.ipt_pttype,
                 ipt_pttype_name: patient.ipt_pttype_name,
+                ipt_pttypes: iptPttypeList,
+                matched_row: matchedRow || null,
                 api_pttype: hasApiData ? mappedPttype : null,
                 api_pttype_name: hasApiData ? targetPttypeName : null,
                 is_match: isMatch,
