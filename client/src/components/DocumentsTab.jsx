@@ -74,7 +74,7 @@ function CidBadge({ extractedCid, patientCid }) {
   )
 }
 
-export default function DocumentsTab({ patient, details, fetchDetails }) {
+export default function DocumentsTab({ patient, details, fetchDetails, isMedicalRecords }) {
   const { user } = useAuth()
   const isAdmin = !!user?.isAdmin
   const isPttypeAnswered = Boolean(details?.grant_pttype_date)
@@ -719,7 +719,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* คอลัมน์ซ้าย: 1. สิทธิ์การรักษา และ 2. Authen และ 3. รายการเอกสาร */}
         <div className="lg:col-span-6 xl:col-span-6 space-y-5">
-          <RightsAndAuthenBox an={patient?.an} patient={patient} />
+          <RightsAndAuthenBox an={patient?.an} patient={patient} isMedicalRecords={isMedicalRecords} />
 
           {/* Completeness Bar */}
           {completeness && (

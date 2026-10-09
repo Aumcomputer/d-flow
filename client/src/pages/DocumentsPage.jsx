@@ -746,6 +746,7 @@ export default function DocumentsPage() {
             patient={patient} 
             details={details} 
             fetchDetails={fetchDetails} 
+            isMedicalRecords={true}
           />
         </div>
       ) : !loading && activeTab === 'check_rights' ? (

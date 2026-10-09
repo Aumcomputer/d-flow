@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   ShieldCheck,
   AlertTriangle,
@@ -14,16 +15,32 @@ import {
   Phone,
   Clock,
   Sparkles,
+  Save,
   Info
 } from 'lucide-react';
 import api from '../services/api';
 import { Badge } from './ui/badge';
 
-export default function RightsAndAuthenBox({ an, patient }) {
+function formatCid(cid) {
+  if (!cid) return '-';
+  const clean = String(cid).replace(/\D/g, '');
+  if (clean.length === 13) {
+    return `${clean[0]}-${clean.slice(1, 5)}-${clean.slice(5, 10)}-${clean.slice(10, 12)}-${clean[12]}`;
+  }
+  return cid;
+}
+
+export default function RightsAndAuthenBox({ an, patient, isMedicalRecords }) {
+  const location = useLocation();
+  const isFromMedicalRecords = Boolean(isMedicalRecords || location?.pathname?.startsWith('/documents'));
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [checkingApi, setCheckingApi] = useState(false);
+  const [savingHos, setSavingHos] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
 
   const targetAn = an || patient?.an;
@@ -69,6 +86,60 @@ export default function RightsAndAuthenBox({ an, patient }) {
       alert(err.response?.data?.error || 'ตรวจสอบสิทธิ์ สปสช. ล้มเหลว: ' + err.message);
     } finally {
       setCheckingApi(false);
+    }
+  };
+
+  const handleSaveHos = async () => {
+    if (!data?.comparison?.has_checked) {
+      alert('กรุณากด "เช็ค สปสช. (API)" ก่อนบันทึกข้อมูลเข้า Hosxp');
+      return;
+    }
+    if (!data?.comparison?.is_match || !data?.comparison?.matched_row) {
+      alert('สิทธิ์การรักษาใน Hosxp ไม่ตรงกับ สปสช. (API) จึงไม่สามารถบันทึกเข้า Hosxp ได้');
+      return;
+    }
+
+    const matched = data.comparison.matched_row;
+    const confirmMsg = `ยืนยันการบันทึกข้อมูลสิทธิจาก สปสช. (API) เข้าตาราง ipt_pttype (ลำดับที่ ${matched.number}: [${matched.pttype}] ${matched.pttype_name || ''}) ใน Hosxp หรือไม่?`;
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setSavingHos(true);
+    setSaveError('');
+    setSaveSuccess('');
+    try {
+      const apiRow = data.rows?.find(r => r.source_name === 'api');
+      const authCodeVal = apiRow?.auth_code || apiRow?.claim_code || data.authen?.claim_code || null;
+
+      const res = await api.post('/nhso-authen/sync-ipt-pttype', {
+        an: data.an || targetAn,
+        vn: data.vn || patient?.vn,
+        target: {
+          pttype: matched.pttype,
+          pttype_number: matched.number,
+          pttypeno: (apiRow?.pttypeno && apiRow.pttypeno !== '-') ? apiRow.pttypeno : (data?.cid || patient?.cid ? formatCid(data?.cid || patient?.cid) : null),
+          hospmain: apiRow?.hospmain !== '-' ? apiRow?.hospmain : null,
+          hospsub: apiRow?.hospsub !== '-' ? apiRow?.hospsub : null,
+          begin_date: (apiRow?.begin_date && apiRow.begin_date !== '-') ? apiRow.begin_date : null,
+          expire_date: (apiRow?.expire_date && apiRow.expire_date !== '-') ? apiRow.expire_date : null,
+          auth_code: authCodeVal
+        }
+      });
+
+      if (res.data?.success) {
+        const msg = res.data.message || `บันทึกข้อมูลเข้าตาราง ipt_pttype (ลำดับที่ ${matched.number}) เรียบร้อยแล้ว!`;
+        setSaveSuccess(msg);
+        await fetchSummary(false);
+        setTimeout(() => setSaveSuccess(''), 6000);
+      }
+    } catch (err) {
+      console.error('Failed to save to ipt_pttype:', err);
+      const errMsg = err.response?.data?.error || `บันทึกข้อมูลล้มเหลว: ${err.message}`;
+      setSaveError(errMsg);
+      alert(errMsg);
+    } finally {
+      setSavingHos(false);
     }
   };
 
@@ -251,7 +322,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
               <button
                 type="button"
                 onClick={handleCheckNhso}
-                disabled={checkingApi || loading}
+                disabled={checkingApi || loading || savingHos}
                 className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-sm transition-all disabled:opacity-50"
                 title="กดเพื่อส่งคำขอตรวจสอบสิทธิ์ไปยัง สปสช. API"
               >
@@ -259,10 +330,35 @@ export default function RightsAndAuthenBox({ an, patient }) {
                 <span>{checkingApi ? 'กำลังเช็ค สปสช...' : 'เช็ค สปสช. (API)'}</span>
               </button>
 
+              {isFromMedicalRecords && (
+                <button
+                  type="button"
+                  onClick={handleSaveHos}
+                  disabled={savingHos || loading || checkingApi}
+                  className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl shadow-sm transition-all ${
+                    data?.comparison?.is_match
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-300'
+                  }`}
+                  title={
+                    savingHos
+                      ? 'กำลังบันทึกข้อมูลเข้า Hosxp...'
+                      : !data?.comparison?.has_checked
+                      ? 'กรุณากดเช็ค สปสช. (API) ก่อน'
+                      : data?.comparison?.is_match
+                      ? `บันทึกข้อมูลสิทธิเข้าตาราง ipt_pttype (ลำดับที่ ${data.comparison.matched_row.number}) ใน Hosxp`
+                      : 'สิทธิ์การรักษาใน Hosxp ไม่ตรงกับ สปสช. (API)'
+                  }
+                >
+                  <Save className={`w-3.5 h-3.5 ${savingHos ? 'animate-spin' : ''}`} />
+                  <span>{savingHos ? 'กำลังบันทึก...' : 'บันทึก Hos'}</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => fetchSummary(true)}
-                disabled={loading}
+                disabled={loading || savingHos || checkingApi}
                 className="cursor-pointer p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors border border-border"
                 title="รีเฟรชข้อมูล"
               >
@@ -270,6 +366,38 @@ export default function RightsAndAuthenBox({ an, patient }) {
               </button>
             </div>
           </div>
+
+          {/* Save Status Banners */}
+          {saveSuccess && (
+            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{saveSuccess}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaveSuccess('')}
+                className="text-emerald-500 hover:text-emerald-800 text-xs cursor-pointer font-bold px-1"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          {saveError && (
+            <div className="px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{saveError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaveError('')}
+                className="text-rose-500 hover:text-rose-800 text-xs cursor-pointer font-bold px-1"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Table Container (Transposed: Rows = Attributes, Columns = Sources) */}
           {loading && !data ? (
