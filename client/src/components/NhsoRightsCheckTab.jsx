@@ -30,6 +30,15 @@ import {
   FileText
 } from 'lucide-react';
 
+const formatCid = (cid) => {
+  if (!cid) return '-';
+  const clean = String(cid).replace(/\D/g, '');
+  if (clean.length === 13) {
+    return clean.replace(/^(\d{1})(\d{4})(\d{5})(\d{2})(\d{1})$/, '$1-$2-$3-$4-$5');
+  }
+  return clean;
+};
+
 export default function NhsoRightsCheckTab({ onSelectPatient }) {
   const [patients, setPatients] = useState([]);
   const [wards, setWards] = useState([]);
@@ -392,7 +401,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
         target: {
           pttype: matched.pttype,
           pttype_number: matched.number,
-          pttypeno: apiRow?.pttypeno !== '-' ? apiRow?.pttypeno : null,
+          pttypeno: (apiRow?.pttypeno && apiRow.pttypeno !== '-') ? apiRow.pttypeno : (detailData?.cid ? formatCid(detailData.cid) : null),
           hospmain: apiRow?.hospmain !== '-' ? apiRow?.hospmain : null,
           hospsub: apiRow?.hospsub !== '-' ? apiRow?.hospsub : null,
           begin_date: apiRow?.begin_date !== '-' ? apiRow?.begin_date : null,
@@ -737,7 +746,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                           {p.hn}
                         </div>
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
-                          <span>{p.cid || '-'}</span>
+                          <span>{formatCid(p.cid)}</span>
                           {p.cid && (
                             <button
                               onClick={(e) => handleCopyCid(p.cid, e)}
@@ -1023,7 +1032,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                       </div>
                     </div>
                     <div className="text-muted-foreground font-mono bg-background px-3 py-1.5 rounded-lg border border-border text-xs">
-                      CID: <strong className="text-foreground">{detailPatient.cid || '-'}</strong>
+                      CID: <strong className="text-foreground">{formatCid(detailPatient.cid)}</strong>
                     </div>
                   </div>
 

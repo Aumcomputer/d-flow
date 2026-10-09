@@ -271,7 +271,7 @@ router.get('/inpatients', async (req, res) => {
                     hospmain_name: nhso.hospmain_name || '',
                     hospsub_code: nhso.hospsub_code || '',
                     hospsub_name: nhso.hospsub_name || '',
-                    card_id: nhso.card_id || '',
+                    card_id: (nhso.card_id && String(nhso.card_id).trim()) || (p.cid ? formatCid(p.cid) : ''),
                     right_start_date: formatDateOnly(nhso.right_start_date),
                     claim_code: nhso.claim_code || '',
                     claim_type_name: nhso.claim_type_name || '',
@@ -877,6 +877,14 @@ router.post('/sync-ipt-pttype', async (req, res) => {
 
         // 2. อัปเดตเฉพาะ ipt_pttype แถวที่ตรงกัน (คง staff เดิม!)
         const authCodeVal = target.auth_code || target.claim_code || null;
+        let pttypenoVal = (target.pttypeno && target.pttypeno !== '-') ? target.pttypeno : null;
+        if (!pttypenoVal) {
+            const pRows = await hisWriteConn.query('SELECT p.cid FROM ipt i JOIN patient p ON i.hn=p.hn WHERE i.an = ?', [an]);
+            if (pRows && pRows.length > 0 && pRows[0].cid) {
+                pttypenoVal = formatCid(pRows[0].cid);
+            }
+        }
+
         await hisWriteConn.query(`
             UPDATE ipt_pttype 
             SET 
@@ -889,7 +897,7 @@ router.post('/sync-ipt-pttype', async (req, res) => {
                 claim_code = COALESCE(?, claim_code)
             WHERE an = ? AND pttype = ? AND pttype_number = ?
         `, [
-            target.pttypeno || null,
+            pttypenoVal || null,
             target.hospmain || null,
             target.hospsub || null,
             target.begin_date || null,
@@ -1218,8 +1226,8 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
         }
 
         // 4.5 api (from vn_nhso_authen)
-        const hasApiData = Boolean(dflowData);
-        const apiPttypeno = (fund?.cardId && String(fund.cardId).trim()) || (dflowData?.card_id && String(dflowData.card_id).trim()) || '-';
+        const rawCardId = (fund?.cardId && String(fund.cardId).trim()) || (dflowData?.card_id && String(dflowData.card_id).trim()) || null;
+        const apiPttypeno = (rawCardId && rawCardId !== '-') ? rawCardId : (patient.cid ? formatCid(patient.cid) : '-');
         const apiHospmain = hospmainTarget || '-';
         const apiHospmainName = fund?.hospMainOp?.hname || fund?.hospMain?.hname || dflowData?.hospmain_op_name || dflowData?.hospmain_name || hospMap.get(String(hospmainTarget).trim()) || '-';
         const apiHospsub = hospsubTarget || '-';
