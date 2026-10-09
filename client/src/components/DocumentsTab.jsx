@@ -1009,8 +1009,8 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
 
                         {details.consult_pttype_reason && (
                           <div>
-                            <span className="text-muted-foreground text-xs sm:text-sm font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
-                            <div className="text-slate-800 bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm sm:text-base whitespace-pre-line leading-relaxed font-normal">
+                            <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
+                            <div className="text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm whitespace-pre-line leading-relaxed font-normal">
                               {details.consult_pttype_reason}
                             </div>
                           </div>
@@ -1140,17 +1140,17 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                           </div>
 
                           <div className="border-t border-slate-100 pt-3 space-y-2.5">
-                            <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
+                            <div className="flex items-center gap-2 font-bold text-slate-900 text-xs sm:text-sm">
                               <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
                               <span>ความเห็นเจ้าหน้าที่ ({comments.length})</span>
                             </div>
 
                             {comments.length > 0 && (
-                              <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                                 {comments.map((c) => (
-                                  <div key={c.id} className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm sm:text-base shadow-2xs space-y-1.5">
+                                  <div key={c.id} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm shadow-2xs space-y-1">
                                     <p className="text-slate-800 whitespace-pre-wrap font-normal leading-relaxed">{c.comment}</p>
-                                    <div className="flex justify-between items-center text-xs text-muted-foreground pt-1.5 border-t border-slate-200">
+                                    <div className="flex justify-between items-center text-xs text-muted-foreground pt-1 border-t border-slate-200">
                                       <span className="font-semibold text-slate-700">{c.created_by_name || c.created_by}</span>
                                       <span>{formatDateTime(c.created_at)}</span>
                                     </div>
