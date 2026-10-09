@@ -529,7 +529,6 @@ router.get('/:an/completeness', async (req, res) => {
         const exemptCodes = new Set((exemptRows || []).map(r => String(r.code).trim().toUpperCase()));
 
         // Check if patient's pttype is exempt from Authen Code
-        const p = patientRows?.[0] || {};
         const pttypeCandidates = [
             p.ipt_pttype,
             p.ovst_pttype,

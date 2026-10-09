@@ -156,12 +156,20 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
   const fetchDocuments = useCallback(async () => {
     if (!patient?.an) return
     try {
-      const [docRes, compRes] = await Promise.all([
+      const [docRes, compRes] = await Promise.allSettled([
         api.get(`/documents/${patient.an}`),
         api.get(`/documents/${patient.an}/completeness`)
       ])
-      setDocuments(docRes.data)
-      setCompleteness(compRes.data)
+      if (docRes.status === 'fulfilled') {
+        setDocuments(docRes.value?.data || [])
+      } else {
+        console.error('Error fetching documents list:', docRes.reason)
+      }
+      if (compRes.status === 'fulfilled') {
+        setCompleteness(compRes.value?.data || null)
+      } else {
+        console.error('Error fetching completeness:', compRes.reason)
+      }
     } catch (err) {
       console.error('Error fetching documents:', err)
     }
