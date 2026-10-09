@@ -420,34 +420,6 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       })}
                     </tr>
 
-                    {/* 8. claim_code */}
-                    <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
-                        <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">claim_code</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">รหัสเคลม (Auth / Claim Code)</span>
-                        </div>
-                      </td>
-                      {filteredRows.map((col, idx) => {
-                        const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
-                        const hasCode = col.claim_code && col.claim_code !== '-';
-                        return (
-                          <td
-                            key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
-                              isApi ? 'bg-purple-50/20 font-bold' : isIpt ? 'bg-emerald-50/15' : ''
-                            }`}
-                          >
-                            <span className={`font-mono text-center block ${
-                              hasCode ? 'font-semibold text-purple-700 select-all' : 'text-slate-600'
-                            }`}>
-                              {col.claim_code || '-'}
-                            </span>
-                          </td>
-                        );
-                      })}
-                    </tr>
 
                     {/* 9. staff */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
