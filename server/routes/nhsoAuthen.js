@@ -161,8 +161,8 @@ router.get('/inpatients', async (req, res) => {
             const iptList = iptPttypeMap.get(p.an) || [];
             const visitList = visitPttypeMap.get(p.vn) || [];
 
-            // Staff determination: ดึงจาก ovst.staff เท่านั้น
-            const primaryStaffCode = p.ovst_staff || '';
+            // Staff determination: ดึงจาก ipt.staff
+            const primaryStaffCode = p.ipt_staff || '';
             const primaryStaffName = primaryStaffCode ? (staffMap.get(String(primaryStaffCode).trim()) || primaryStaffCode) : '';
 
             return {
@@ -775,6 +775,117 @@ router.post('/sync-hos', async (req, res) => {
 });
 
 // ============================================================
+// 4.1 POST /sync-ipt-pttype: บันทึกเข้าแค่ตาราง ipt_pttype เฉพาะ row ที่สิทธิ์ตรงกัน
+// ============================================================
+router.post('/sync-ipt-pttype', async (req, res) => {
+    let hisWriteConn, dflowConn;
+    try {
+        const { an, target } = req.body;
+        if (!an) {
+            return res.status(400).json({ error: 'AN is required' });
+        }
+        if (!target || !target.pttype) {
+            return res.status(400).json({ error: 'ข้อมูลสิทธิปลายทาง (pttype) ไม่ครบถ้วน' });
+        }
+
+        if (!process.env.HIS_WRITE_DB_USER) {
+            return res.status(400).json({
+                error: 'ยังไม่ได้กำหนด HIS_WRITE_DB_USER ใน .env (กรุณาระบุ Username และ Password สำหรับเขียนลงฐานข้อมูล HOSxP ในไฟล์ .env)'
+            });
+        }
+
+        hisWriteConn = await getHisWriteConnection();
+        dflowConn = await getDflowConnection();
+
+        await hisWriteConn.beginTransaction();
+
+        // 1. ค้นหาแถวใน ipt_pttype ที่ตรงกับ pttype ของ target
+        const ipRows = await hisWriteConn.query(`
+            SELECT an, pttype, pttype_number, staff, auth_code, claim_code
+            FROM ipt_pttype 
+            WHERE an = ? AND pttype = ?
+            ORDER BY pttype_number ASC
+        `, [an, target.pttype]);
+
+        if (!ipRows || ipRows.length === 0) {
+            await hisWriteConn.rollback();
+            return res.status(400).json({
+                error: `ไม่พบแถวในตาราง ipt_pttype ที่มีรหัสสิทธิ [${target.pttype}] ตรงกัน ไม่สามารถบันทึกได้`
+            });
+        }
+
+        const targetRow = (target.pttype_number
+            ? ipRows.find(r => Number(r.pttype_number) === Number(target.pttype_number))
+            : null) || ipRows[0];
+
+        // 2. อัปเดตเฉพาะ ipt_pttype แถวที่ตรงกัน (คง staff เดิม!)
+        const authCodeVal = target.auth_code || target.claim_code || null;
+        await hisWriteConn.query(`
+            UPDATE ipt_pttype 
+            SET 
+                pttypeno = COALESCE(?, pttypeno),
+                hospmain = COALESCE(?, hospmain),
+                hospsub = COALESCE(?, hospsub),
+                begin_date = COALESCE(?, begin_date),
+                expire_date = COALESCE(?, expire_date),
+                auth_code = COALESCE(?, auth_code),
+                claim_code = COALESCE(?, claim_code)
+            WHERE an = ? AND pttype = ? AND pttype_number = ?
+        `, [
+            target.pttypeno || null,
+            target.hospmain || null,
+            target.hospsub || null,
+            target.begin_date || null,
+            target.expire_date || null,
+            authCodeVal,
+            authCodeVal,
+            an,
+            target.pttype,
+            targetRow.pttype_number
+        ]);
+
+        await hisWriteConn.commit();
+
+        // Update vn_nhso_authen timestamp if vn provided
+        if (req.body.vn) {
+            try {
+                await dflowConn.query(`UPDATE vn_nhso_authen SET updated_at = NOW() WHERE vn = ?`, [req.body.vn]);
+            } catch (e) { }
+        }
+
+        // Log activity
+        try {
+            await dflowConn.query(`
+                INSERT INTO activity_logs (an, action, details, user_id, created_at)
+                VALUES (?, 'nhso_sync_ipt_pttype', ?, ?, NOW())
+            `, [
+                an,
+                JSON.stringify({ target, pttype_number: targetRow.pttype_number, updated_by: req.user?.username || 'system' }),
+                req.user?.id || null
+            ]);
+        } catch (e) { }
+
+        res.json({
+            success: true,
+            message: `บันทึกข้อมูลสิทธิและ Authen Code เข้าตาราง ipt_pttype (ลำดับที่ ${targetRow.pttype_number}) เรียบร้อยแล้ว`,
+            an,
+            pttype: target.pttype,
+            pttype_number: targetRow.pttype_number
+        });
+
+    } catch (error) {
+        if (hisWriteConn) {
+            try { await hisWriteConn.rollback(); } catch (e) { }
+        }
+        console.error('[NhsoAuthen] Sync ipt_pttype error:', error);
+        res.status(500).json({ error: 'บันทึกข้อมูลลง ipt_pttype ล้มเหลว: ' + error.message });
+    } finally {
+        if (hisWriteConn) hisWriteConn.release();
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// ============================================================
 // 5. GET /rights-summary/:an: Rights comparison table (5 sources) & Authen code details
 // ============================================================
 router.get('/rights-summary/:an', async (req, res) => {
@@ -1155,6 +1266,12 @@ router.get('/rights-summary/:an', async (req, res) => {
             ward_code: patient.ward_code,
             ward_name: patient.ward_name,
             rows,
+            ipt: {
+                pttype: patient.ipt_pttype,
+                pttype_name: patient.ipt_pttype_name,
+                staff: patient.ipt_staff,
+                staff_name: staffMap.get(String(patient.ipt_staff).trim()) || patient.ipt_staff || '-'
+            },
             comparison: {
                 has_api: hasApiData,
                 ipt_pttype: patient.ipt_pttype,

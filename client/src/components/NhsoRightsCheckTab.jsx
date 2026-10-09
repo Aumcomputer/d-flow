@@ -6,6 +6,8 @@ import { Badge } from './ui/badge';
 import { Skeleton } from './ui/skeleton';
 import { 
   ShieldCheck, 
+  Shield,
+  AlertTriangle,
   Search, 
   RefreshCw, 
   CheckCircle2, 
@@ -50,13 +52,14 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const stopBatchCheckRef = useRef(false);
 
-  // Sync Modal State
-  const [syncModalOpen, setSyncModalOpen] = useState(false);
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [syncPreviewData, setSyncPreviewData] = useState(null);
-  const [syncSubmitting, setSyncSubmitting] = useState(false);
-  const [syncError, setSyncError] = useState('');
-  const [syncSuccessMsg, setSyncSuccessMsg] = useState('');
+  // Patient Detail & Comparison Modal State (คลิกแต่ละแถว)
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [detailPatient, setDetailPatient] = useState(null);
+  const [detailData, setDetailData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [savingIptPttype, setSavingIptPttype] = useState(false);
+  const [detailActionError, setDetailActionError] = useState('');
+  const [detailActionSuccess, setDetailActionSuccess] = useState('');
 
   // Fetch patients list
   const fetchInpatients = useCallback(async (isSilent = false) => {
@@ -319,54 +322,99 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
     await executeBatchCheck(targetPatients);
   };
 
-  // Open Preview Modal for Syncing to HOSxP
-  const handleOpenSyncModal = async (p, e) => {
-    e?.stopPropagation();
-    setSyncPreviewData(null);
-    setSyncError('');
-    setSyncSuccessMsg('');
-    setSyncModalOpen(true);
-    setSyncLoading(true);
+  // Row click opens the comparison and detail modal
+  const handleRowClick = async (p) => {
+    setDetailPatient(p);
+    setDetailData(null);
+    setDetailActionError('');
+    setDetailActionSuccess('');
+    setDetailModalOpen(true);
+    setDetailLoading(true);
 
     try {
-      const res = await api.get(`/nhso-authen/preview-sync/${p.an}`);
+      const res = await api.get(`/nhso-authen/details/${p.an}`);
       if (res.data) {
-        setSyncPreviewData(res.data);
+        setDetailData(res.data);
       }
     } catch (err) {
-      console.error('Failed to preview sync:', err);
-      setSyncError(err.response?.data?.error || `ไม่สามารถโหลดข้อมูลเปรียบเทียบสิทธิได้: ${err.message}`);
+      console.error('Failed to load rights details:', err);
+      setDetailActionError(err.response?.data?.error || `ไม่สามารถโหลดข้อมูลสิทธิได้: ${err.message}`);
     } finally {
-      setSyncLoading(false);
+      setDetailLoading(false);
     }
   };
 
-  // Execute Sync to HOSxP
-  const handleConfirmSync = async () => {
-    if (!syncPreviewData) return;
-    setSyncSubmitting(true);
-    setSyncError('');
-    setSyncSuccessMsg('');
+  // Check NHSO within the Modal
+  const handleCheckNhsoInModal = async () => {
+    if (!detailPatient) return;
+    setDetailLoading(true);
+    setDetailActionError('');
+    setDetailActionSuccess('');
+    try {
+      await api.post('/nhso-authen/check', {
+        vn: detailPatient.vn,
+        an: detailPatient.an,
+        cid: detailPatient.cid,
+        admit_date: detailPatient.admit_date,
+        vstdate: detailPatient.admit_date,
+        force: true
+      });
+      const res = await api.get(`/nhso-authen/details/${detailPatient.an}`);
+      if (res.data) {
+        setDetailData(res.data);
+      }
+      fetchInpatients(true);
+    } catch (err) {
+      console.error('Check NHSO error:', err);
+      setDetailActionError(err.response?.data?.error || `ตรวจสอบสิทธิ์ล้มเหลว: ${err.message}`);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // Save/Sync to ipt_pttype only (เฉพาะ row ที่สิทธิ์ตรงกัน)
+  const handleSaveIptPttype = async () => {
+    if (!detailData || !detailData.comparison?.is_match || !detailData.comparison?.matched_row) {
+      return;
+    }
+    setSavingIptPttype(true);
+    setDetailActionError('');
+    setDetailActionSuccess('');
 
     try {
-      const res = await api.post('/nhso-authen/sync-hos', {
-        an: syncPreviewData.an,
-        vn: syncPreviewData.vn,
-        target: syncPreviewData.target
+      const matched = detailData.comparison.matched_row;
+      const apiRow = detailData.rows?.find(r => r.source_name === 'api');
+      const authCodeVal = apiRow?.auth_code || apiRow?.claim_code || detailData.authen?.claim_code || null;
+
+      const res = await api.post('/nhso-authen/sync-ipt-pttype', {
+        an: detailData.an,
+        vn: detailData.vn,
+        target: {
+          pttype: matched.pttype,
+          pttype_number: matched.number,
+          pttypeno: apiRow?.pttypeno !== '-' ? apiRow?.pttypeno : null,
+          hospmain: apiRow?.hospmain !== '-' ? apiRow?.hospmain : null,
+          hospsub: apiRow?.hospsub !== '-' ? apiRow?.hospsub : null,
+          begin_date: apiRow?.begin_date !== '-' ? apiRow?.begin_date : null,
+          expire_date: apiRow?.expire_date !== '-' ? apiRow?.expire_date : null,
+          auth_code: authCodeVal,
+          claim_code: authCodeVal
+        }
       });
 
       if (res.data?.success) {
-        setSyncSuccessMsg('บันทึกข้อมูลสิทธิและ Authen Code ลง HOSxP ทั้ง 4 ตารางเรียบร้อยแล้ว!');
-        setTimeout(() => {
-          setSyncModalOpen(false);
-          fetchInpatients(true);
-        }, 1200);
+        setDetailActionSuccess(res.data.message || 'บันทึกข้อมูลเข้าตาราง ipt_pttype เรียบร้อยแล้ว!');
+        const reloadRes = await api.get(`/nhso-authen/details/${detailData.an}`);
+        if (reloadRes.data) {
+          setDetailData(reloadRes.data);
+        }
+        fetchInpatients(true);
       }
     } catch (err) {
-      console.error('Failed to sync to HOSxP:', err);
-      setSyncError(err.response?.data?.error || `บันทึกข้อมูลลง HOSxP ล้มเหลว: ${err.message}`);
+      console.error('Failed to save to ipt_pttype:', err);
+      setDetailActionError(err.response?.data?.error || `บันทึกข้อมูลล้มเหลว: ${err.message}`);
     } finally {
-      setSyncSubmitting(false);
+      setSavingIptPttype(false);
     }
   };
 
@@ -582,11 +630,11 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                 <th className="p-3 whitespace-nowrap min-w-[130px]">HN / เลขบัตร (CID)</th>
                 <th className="p-3 whitespace-nowrap min-w-[140px]">ชื่อ - สกุล</th>
                 <th className="p-3 whitespace-nowrap min-w-[130px]">หอผู้ป่วย</th>
-                <th className="p-3 whitespace-nowrap min-w-[120px] bg-slate-100/60">ovst</th>
+                <th className="p-3 whitespace-nowrap min-w-[200px] bg-sky-50/70 text-sky-950">ipt_pttype (สิทธิ์ใน HOSxP)</th>
                 <th className="p-3 whitespace-nowrap min-w-[170px] bg-emerald-50/50">สิทธิ สปสช. (API)</th>
                 <th className="p-3 whitespace-nowrap min-w-[130px] bg-emerald-50/70">Authen Code (API)</th>
-                <th className="p-3 whitespace-nowrap min-w-[110px]">ผู้บันทึก (Staff)</th>
-                <th className="p-3 whitespace-nowrap text-center min-w-[140px] sticky right-0 bg-muted/90 backdrop-blur-xs">
+                <th className="p-3 whitespace-nowrap min-w-[120px]">ผู้บันทึก (ipt.staff)</th>
+                <th className="p-3 whitespace-nowrap text-center min-w-[100px] sticky right-0 bg-muted/90 backdrop-blur-xs">
                   การจัดการ
                 </th>
               </tr>
@@ -624,11 +672,11 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                   return (
                     <tr 
                       key={p.an} 
-                      onClick={() => onSelectPatient?.(p.an)}
-                      className={`hover:bg-blue-50/60 cursor-pointer transition-colors ${
-                        isSelected ? 'bg-blue-50/40' : ''
+                      onClick={() => handleRowClick(p)}
+                      className={`hover:bg-sky-50/60 cursor-pointer transition-colors ${
+                        isSelected ? 'bg-sky-50/40' : ''
                       }`}
-                      title="คลิกเพื่อดูรายละเอียดและเอกสารสิทธิ์"
+                      title="คลิกเพื่อดูรายละเอียดสิทธิ์และเปรียบเทียบกับ สปสช. (API)"
                     >
                       {/* Checkbox */}
                       <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -705,22 +753,39 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                         </span>
                       </td>
 
-                      {/* ovst */}
-                      <td className="p-3 whitespace-nowrap bg-slate-50/50">
-                        <div className="font-semibold text-slate-800">
-                          <span className="bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded font-mono mr-1">
-                            {p.ovst?.pttype || '-'}
-                          </span>
-                          <span className="text-[11px]">{p.ovst?.pttype_name || ''}</span>
-                        </div>
-                        {p.ovst?.pttypeno && (
-                          <div className="text-[10px] text-muted-foreground font-mono">
-                            เลขที่: {p.ovst.pttypeno}
+                      {/* ipt_pttype (แสดงทุกสิทธิ์: pttype, hospmain, hospsub, authen_code) */}
+                      <td className="p-3 bg-sky-50/20">
+                        {p.ipt_pttype_list && p.ipt_pttype_list.length > 0 ? (
+                          <div className="space-y-1.5 min-w-[190px]">
+                            {p.ipt_pttype_list.map((ip, idx) => (
+                              <div key={idx} className="bg-white/90 p-2 rounded-lg border border-sky-100 shadow-2xs text-xs space-y-1">
+                                <div className="font-semibold text-slate-900 flex items-center justify-between gap-1">
+                                  <div className="truncate">
+                                    <span className="bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded font-mono font-bold mr-1 text-[11px]">
+                                      {p.ipt_pttype_list.length > 1 ? `#${ip.pttype_number} ` : ''}{ip.pttype}
+                                    </span>
+                                    <span className="text-slate-700 text-[11px]">{ip.pttype_name}</span>
+                                  </div>
+                                </div>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                  <span>รพ.หลัก/รอง: <strong className="font-mono text-slate-700">{ip.hospmain || '-'}/{ip.hospsub || '-'}</strong></span>
+                                </div>
+                                <div className="text-[10px] flex items-center gap-1 font-mono">
+                                  <span className="text-muted-foreground">Auth:</span>
+                                  <span className={`font-semibold ${ip.auth_code ? 'text-emerald-700 bg-emerald-50 px-1 rounded' : 'text-slate-400'}`}>
+                                    {ip.auth_code || ip.claim_code || '-'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        )}
-                        {(p.ovst?.hospmain || p.ovst?.hospsub) && (
-                          <div className="text-[10px] text-muted-foreground">
-                            รพ: {p.ovst.hospmain || '-'}/{p.ovst.hospsub || '-'}
+                        ) : (
+                          <div className="text-xs text-slate-700 min-w-[160px]">
+                            <span className="bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded font-mono mr-1">
+                              {p.ipt?.pttype || '-'}
+                            </span>
+                            <span className="text-[11px]">{p.ipt?.pttype_name || ''}</span>
+                            <div className="text-[10px] text-slate-400 mt-1">Auth: -</div>
                           </div>
                         )}
                       </td>
@@ -728,7 +793,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                       {/* สิทธิ สปสช. (API) */}
                       <td className="p-3 bg-emerald-50/20">
                         {isCheckedWithNhso ? (
-                          <div className="space-y-0.5">
+                          <div className="space-y-0.5 min-w-[160px]">
                             <div className="font-semibold text-emerald-900">
                               <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-mono mr-1">
                                 {p.nhso.maininscl_id || '-'}
@@ -791,36 +856,25 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                         )}
                       </td>
 
-                      {/* ผู้บันทึก (Staff) */}
+                      {/* ผู้บันทึก (Staff ดึงจาก ipt.staff) */}
                       <td className="p-3 whitespace-nowrap">
-                        <div className="font-medium text-foreground">
-                          {p.primary_staff?.name || '-'}
+                        <div className="font-mono font-bold text-foreground">
+                          {p.ipt?.staff || p.primary_staff?.code || '-'}
                         </div>
-                        {p.primary_staff?.code && (
-                          <div className="text-[10px] text-muted-foreground font-mono">
-                            {p.primary_staff.code}
+                        {(p.ipt?.staff_name || p.primary_staff?.name) && (p.ipt?.staff_name || p.primary_staff?.name) !== '-' && (
+                          <div className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+                            {p.ipt?.staff_name || p.primary_staff?.name}
                           </div>
                         )}
                       </td>
 
-                      {/* การจัดการ (Actions) */}
+                      {/* การจัดการ (Actions) - ลบปุ่ม บันทึก hos ตามคำขอ */}
                       <td className="p-3 whitespace-nowrap text-center sticky right-0 bg-background/95 backdrop-blur-xs border-l border-border/40 shadow-xs" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* View details button */}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onSelectPatient?.(p.an)}
-                            className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                            title="เปิดดูรายละเอียดและเอกสารสิทธิ์"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                          </Button>
-
                           {/* Check NHSO button */}
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant={isCheckedWithNhso ? "outline" : "default"}
                             onClick={(e) => handleCheckSingle(p, e)}
                             disabled={isCheckingThis}
                             className={`h-7 px-2.5 text-xs font-medium rounded-lg ${
@@ -832,19 +886,6 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                           >
                             <RefreshCw className={`w-3 h-3 mr-1 ${isCheckingThis ? 'animate-spin' : ''}`} />
                             {isCheckedWithNhso ? 'เช็คซ้ำ' : 'เช็ค สปสช.'}
-                          </Button>
-
-                          {/* Save/Sync to HOSxP button */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => handleOpenSyncModal(p, e)}
-                            disabled={!isCheckedWithNhso}
-                            className="h-7 px-2 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-200 rounded-lg"
-                            title="บันทึกข้อมูลสิทธิและ Authen Code ลง HOSxP ทั้ง 4 ตาราง"
-                          >
-                            <Save className="w-3 h-3 mr-1" />
-                            บันทึก HOS
                           </Button>
                         </div>
                       </td>
@@ -901,236 +942,381 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
         </div>
       </div>
 
-      {/* 4. Sync Confirmation Modal (บันทึกข้อมูลสิทธิลง HOSxP) */}
-      {syncModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-card w-full max-w-3xl rounded-2xl shadow-xl border border-border flex flex-col max-h-[90vh] overflow-hidden">
+      {/* 4. Patient Detail & Rights Comparison Modal (คลิกแต่ละแถว) */}
+      {detailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-4xl rounded-2xl shadow-2xl border border-border flex flex-col max-h-[92vh] overflow-hidden">
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                  <Database className="w-5 h-5" />
+            <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between bg-muted/20">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-sky-100 text-sky-700 rounded-xl">
+                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-foreground text-base">
-                    บันทึกข้อมูลสิทธิและการ Authen ลง HOSxP
+                  <h3 className="font-bold text-foreground text-base sm:text-lg flex items-center gap-2">
+                    <span>รายละเอียดสิทธิการรักษา และเปรียบเทียบ สปสช. (API)</span>
                   </h3>
-                  <p className="text-xs text-muted-foreground">
-                    ตรวจสอบและอัปเดตข้อมูลสิทธิทั้ง 4 ตาราง (ovst, visit_pttype, ipt, ipt_pttype)
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    เปรียบเทียบสิทธิใน ipt_pttype กับระบบ สปสช. เพื่อบันทึก Authen Code เข้า HOSxP
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setSyncModalOpen(false)}
-                className="p-2 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground"
+                onClick={() => setDetailModalOpen(false)}
+                className="p-2 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1">
-              {syncLoading ? (
-                <div className="py-12 text-center space-y-3">
-                  <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
-                  <p className="text-muted-foreground font-medium">กำลังเตรียมข้อมูลเปรียบเทียบสิทธิ...</p>
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-5 text-xs flex-1">
+              {detailLoading && !detailData ? (
+                <div className="py-16 text-center space-y-3">
+                  <RefreshCw className="w-8 h-8 text-sky-600 animate-spin mx-auto" />
+                  <p className="text-muted-foreground font-medium text-sm">กำลังโหลดข้อมูลสิทธิ์การรักษาและ API สปสช...</p>
                 </div>
-              ) : syncPreviewData ? (
+              ) : detailPatient ? (
                 <>
-                  {/* Patient Banner */}
-                  <div className="bg-muted/40 p-3.5 rounded-xl border border-border flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="font-bold text-sm text-foreground">
-                        {syncPreviewData.ptname}
+                  {/* 1. Patient Information Banner */}
+                  <div className="bg-muted/40 p-3.5 sm:p-4 rounded-xl border border-border flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="font-bold text-sm sm:text-base text-foreground flex items-center gap-2">
+                        <span>{detailPatient.ptname}</span>
+                        <span className="text-xs font-normal text-muted-foreground">({detailPatient.age_y ? `${detailPatient.age_y} ปี` : '-'})</span>
                       </div>
-                      <div className="text-muted-foreground flex items-center gap-3 mt-0.5">
-                        <span>HN: <strong className="font-mono text-foreground">{syncPreviewData.hn}</strong></span>
-                        <span>AN: <strong className="font-mono text-foreground">{syncPreviewData.an}</strong></span>
-                        <span>VN: <strong className="font-mono text-foreground">{syncPreviewData.vn}</strong></span>
+                      <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+                        <span>HN: <strong className="font-mono text-foreground">{detailPatient.hn}</strong></span>
+                        <span>AN: <strong className="font-mono text-foreground">{detailPatient.an}</strong></span>
+                        <span>VN: <strong className="font-mono text-foreground">{detailPatient.vn}</strong></span>
+                        <span>หอผู้ป่วย: <strong className="text-foreground">{detailPatient.ward_name}</strong></span>
+                        <span>Admit: <strong className="text-foreground">{detailPatient.admit_date} {detailPatient.admit_time}</strong></span>
                       </div>
                     </div>
-                    <div className="text-muted-foreground font-mono bg-background px-2.5 py-1 rounded-lg border border-border">
-                      CID: {syncPreviewData.cid}
-                    </div>
-                  </div>
-
-                  {/* Note about Staff Preservation */}
-                  <div className="bg-blue-50 border border-blue-200 text-blue-900 p-3 rounded-xl flex items-start gap-2">
-                    <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                    <p className="leading-relaxed">
-                      <strong>หมายเหตุระบบ:</strong> ข้อมูลผู้บันทึก (<code>staff</code>) ในทุกตารางจะถูกคงค่าเดิมไว้ ไม่ถูกเปลี่ยนแปลงตามข้อกำหนด
-                    </p>
-                  </div>
-
-                  {/* Target Values Summary */}
-                  <div className="bg-emerald-50/60 border border-emerald-200 p-4 rounded-xl space-y-2">
-                    <div className="font-bold text-emerald-900 text-sm flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-emerald-600" />
-                      <span>ข้อมูลปลายทางที่จะนำไปบันทึก (Target Mapping):</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                      <div>
-                        <span className="text-muted-foreground block">รหัสสิทธิ (pttype):</span>
-                        <strong className="text-emerald-800 text-sm font-mono">{syncPreviewData.target.pttype}</strong>
-                        <span className="block text-[11px] text-muted-foreground">{syncPreviewData.target.pttype_name}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground block">เลขที่สิทธิ (pttypeno):</span>
-                        <strong className="text-foreground font-mono">{syncPreviewData.target.pttypeno || '-'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground block">สถานพยาบาลหลัก / รอง:</span>
-                        <strong className="text-foreground font-mono">
-                          {syncPreviewData.target.hospmain || '-'}/{syncPreviewData.target.hospsub || '-'}
-                        </strong>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground block">Authen Code:</span>
-                        <strong className="text-emerald-700 font-mono font-bold">
-                          {syncPreviewData.target.auth_code || '-'}
-                        </strong>
-                      </div>
+                    <div className="text-muted-foreground font-mono bg-background px-3 py-1.5 rounded-lg border border-border text-xs">
+                      CID: <strong className="text-foreground">{detailPatient.cid || '-'}</strong>
                     </div>
                   </div>
 
-                  {/* Comparison across 4 Tables */}
-                  <div className="space-y-3 pt-2">
-                    <h4 className="font-bold text-foreground text-sm">
-                      เปรียบเทียบค่าที่จะถูกอัปเดตใน 4 ตาราง:
-                    </h4>
-
-                    {/* 1. ovst */}
-                    <div className="border border-border rounded-xl p-3 bg-card space-y-1">
-                      <div className="font-semibold text-slate-800 flex items-center justify-between">
-                        <span>1. ตาราง <code>ovst</code> (OPD Visit)</span>
-                        <Badge variant="outline" className="text-[10px]">อัปเดต pttype, pttypeno, hospmain, hospsub</Badge>
+                  {/* 2. แสดงสิทธิ์จาก ipt (ข้อมูล Admit) */}
+                  <div className="border border-sky-200/80 rounded-xl p-4 bg-sky-50/20 space-y-3">
+                    <div className="font-bold text-slate-900 text-sm flex items-center justify-between border-b border-sky-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-sky-600" />
+                        <span>1. สิทธิ์การรักษาจากตาราง ipt (ข้อมูล Admit)</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                        <div className="bg-muted/40 p-2 rounded-lg">
-                          <span className="text-muted-foreground block">ค่าเดิม:</span>
-                          <div>สิทธิ: {syncPreviewData.current.ovst.pttype} ({syncPreviewData.current.ovst.pttype_name})</div>
-                          <div>เลขที่: {syncPreviewData.current.ovst.pttypeno || '-'}</div>
-                          <div>รพ.หลัก/รอง: {syncPreviewData.current.ovst.hospmain || '-'}/{syncPreviewData.current.ovst.hospsub || '-'}</div>
+                      <Badge variant="outline" className="bg-sky-50 text-sky-800 border-sky-200 text-[11px]">
+                        ipt
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs space-y-1">
+                        <span className="text-muted-foreground block text-[11px]">สิทธิ์หลักใน ipt:</span>
+                        <div className="font-semibold text-slate-900 text-sm">
+                          <span className="bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded font-mono mr-1.5">
+                            {detailPatient.ipt?.pttype || detailData?.ipt?.pttype || '-'}
+                          </span>
+                          <span>{detailPatient.ipt?.pttype_name || detailData?.ipt?.pttype_name || '-'}</span>
                         </div>
-                        <div className="bg-emerald-50/60 border border-emerald-200 p-2 rounded-lg text-emerald-900">
-                          <span className="text-emerald-700 font-semibold block">ค่าใหม่:</span>
-                          <div>สิทธิ: <strong>{syncPreviewData.target.pttype}</strong> ({syncPreviewData.target.pttype_name})</div>
-                          <div>เลขที่: <strong>{syncPreviewData.target.pttypeno || '-'}</strong></div>
-                          <div>รพ.หลัก/รอง: <strong>{syncPreviewData.target.hospmain || '-'}/{syncPreviewData.target.hospsub || '-'}</strong></div>
+                      </div>
+
+                      <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs space-y-1">
+                        <span className="text-muted-foreground block text-[11px]">ผู้บันทึก (ipt.staff):</span>
+                        <div className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                          <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded text-slate-700">
+                            {detailPatient.ipt?.staff || detailData?.ipt?.staff || '-'}
+                          </span>
+                          <span>
+                            {detailPatient.ipt?.staff_name || detailData?.ipt?.staff_name || '-'}
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* 2. ipt */}
-                    <div className="border border-border rounded-xl p-3 bg-card space-y-1">
-                      <div className="font-semibold text-slate-800 flex items-center justify-between">
-                        <span>2. ตาราง <code>ipt</code> (Inpatient Visit)</span>
-                        <Badge variant="outline" className="text-[10px]">อัปเดต pttype หลัก</Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                        <div className="bg-muted/40 p-2 rounded-lg">
-                          <span className="text-muted-foreground block">ค่าเดิม:</span>
-                          <div>สิทธิ: {syncPreviewData.current.ipt.pttype} ({syncPreviewData.current.ipt.pttype_name})</div>
-                        </div>
-                        <div className="bg-emerald-50/60 border border-emerald-200 p-2 rounded-lg text-emerald-900">
-                          <span className="text-emerald-700 font-semibold block">ค่าใหม่:</span>
-                          <div>สิทธิ: <strong>{syncPreviewData.target.pttype}</strong> ({syncPreviewData.target.pttype_name})</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 3. visit_pttype */}
-                    <div className="border border-border rounded-xl p-3 bg-card space-y-1">
-                      <div className="font-semibold text-slate-800 flex items-center justify-between">
-                        <span>3. ตาราง <code>visit_pttype</code></span>
-                        <Badge variant="outline" className="text-[10px]">อัปเดตสิทธิที่ตรงกัน หรือสิทธิหลัก</Badge>
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {syncPreviewData.current.visit_pttype_list?.length > 0 ? (
-                          <div className="space-y-1 mt-1">
-                            {syncPreviewData.current.visit_pttype_list.map((v, i) => (
-                              <div key={i} className="bg-muted/30 p-1.5 rounded flex justify-between">
-                                <span>ลำดับ {v.pttype_number}: <strong>{v.pttype}</strong> ({v.pttype_name})</span>
-                                <span className="font-mono text-emerald-700">Auth: {v.auth_code || '-'}</span>
+                    {/* แสดงสิทธิ์ทั้งหมดใน ipt_pttype */}
+                    {detailPatient.ipt_pttype_list && detailPatient.ipt_pttype_list.length > 0 && (
+                      <div className="pt-1 space-y-1.5">
+                        <span className="text-[11px] font-semibold text-slate-700 block">
+                          รายการสิทธิ์ใน ipt_pttype ทั้งหมด ({detailPatient.ipt_pttype_list.length} สิทธิ์):
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {detailPatient.ipt_pttype_list.map((ip, i) => (
+                            <div key={i} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs shadow-2xs space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-900">
+                                  <span className="bg-slate-100 text-slate-800 px-1 py-0.2 rounded font-mono mr-1">
+                                    #{ip.pttype_number}
+                                  </span>
+                                  [{ip.pttype}] {ip.pttype_name}
+                                </span>
+                                <span className="font-mono text-emerald-700 font-semibold text-[11px]">
+                                  Auth: {ip.auth_code || ip.claim_code || '-'}
+                                </span>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="italic">ไม่มีเรคคอร์ดเดิม (จะสร้างแถวใหม่ ลำดับที่ 1)</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 4. ipt_pttype */}
-                    <div className="border border-border rounded-xl p-3 bg-card space-y-1">
-                      <div className="font-semibold text-slate-800 flex items-center justify-between">
-                        <span>4. ตาราง <code>ipt_pttype</code></span>
-                        <Badge variant="outline" className="text-[10px]">อัปเดตสิทธิที่ตรงกัน หรือสิทธิหลัก</Badge>
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {syncPreviewData.current.ipt_pttype_list?.length > 0 ? (
-                          <div className="space-y-1 mt-1">
-                            {syncPreviewData.current.ipt_pttype_list.map((ip, i) => (
-                              <div key={i} className="bg-muted/30 p-1.5 rounded flex justify-between">
-                                <span>ลำดับ {ip.pttype_number}: <strong>{ip.pttype}</strong> ({ip.pttype_name})</span>
-                                <span className="font-mono text-emerald-700">Auth: {ip.auth_code || '-'}</span>
+                              <div className="text-[11px] text-muted-foreground flex justify-between">
+                                <span>รพ: {ip.hospmain || '-'}/{ip.hospsub || '-'}</span>
+                                <span>เลขที่: {ip.pttypeno || '-'}</span>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="italic">ไม่มีเรคคอร์ดเดิม (จะสร้างแถวใหม่ ลำดับที่ 1)</span>
-                        )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
-                  {/* Feedback Alerts */}
-                  {syncError && (
+                  {/* 3. ถัดมาแสดงตารางเปรียบเทียบ pttype และ api สปสช */}
+                  <div className="space-y-2.5">
+                    <div className="font-bold text-slate-900 text-sm flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4 text-purple-600" />
+                        <span>2. ตารางเปรียบเทียบสิทธิ pttype และ API สปสช.</span>
+                      </div>
+                      {detailData?.comparison?.has_api && (
+                        <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-200 text-[11px]">
+                          ข้อมูลจาก API วันที่ {detailData.authen?.right_check_date || '-'}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {detailData?.rows ? (
+                      <div className="border border-border rounded-xl overflow-x-auto shadow-2xs bg-white">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-muted/60 text-muted-foreground border-b border-border font-semibold">
+                            <tr>
+                              <th className="p-2.5 whitespace-nowrap min-w-[130px]">แหล่งข้อมูล</th>
+                              <th className="p-2.5 whitespace-nowrap min-w-[80px]">รหัสสิทธิ</th>
+                              <th className="p-2.5 whitespace-nowrap min-w-[150px]">ชื่อสิทธิการรักษา</th>
+                              <th className="p-2.5 whitespace-nowrap min-w-[100px]">เลขที่สิทธิ</th>
+                              <th className="p-2.5 whitespace-nowrap min-w-[120px]">รพ.หลัก / รอง</th>
+                              <th className="p-2.5 whitespace-nowrap min-w-[120px]">วันเริ่ม - หมดอายุ</th>
+                              <th className="p-2.5 whitespace-nowrap min-w-[130px]">Authen Code</th>
+                              <th className="p-2.5 whitespace-nowrap min-w-[100px]">ผู้บันทึก (staff)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/60">
+                            {detailData.rows
+                              .filter(r => r.source_name === 'ipt_pttype' || r.source_name === 'api' || r.source_name === 'ipt')
+                              .map((row, idx) => {
+                                const isApi = row.source_name === 'api';
+                                const isIptPttype = row.source_name === 'ipt_pttype';
+                                return (
+                                  <tr
+                                    key={idx}
+                                    className={`transition-colors ${
+                                      isApi ? 'bg-purple-50/40 font-medium' : isIptPttype ? 'bg-sky-50/20' : ''
+                                    }`}
+                                  >
+                                    <td className="p-2.5 whitespace-nowrap font-semibold">
+                                      <span className={`px-2 py-0.5 rounded ${
+                                        isApi 
+                                          ? 'bg-purple-100 text-purple-800 border border-purple-200' 
+                                          : isIptPttype
+                                          ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                                          : 'bg-slate-100 text-slate-700'
+                                      }`}>
+                                        {row.source_label}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 whitespace-nowrap font-mono font-bold">
+                                      <span className={isApi ? 'text-purple-700' : 'text-slate-900'}>
+                                        {row.pttype}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 min-w-[150px]">{row.pttype_name}</td>
+                                    <td className="p-2.5 whitespace-nowrap font-mono">{row.pttypeno}</td>
+                                    <td className="p-2.5 whitespace-nowrap font-mono">
+                                      {row.hospmain || '-'}/{row.hospsub || '-'}
+                                    </td>
+                                    <td className="p-2.5 whitespace-nowrap font-mono text-[11px]">
+                                      {row.begin_date !== '-' || row.expire_date !== '-' 
+                                        ? `${row.begin_date} - ${row.expire_date}` 
+                                        : '-'}
+                                    </td>
+                                    <td className="p-2.5 whitespace-nowrap font-mono font-semibold">
+                                      <span className={row.auth_code && row.auth_code !== '-' ? (isApi ? 'text-purple-700 select-all' : 'text-emerald-700 select-all') : 'text-slate-400'}>
+                                        {row.auth_code || row.claim_code || '-'}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 whitespace-nowrap">
+                                      <span className="font-mono text-slate-700">{row.staff}</span>
+                                      {row.staff_name && row.staff_name !== '-' && (
+                                        <span className="text-[10px] text-muted-foreground block truncate max-w-[100px]">{row.staff_name}</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-muted/30 rounded-xl text-center text-muted-foreground">
+                        ยังไม่มีข้อมูลตารางเปรียบเทียบ
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4. บอกด้วยว่าสิทธิ์ตรงหรือไม่ตรง */}
+                  <div className="pt-1">
+                    {detailData?.comparison?.has_api ? (
+                      detailData.comparison.is_match ? (
+                        /* ตรงกัน (Match) */
+                        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                            <span className="font-bold text-sm sm:text-base text-emerald-900">
+                              ✓ สิทธิ์ตรงกัน (Match)
+                            </span>
+                            <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0 border-0">
+                              สิทธิ์ตรงกัน
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-emerald-800 pl-7">
+                            สิทธิ์จาก สปสช. API (<strong className="font-mono">[{detailData.comparison.api_pttype}]</strong> {detailData.comparison.api_pttype_name}) ตรงกับตาราง ipt_pttype{' '}
+                            {detailData.comparison.matched_row ? (
+                              <>ลำดับที่ <strong className="font-mono">#{detailData.comparison.matched_row.number}</strong>: <strong className="font-mono">[{detailData.comparison.matched_row.pttype}]</strong> {detailData.comparison.matched_row.pttype_name}</>
+                            ) : null}
+                          </p>
+                          <p className="text-[11px] text-emerald-700 pl-7 pt-0.5">
+                            คุณสามารถกดปุ่ม <strong>"บันทึก HOS"</strong> ด้านล่างเพื่ออัปเดต Authen Code และข้อมูลสิทธิ์เข้าตาราง <code>ipt_pttype</code> เฉพาะแถวที่ตรงกันนี้ได้
+                          </p>
+                        </div>
+                      ) : (
+                        /* ไม่ตรงกัน (Mismatch) */
+                        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                            <span className="font-bold text-sm sm:text-base text-rose-900">
+                              ✗ สิทธิ์ไม่ตรงกัน (Mismatch)
+                            </span>
+                            <Badge className="bg-rose-600 text-white text-[10px] px-2 py-0 border-0">
+                              ไม่ตรงกัน
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-rose-800 pl-7 space-y-1">
+                            <div>
+                              สิทธิ์ใน ipt_pttype ({detailData.comparison.ipt_pttypes?.length || 0} สิทธิ์):{' '}
+                              {detailData.comparison.ipt_pttypes && detailData.comparison.ipt_pttypes.length > 0 ? (
+                                detailData.comparison.ipt_pttypes.map((p, idx) => (
+                                  <span key={idx} className="mr-2 inline-block">
+                                    <span className="font-mono font-semibold bg-rose-100 px-1 py-0.2 rounded text-rose-900">
+                                      #{p.number} [{p.pttype}]
+                                    </span>{' '}
+                                    {p.pttype_name}
+                                  </span>
+                                ))
+                              ) : (
+                                <strong className="font-mono">[{detailData.comparison.ipt_pttype}] {detailData.comparison.ipt_pttype_name}</strong>
+                              )}
+                            </div>
+                            <div>
+                              สปสช. API:{' '}
+                              <strong className="font-mono text-purple-700">[{detailData.comparison.api_pttype}]</strong> ({detailData.comparison.api_pttype_name})
+                            </div>
+                            <p className="text-[11px] text-rose-700 pt-1">
+                              * ปุ่มบันทึก HOS ถูกปิดการใช้งานเนื่องจากไม่มีสิทธิ์ใน <code>ipt_pttype</code> แถวใดที่ตรงกับสิทธิ์ สปสช. API
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      /* ยังไม่ได้เช็ค API */
+                      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <Info className="w-5 h-5 text-amber-600 shrink-0" />
+                          <div>
+                            <div className="font-bold text-sm text-amber-900">
+                              ยังไม่ได้ตรวจสอบสิทธิ์กับ สปสช. (API)
+                            </div>
+                            <div className="text-xs text-amber-700 mt-0.5">
+                              กรุณากดปุ่มเพื่อส่งคำขอตรวจสอบสิทธิ์และดึงข้อมูล Authen Code จากระบบ สปสช. อัตโนมัติ
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={handleCheckNhsoInModal}
+                          disabled={detailLoading}
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-xs self-start sm:self-center"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${detailLoading ? 'animate-spin' : ''}`} />
+                          {detailLoading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบสิทธิ์ สปสช.'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Feedback Alerts */}
+                  {detailActionError && (
                     <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-xl flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                      <span>{syncError}</span>
+                      <span>{detailActionError}</span>
                     </div>
                   )}
 
-                  {syncSuccessMsg && (
+                  {detailActionSuccess && (
                     <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                      <span>{syncSuccessMsg}</span>
+                      <span>{detailActionSuccess}</span>
                     </div>
                   )}
                 </>
               ) : null}
             </div>
 
-            {/* Modal Actions */}
-            <div className="p-4 bg-muted/30 border-t border-border flex items-center justify-end gap-2.5">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSyncModalOpen(false)}
-                disabled={syncSubmitting}
-              >
-                ยกเลิก
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleConfirmSync}
-                disabled={syncLoading || syncSubmitting || !syncPreviewData}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs"
-              >
-                {syncSubmitting ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                    กำลังบันทึกข้อมูล...
-                  </>
+            {/* Modal Footer */}
+            <div className="p-4 bg-muted/30 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-muted-foreground">
+                {detailData?.comparison?.is_match ? (
+                  <span className="text-emerald-700 font-medium">
+                    * สิทธิ์ตรงกัน: จะบันทึกเข้าแค่ตาราง <code>ipt_pttype</code> แถวที่ตรงกัน (ลำดับที่ #{detailData.comparison.matched_row?.number}) และคง staff เดิม
+                  </span>
+                ) : detailData?.comparison?.has_api ? (
+                  <span className="text-rose-600">
+                    * สิทธิ์ไม่ตรงกัน: ไม่สามารถบันทึกได้
+                  </span>
                 ) : (
-                  <>
-                    <Save className="w-3.5 h-3.5 mr-1.5" />
-                    ยืนยันบันทึกลง HOSxP ทั้ง 4 ตาราง
-                  </>
+                  <span>
+                    * กรุณาตรวจสอบสิทธิ์กับ สปสช. ก่อนบันทึก
+                  </span>
                 )}
-              </Button>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDetailModalOpen(false)}
+                  disabled={savingIptPttype}
+                  className="cursor-pointer"
+                >
+                  ปิด
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleSaveIptPttype}
+                  disabled={
+                    savingIptPttype || 
+                    detailLoading || 
+                    !detailData?.comparison?.is_match ||
+                    !detailData?.comparison?.matched_row
+                  }
+                  className={`font-semibold shadow-xs cursor-pointer ${
+                    detailData?.comparison?.is_match
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  <Save className="w-3.5 h-3.5 mr-1.5" />
+                  {savingIptPttype 
+                    ? 'กำลังบันทึก...' 
+                    : detailData?.comparison?.is_match
+                    ? `บันทึก HOS (ipt_pttype #${detailData.comparison.matched_row.number})`
+                    : 'บันทึก HOS'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
