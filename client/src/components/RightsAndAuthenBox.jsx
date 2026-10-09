@@ -103,10 +103,14 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
   if (!targetAn) return null;
 
+  const filteredRows = (data?.rows || []).filter(
+    (col) => col.source_name === 'ipt_pttype' || col.source_name === 'api'
+  );
+
   return (
     <div className="w-full space-y-5 mb-2">
       {/* ======================================================== */}
-      {/* กล่องที่ 1: สิทธิ์การรักษา */}
+      {/* กล่อง: สิทธิ์การรักษา */}
       {/* ======================================================== */}
       <div className="bg-card shadow-sm border border-border rounded-2xl overflow-hidden transition-all duration-200">
         <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
@@ -119,10 +123,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
               </div>
               <div>
                 <h3 className="font-bold text-slate-800 text-base sm:text-lg flex items-center gap-2">
-                  <span>1. สิทธิ์การรักษา</span>
+                  <span>สิทธิ์การรักษา</span>
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  เปรียบเทียบข้อมูลสิทธิจาก: ovst • visit_pttype • ipt • ipt_pttype • สปสช. (API)
+                  เปรียบเทียบข้อมูลสิทธิจาก: ipt_pttype • สปสช. (API)
                 </p>
               </div>
             </div>
@@ -174,7 +178,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         หัวข้อ / รายการ
                       </th>
                       {/* Source Columns */}
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
 
@@ -218,7 +222,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">รหัส/ชื่อสิทธิ์</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         return (
@@ -251,7 +255,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">เลขที่สิทธิ์</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         return (
@@ -277,7 +281,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">สถานพยาบาลหลัก</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         return (
@@ -310,7 +314,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">สถานพยาบาลรอง</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         return (
@@ -343,7 +347,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">วันเริ่มใช้สิทธิ์</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         return (
@@ -369,7 +373,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">วันหมดอายุสิทธิ์</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         return (
@@ -395,7 +399,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">รหัสอนุมัติ (Auth / Claim Code)</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         const hasCode = col.auth_code && col.auth_code !== '-';
@@ -424,7 +428,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">รหัสเคลม (Auth / Claim Code)</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         const hasCode = col.claim_code && col.claim_code !== '-';
@@ -453,7 +457,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <span className="text-[11px] text-muted-foreground font-normal">ผู้บันทึก</span>
                         </div>
                       </td>
-                      {data?.rows?.map((col, idx) => {
+                      {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
                         const isIpt = col.source_name === 'ipt';
                         return (
@@ -605,7 +609,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
               </div>
               <div>
                 <h3 className="font-bold text-slate-800 text-base sm:text-lg flex items-center gap-2">
-                  <span>2. Authen</span>
+                  <span>Authen</span>
                   {data?.authen?.has_authen ? (
                     <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs px-2.5 py-0.5">
                       ✓ ยืนยันแล้ว
