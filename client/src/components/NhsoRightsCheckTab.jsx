@@ -945,7 +945,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
       {/* 4. Patient Detail & Rights Comparison Modal (คลิกแต่ละแถว) */}
       {detailModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-card w-full max-w-4xl rounded-2xl shadow-2xl border border-border flex flex-col max-h-[92vh] overflow-hidden">
+          <div className="bg-card w-full max-w-6xl rounded-2xl shadow-2xl border border-border flex flex-col max-h-[92vh] overflow-hidden">
             {/* Modal Header */}
             <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between bg-muted/20">
               <div className="flex items-center gap-3">
@@ -1052,7 +1052,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                           </thead>
                           <tbody className="divide-y divide-border/60">
                             {detailData.rows
-                              .filter(r => r.source_name === 'ipt_pttype' || r.source_name === 'api' || r.source_name === 'ipt')
+                              .filter(r => r.source_name === 'ipt_pttype' || r.source_name === 'api')
                               .map((row, idx) => {
                                 const isApi = row.source_name === 'api';
                                 const isIptPttype = row.source_name === 'ipt_pttype';
