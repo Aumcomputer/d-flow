@@ -126,7 +126,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                   <span>สิทธิ์การรักษา</span>
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  เปรียบเทียบข้อมูลสิทธิจาก: ipt_pttype • สปสช. (API)
+                  เปรียบเทียบข้อมูลสิทธิจาก: Hosxp • สปสช. (API)
                 </p>
               </div>
             </div>
@@ -467,7 +467,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                           <div>
                             <div className="font-bold text-xs sm:text-sm text-emerald-900 flex items-center gap-1.5">
-                              <span>✓ สิทธิ์ใน ipt_pttype ตรงกับ สปสช. (API)</span>
+                              <span>✓ สิทธิ์ใน Hosxp ตรงกับ สปสช. (API)</span>
                               <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0 border-0">
                                 ตรงกัน (Match)
                               </Badge>
@@ -497,14 +497,14 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
                           <div>
                             <div className="font-bold text-xs sm:text-sm text-rose-900 flex items-center gap-1.5">
-                              <span>✗ สิทธิ์ใน ipt_pttype ไม่ตรงกับ สปสช. (API)</span>
+                              <span>✗ สิทธิ์ใน Hosxp ไม่ตรงกับ สปสช. (API)</span>
                               <Badge className="bg-rose-600 text-white text-[10px] px-2 py-0 border-0">
                                 ไม่ตรงกัน (Mismatch)
                               </Badge>
                             </div>
                             <div className="text-xs text-rose-700 mt-0.5 space-y-1">
                               <div>
-                                ipt_pttype ({data.comparison.ipt_pttypes?.length || 0} สิทธิ์):{' '}
+                                Hosxp ({data.comparison.ipt_pttypes?.length || 0} สิทธิ์):{' '}
                                 {data.comparison.ipt_pttypes && data.comparison.ipt_pttypes.length > 0 ? (
                                   data.comparison.ipt_pttypes.map((p, idx) => (
                                     <span key={idx} className="mr-2 inline-block">

@@ -1197,7 +1197,7 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
             rows.push({
                 source_key: 'ipt_pttype',
                 source_name: 'ipt_pttype',
-                source_label: 'ipt_pttype',
+                source_label: 'Hosxp',
                 pttype: '-',
                 pttype_name: '-',
                 pttypeno: '-',
@@ -1218,7 +1218,7 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
                 rows.push({
                     source_key: `ipt_pttype_${r.pttype_number || idx + 1}`,
                     source_name: 'ipt_pttype',
-                    source_label: ipRows.length > 1 ? `ipt_pttype (#${r.pttype_number || idx + 1})` : 'ipt_pttype',
+                    source_label: ipRows.length > 1 ? `Hosxp (#${r.pttype_number || idx + 1})` : 'Hosxp',
                     pttype: r.pttype || '-',
                     pttype_name: r.pttype_name || '-',
                     pttypeno: r.pttypeno || '-',
