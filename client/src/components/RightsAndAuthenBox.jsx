@@ -690,86 +690,176 @@ export default function RightsAndAuthenBox({ an, patient }) {
                 </div>
               </div>
 
-              {/* Grid of Detailed Attributes */}
+              {/* Grid of 9 Requested Topics */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {/* 1. ประเภทบริการเคลม */}
-                <div className="p-3 rounded-xl bg-slate-50/70 border border-border/70">
-                  <div className="text-[11px] font-medium text-muted-foreground">ประเภทบริการเคลม (Claim Type)</div>
-                  <div className="text-xs font-semibold text-slate-800 mt-1">
-                    {data.authen.claim_type_name || '-'}
+                {/* 1. สถานะ */}
+                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>1. สถานะ</span>
                   </div>
-                  {data.authen.claim_type && (
-                    <div className="text-[11px] font-mono text-slate-500 mt-0.5">
-                      ({data.authen.claim_type})
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                      {data.authen.authen_status || (data.authen.claim_status === 'E' ? 'ยืนยันแล้ว' : 'ได้รับอนุมัติแล้ว')}
+                    </span>
+                    {data.authen.claim_status && (
+                      <span className="text-[11px] font-mono text-slate-400">
+                        (Status: {data.authen.claim_status})
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. หน่วยบริการ */}
+                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>2. หน่วยบริการ</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs font-bold text-slate-800 truncate" title={data.authen.authen_hname || '-'}>
+                      {data.authen.authen_hname || '-'}
                     </div>
-                  )}
-                </div>
-
-                {/* 2. วิธีการยืนยันตัวตน */}
-                <div className="p-3 rounded-xl bg-slate-50/70 border border-border/70">
-                  <div className="text-[11px] font-medium text-muted-foreground">วิธีการยืนยันตัวตน (Authen Method)</div>
-                  <div className="text-xs font-semibold text-slate-800 mt-1">
-                    {data.authen.claim_authen === 'SMC'
-                      ? 'บัตรสมาร์ทการ์ด (Smart Card)'
-                      : data.authen.claim_authen || '-'}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5 font-mono">
-                    {data.authen.source_channel || '-'}
+                    {data.authen.authen_hcode && (
+                      <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                        รหัสสถานพยาบาล: <strong className="text-slate-700">{data.authen.authen_hcode}</strong>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* 3. วันเวลาที่ขอ Authen */}
-                <div className="p-3 rounded-xl bg-slate-50/70 border border-border/70">
-                  <div className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-slate-400" />
-                    <span>วันเวลาที่ขอ Authen</span>
+                {/* 3. วันเวลาที่เข้ารับบริการ */}
+                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>3. วันเวลาที่เข้ารับบริการ</span>
                   </div>
-                  <div className="text-xs font-semibold text-slate-800 mt-1 font-mono">
-                    {formatThDateTime(data.authen.create_date || data.authen.received_datetime)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    Admit: {formatThDate(data.admit_date)} {data.admit_time || ''}
-                  </div>
-                </div>
-
-                {/* 4. หน่วยบริการที่ขอ Authen */}
-                <div className="p-3 rounded-xl bg-slate-50/70 border border-border/70">
-                  <div className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                    <Building2 className="w-3 h-3 text-slate-400" />
-                    <span>หน่วยบริการที่ทำรายการ Authen</span>
-                  </div>
-                  <div className="text-xs font-semibold text-slate-800 mt-1 truncate" title={data.authen.authen_hname}>
-                    {data.authen.authen_hname || '-'}
-                  </div>
-                  {data.authen.authen_hcode && (
-                    <div className="text-[11px] font-mono text-slate-500 mt-0.5">
-                      รหัสสถานพยาบาล: {data.authen.authen_hcode}
+                  <div className="mt-2">
+                    <div className="text-xs font-bold text-slate-800 font-mono">
+                      {formatThDate(data.admit_date)} {data.admit_time ? `${data.admit_time} น.` : ''}
                     </div>
-                  )}
-                </div>
-
-                {/* 5. สิทธิหลัก สปสช. & เลขบัตร */}
-                <div className="p-3 rounded-xl bg-slate-50/70 border border-border/70">
-                  <div className="text-[11px] font-medium text-muted-foreground">สิทธิหลัก สปสช. (Main Inscl)</div>
-                  <div className="text-xs font-semibold text-slate-800 mt-1">
-                    {data.authen.maininscl_name || '-'}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5 font-mono">
-                    เลขบัตร: {data.authen.card_id || '-'}
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      วันเข้ารักษาใน รพ. (Admit Date)
+                    </div>
                   </div>
                 </div>
 
-                {/* 6. เบอร์โทรศัพท์ & วันตรวจสอบสิทธิ์ */}
-                <div className="p-3 rounded-xl bg-slate-50/70 border border-border/70">
-                  <div className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-slate-400" />
-                    <span>เบอร์โทรศัพท์ผู้รับบริการ</span>
+                {/* 4. วันที่ขอ Authen Code */}
+                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                    <span>4. วันที่ขอ Authen Code</span>
                   </div>
-                  <div className="text-xs font-semibold font-mono text-slate-800 mt-1">
-                    {data.authen.tel || '-'}
+                  <div className="mt-2">
+                    <div className="text-xs font-bold text-slate-800 font-mono">
+                      {formatThDateTime(data.authen.create_date || data.authen.received_datetime)}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      วันเวลาทำรายการขอ Authen (สปสช.)
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    ตรวจสิทธิ์: {formatThDateTime(data.authen.right_check_date)}
+                </div>
+
+                {/* 5. CLAIM CODE */}
+                <div className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-emerald-800 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                      5. CLAIM CODE
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(data.authen.claim_code)}
+                      className="cursor-pointer text-[10px] text-emerald-700 hover:text-emerald-900 underline inline-flex items-center gap-1"
+                    >
+                      {copiedCode ? 'คัดลอกแล้ว' : 'คัดลอก'}
+                    </button>
+                  </div>
+                  <div className="mt-2">
+                    <div className="font-mono font-extrabold text-base text-emerald-800 tracking-wider">
+                      {data.authen.claim_code || '-'}
+                    </div>
+                    {data.authen.trans_id && (
+                      <div className="text-[11px] font-mono text-emerald-700/80 mt-0.5">
+                        Trans ID: {data.authen.trans_id}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 6. บริการ */}
+                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                    <span>6. บริการ</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs font-bold text-slate-800" title={data.authen.claim_type_name}>
+                      {data.authen.claim_type_name || 'เข้ารับบริการรักษาทั่วไป'}
+                    </div>
+                    {data.authen.claim_type && (
+                      <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                        รหัสบริการ: <strong className="text-slate-700">{data.authen.claim_type}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 7. สิทธิหลัก */}
+                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                    <span>7. สิทธิหลัก</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs font-bold text-slate-800" title={data.authen.maininscl_name}>
+                      {data.authen.maininscl_name || '-'}
+                    </div>
+                    {data.authen.maininscl_id && (
+                      <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                        รหัสสิทธิหลัก: <strong className="text-slate-700">{data.authen.maininscl_id}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 8. สิทธิย่อย */}
+                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-sky-600" />
+                    <span>8. สิทธิย่อย</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs font-bold text-slate-800" title={data.authen.subinscl_name}>
+                      {data.authen.subinscl_name || '-'}
+                    </div>
+                    {data.authen.subinscl_id && (
+                      <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                        รหัสสิทธิย่อย: <strong className="text-slate-700">{data.authen.subinscl_id}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 9. ช่องทางการขอ Authen Code */}
+                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between">
+                  <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-pink-600" />
+                    <span>9. ช่องทางการขอ Authen Code</span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs font-bold text-slate-800">
+                      {data.authen.source_channel || '-'}
+                      {data.authen.claim_authen && (
+                        <span className="ml-1.5 text-slate-600 font-normal">
+                          ({data.authen.claim_authen === 'SMC' ? 'Smart Card' : data.authen.claim_authen})
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      ช่องทางและวิธีการยืนยันตัวตน
+                    </div>
                   </div>
                 </div>
               </div>
