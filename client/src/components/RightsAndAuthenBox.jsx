@@ -90,7 +90,13 @@ export default function RightsAndAuthenBox({ an, patient, isMedicalRecords }) {
   };
 
   const handleSaveHos = async () => {
-    if (!data?.comparison?.has_checked) {
+    const hasCheckedApi = Boolean(
+      data?.comparison?.has_api || 
+      data?.comparison?.has_checked || 
+      data?.authen?.right_check_date || 
+      data?.authen?.claim_code
+    );
+    if (!hasCheckedApi) {
       alert('กรุณากด "เช็ค สปสช. (API)" ก่อนบันทึกข้อมูลเข้า Hosxp');
       return;
     }
@@ -343,7 +349,7 @@ export default function RightsAndAuthenBox({ an, patient, isMedicalRecords }) {
                   title={
                     savingHos
                       ? 'กำลังบันทึกข้อมูลเข้า Hosxp...'
-                      : !data?.comparison?.has_checked
+                      : (!data?.comparison?.has_api && !data?.comparison?.has_checked && !data?.authen?.right_check_date)
                       ? 'กรุณากดเช็ค สปสช. (API) ก่อน'
                       : data?.comparison?.is_match
                       ? `บันทึกข้อมูลสิทธิเข้าตาราง ipt_pttype (ลำดับที่ ${data.comparison.matched_row.number}) ใน Hosxp`

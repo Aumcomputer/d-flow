@@ -1426,6 +1426,7 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
             },
             comparison: {
                 has_api: hasApiData,
+                has_checked: hasApiData,
                 ipt_pttype: patient.ipt_pttype,
                 ipt_pttype_name: patient.ipt_pttype_name,
                 ipt_pttypes: iptPttypeList,
