@@ -811,7 +811,7 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
             localConn.query('SELECT doc_type_id FROM documents WHERE an = ? AND is_deleted = 0', [an]),
             localConn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1'),
             pRecord.vn 
-                ? localConn.query('SELECT claim_code FROM vn_nhso_authen WHERE vn = ? AND claim_code IS NOT NULL AND claim_code != "" LIMIT 1', [pRecord.vn]).catch(() => [])
+                ? localConn.query('SELECT claim_code FROM vn_nhso_authen WHERE vn = ? AND claim_code IS NOT NULL AND claim_code != "" AND UPPER(TRIM(COALESCE(source_channel, ""))) = "AUTHENCODE" LIMIT 1', [pRecord.vn]).catch(() => [])
                 : []
         ]);
 

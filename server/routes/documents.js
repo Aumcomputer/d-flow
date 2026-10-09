@@ -174,7 +174,7 @@ router.get('/inpatients', async (req, res) => {
             dflowConn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1'),
             vns.length > 0
                 ? dflowConn.query(
-                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${vns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != ''`,
+                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${vns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != '' AND UPPER(TRIM(COALESCE(source_channel, ''))) = 'AUTHENCODE'`,
                     vns
                   ).catch(() => [])
                 : []
@@ -521,7 +521,7 @@ router.get('/:an/completeness', async (req, res) => {
 
         const p = patientRows?.[0] || {};
         const authenRows = p.vn
-            ? await conn.query('SELECT claim_code FROM vn_nhso_authen WHERE vn = ? AND claim_code IS NOT NULL AND claim_code != "" LIMIT 1', [p.vn]).catch(() => [])
+            ? await conn.query('SELECT claim_code FROM vn_nhso_authen WHERE vn = ? AND claim_code IS NOT NULL AND claim_code != "" AND UPPER(TRIM(COALESCE(source_channel, ""))) = "AUTHENCODE" LIMIT 1', [p.vn]).catch(() => [])
             : [];
 
         const reqTypes = reqTypesResult || [];

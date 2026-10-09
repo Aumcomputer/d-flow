@@ -160,7 +160,7 @@ router.get('/:wardCode/patients', authMiddleware, async (req, res) => {
             dflowConn.query(`SELECT an, discharge_date, chk_right FROM an_detail WHERE an IN (${placeholders})`, ans),
             vns.length > 0
                 ? dflowConn.query(
-                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${vns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != ''`,
+                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${vns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != '' AND UPPER(TRIM(COALESCE(source_channel, ''))) = 'AUTHENCODE'`,
                     vns
                   ).catch(() => [])
                 : [],
@@ -339,7 +339,7 @@ router.get('/:wardCode/discharged', authMiddleware, async (req, res) => {
         const [authenRows, exemptRows] = await Promise.all([
             allVns.length > 0
                 ? dflowConn.query(
-                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${allVns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != ''`,
+                    `SELECT vn, claim_code FROM vn_nhso_authen WHERE vn IN (${allVns.map(() => '?').join(',')}) AND claim_code IS NOT NULL AND claim_code != '' AND UPPER(TRIM(COALESCE(source_channel, ''))) = 'AUTHENCODE'`,
                     allVns
                   ).catch(() => [])
                 : [],

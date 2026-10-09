@@ -159,7 +159,7 @@ router.get('/inpatients', async (req, res) => {
         const resultPatients = patients.map(p => {
             const nhso = nhsoMap.get(p.vn) || null;
             const hasChecked = Boolean(nhso && nhso.right_check_date);
-            const hasClaimCode = Boolean(nhso && nhso.claim_code);
+            const hasClaimCode = Boolean(nhso && nhso.claim_code && String(nhso.source_channel || '').trim().toUpperCase() === 'AUTHENCODE');
 
             if (hasChecked) checkedCount++;
             if (hasClaimCode) hasAuthenCount++;
@@ -279,11 +279,11 @@ router.get('/inpatients', async (req, res) => {
                     hospsub_name: nhso.hospsub_name || '',
                     card_id: (nhso.card_id && String(nhso.card_id).trim()) || (p.cid ? formatCid(p.cid) : ''),
                     right_start_date: formatDateOnly(nhso.right_start_date),
-                    claim_code: nhso.claim_code || '',
-                    claim_type_name: nhso.claim_type_name || '',
-                    create_date: nhso.create_date,
-                    received_datetime: nhso.received_datetime,
-                    source_channel: nhso.source_channel || '',
+                    claim_code: (String(nhso.source_channel || '').trim().toUpperCase() === 'AUTHENCODE') ? (nhso.claim_code || '') : '',
+                    claim_type_name: (String(nhso.source_channel || '').trim().toUpperCase() === 'AUTHENCODE') ? (nhso.claim_type_name || '') : '',
+                    create_date: (String(nhso.source_channel || '').trim().toUpperCase() === 'AUTHENCODE') ? nhso.create_date : null,
+                    received_datetime: (String(nhso.source_channel || '').trim().toUpperCase() === 'AUTHENCODE') ? nhso.received_datetime : null,
+                    source_channel: (String(nhso.source_channel || '').trim().toUpperCase() === 'AUTHENCODE') ? (nhso.source_channel || '') : '',
                     updated_at: nhso.updated_at
                 } : {
                     has_checked: false
@@ -389,7 +389,19 @@ router.post('/check', async (req, res) => {
             });
         }
 
+        const isAuthenCodeChannel = (item) => {
+            const ch = String(item?.sourceChannel || item?.source_channel || '').trim().toUpperCase();
+            return ch === 'AUTHENCODE';
+        };
+
         let savedData = result.data;
+        if (savedData?.claim_code && !isAuthenCodeChannel(savedData)) {
+            console.log(`[NhsoAuthen] Rejecting claim_code ${savedData.claim_code} because source_channel is ${savedData.source_channel} (not AUTHENCODE)`);
+            savedData.claim_code = null;
+            savedData.source_channel = null;
+            if (!dflowConn) dflowConn = await dflowPool.getConnection();
+            await dflowConn.query('UPDATE vn_nhso_authen SET claim_code = NULL, source_channel = NULL WHERE vn = ?', [vn]);
+        }
         let authenDateNote = `วันที่ admit: ${targetAdmitDate}`;
 
         // 2.5 ถ้าไม่เจอ authen code ในวัน admit ให้ลองเช็คย้อนไปก่อน admit 1 วัน
@@ -409,7 +421,7 @@ router.post('/check', async (req, res) => {
 
                 if (retryResponse.ok) {
                     const retryResult = await retryResponse.json();
-                    if (retryResult.success && retryResult.data?.claim_code) {
+                    if (retryResult.success && retryResult.data?.claim_code && isAuthenCodeChannel(retryResult.data)) {
                         savedData = retryResult.data;
                         authenDateNote = `พบ Authen Code จากวันที่ก่อน admit 1 วัน (${prevAdmitDate})`;
                         console.log(`[NhsoAuthen] Found authen code from 1 day before admit (${prevAdmitDate}): ${savedData.claim_code}`);
@@ -428,15 +440,17 @@ router.post('/check', async (req, res) => {
                 if (authRes.ok) {
                     const authJson = await authRes.json();
                     if (authJson.success && Array.isArray(authJson.data) && authJson.data.length > 0) {
-                        // Sort by date descending
-                        const sortedAuth = [...authJson.data].sort((a, b) => {
-                            const da = new Date(a.createDate || a.claimDate || a.receivedDateTime || 0);
-                            const db = new Date(b.createDate || b.claimDate || b.receivedDateTime || 0);
-                            return db - da;
-                        });
+                        // Strictly filter for sourceChannel === 'AUTHENCODE' only
+                        const validAuthList = authJson.data.filter(item => item.claimCode && isAuthenCodeChannel(item));
+                        if (validAuthList.length > 0) {
+                            // Sort by date descending
+                            validAuthList.sort((a, b) => {
+                                const da = new Date(a.createDate || a.claimDate || a.receivedDateTime || 0);
+                                const db = new Date(b.createDate || b.claimDate || b.receivedDateTime || 0);
+                                return db - da;
+                            });
 
-                        const validAuth = sortedAuth.find(item => item.claimCode) || sortedAuth[0];
-                        if (validAuth?.claimCode) {
+                            const validAuth = validAuthList[0];
                             if (!dflowConn) dflowConn = await dflowPool.getConnection();
                             await dflowConn.query(`
                                 UPDATE vn_nhso_authen
@@ -609,7 +623,10 @@ router.get('/preview-sync/:an', async (req, res) => {
 
         const beginDateTarget = formatDateOnly(fund?.startDateTime || dflowData?.right_start_date) || null;
         const expireDateTarget = formatDateOnly(fund?.expireDateTime) || null;
-        const authCodeTarget = authenJson?.claimCode || dflowData?.claim_code || null;
+        const isAuthChannelValid = (ch) => String(ch || '').trim().toUpperCase() === 'AUTHENCODE';
+        const rawAuthCode = authenJson?.claimCode || dflowData?.claim_code || null;
+        const rawAuthChannel = authenJson?.sourceChannel || authenJson?.source_channel || dflowData?.source_channel || null;
+        const authCodeTarget = (rawAuthCode && isAuthChannelValid(rawAuthChannel)) ? rawAuthCode : null;
 
         res.json({
             an,
@@ -1298,8 +1315,11 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
         const apiHospsub = hasApiData ? (hospsubTarget || '-') : '-';
         const apiHospsubName = hasApiData ? (fund?.hospSub?.hname || dflowData?.hospsub_name || hospMap.get(String(hospsubTarget).trim()) || '-') : '-';
         const apiBeginDate = hasApiData ? (formatDateOnly(fund?.startDateTime || dflowData?.right_start_date) || '-') : '-';
-        const apiExpireDate = hasApiData ? (formatDateOnly(fund?.expireDateTime) || '-') : '-';
-        const apiClaimCode = hasApiData ? (dflowData?.claim_code || authenJson?.claimCode || '-') : '-';
+        const isAuthenChannelValid = (ch) => String(ch || '').trim().toUpperCase() === 'AUTHENCODE';
+        const rawClaimCode = dflowData?.claim_code || authenJson?.claimCode || null;
+        const rawChannel = dflowData?.source_channel || authenJson?.sourceChannel || authenJson?.source_channel || null;
+        const validClaimCode = (rawClaimCode && isAuthenChannelValid(rawChannel)) ? rawClaimCode : null;
+        const apiClaimCode = hasApiData ? (validClaimCode || '-') : '-';
 
         rows.push({
             source_key: 'api',
@@ -1356,19 +1376,20 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
         }
 
         // 6. Authen details
+        const hasValidAuthen = Boolean(validClaimCode);
         const authenDetail = {
-            has_authen: Boolean(dflowData?.claim_code),
-            claim_code: dflowData?.claim_code || null,
-            claim_type: dflowData?.claim_type || null,
-            claim_type_name: dflowData?.claim_type_name || null,
-            source_channel: dflowData?.source_channel || null,
-            claim_authen: dflowData?.claim_authen || null,
-            claim_status: dflowData?.claim_status || null,
-            authen_status: dflowData?.authen_status || (dflowData?.claim_code ? 'ยืนยันแล้ว' : 'ยังไม่มี Authen Code'),
-            create_date: dflowData?.create_date || null,
-            received_datetime: dflowData?.received_datetime || null,
-            authen_hcode: dflowData?.authen_hcode || null,
-            authen_hname: dflowData?.authen_hname || null,
+            has_authen: hasValidAuthen,
+            claim_code: validClaimCode,
+            claim_type: hasValidAuthen ? (dflowData?.claim_type || null) : null,
+            claim_type_name: hasValidAuthen ? (dflowData?.claim_type_name || null) : null,
+            source_channel: hasValidAuthen ? (dflowData?.source_channel || null) : null,
+            claim_authen: hasValidAuthen ? (dflowData?.claim_authen || null) : null,
+            claim_status: hasValidAuthen ? (dflowData?.claim_status || null) : null,
+            authen_status: hasValidAuthen ? (dflowData?.authen_status || 'ยืนยันแล้ว') : 'ยังไม่มี Authen Code',
+            create_date: hasValidAuthen ? (dflowData?.create_date || null) : null,
+            received_datetime: hasValidAuthen ? (dflowData?.received_datetime || null) : null,
+            authen_hcode: hasValidAuthen ? (dflowData?.authen_hcode || null) : null,
+            authen_hname: hasValidAuthen ? (dflowData?.authen_hname || null) : null,
             tel: dflowData?.tel || null,
             trans_id: dflowData?.trans_id ? String(dflowData.trans_id) : null,
             right_check_date: dflowData?.right_check_date || null,
