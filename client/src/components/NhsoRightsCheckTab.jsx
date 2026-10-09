@@ -984,8 +984,8 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
 
       {/* 4. Patient Detail & Rights Comparison Modal (คลิกแต่ละแถว) */}
       {detailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-card w-full max-w-6xl rounded-2xl shadow-2xl border border-border flex flex-col max-h-[92vh] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-[96vw] xl:max-w-7xl 2xl:max-w-[1500px] rounded-2xl shadow-2xl border border-border flex flex-col max-h-[92vh] overflow-hidden">
             {/* Modal Header */}
             <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between bg-muted/20">
               <div className="flex items-center gap-3">
