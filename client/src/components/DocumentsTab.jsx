@@ -1514,10 +1514,10 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
 
                       <div>
                         <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
-                        <div className="text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs leading-relaxed font-normal">
+                        <div className="text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm leading-relaxed font-normal">
                           {socialWorkRequest.reason_name}
                           {socialWorkRequest.reason_other ? (
-                            <span className="block text-slate-600 text-xs mt-1 bg-white p-1.5 rounded border border-slate-200 font-normal">
+                            <span className="block text-slate-600 text-sm mt-1 bg-white p-1.5 rounded border border-slate-200 font-normal">
                               ระบุ: {socialWorkRequest.reason_other}
                             </span>
                           ) : null}
@@ -1527,7 +1527,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                       {socialWorkRequest.nurse_comment && (
                         <div>
                           <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นพยาบาล</span>
-                          <div className="text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs leading-relaxed whitespace-pre-wrap">
+                          <div className="text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
                             {socialWorkRequest.nurse_comment}
                           </div>
                         </div>
@@ -1555,7 +1555,7 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                           <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
                         </div>
-                        <div className="text-slate-800 text-xs bg-white p-2 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed">
+                        <div className="text-slate-800 text-sm bg-white p-2 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed">
                           {socialWorkRequest.social_worker_comment}
                         </div>
                         <div className="border-t border-emerald-100 pt-1.5 space-y-1 text-xs text-slate-600">
