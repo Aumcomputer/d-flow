@@ -1,4 +1,5 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { hisPool, dflowPool, getHisWriteConnection, getDflowConnection } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { formatCid, formatDateOnly, mapNhsoToHosPttype } = require('../services/nhsoMapping');
@@ -8,6 +9,18 @@ router.use(authMiddleware);
 
 const getNhsoBaseUrl = () => {
     return process.env.NHSO_AUTHEN_URL || 'http://nhso-authen.local';
+};
+
+const getNhsoAuthHeaders = () => {
+    const secret = process.env.NHSO_SERVICE_SECRET || process.env.JWT_SECRET || 'nhso-authen-jwt-secret-key-rbh-10677';
+    const token = jwt.sign(
+        { service: 'd-flow', role: 'service' },
+        secret,
+        { expiresIn: '15m' }
+    );
+    return {
+        'Authorization': `Bearer ${token}`
+    };
 };
 
 // ============================================================
@@ -372,7 +385,10 @@ router.post('/check', async (req, res) => {
         // 2. Call check-and-save on nhso-authen microservice with admit date
         const response = await fetch(`${nhsoUrl}/api/vn-authen/check-and-save`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...getNhsoAuthHeaders()
+            },
             body: JSON.stringify({
                 vn,
                 cid,
@@ -410,7 +426,10 @@ router.post('/check', async (req, res) => {
                 console.log(`[NhsoAuthen] No authen code found for admit date (${targetAdmitDate}), retrying 1 day before admit (${prevAdmitDate})...`);
                 const retryResponse = await fetch(`${nhsoUrl}/api/vn-authen/check-and-save`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getNhsoAuthHeaders()
+                    },
                     body: JSON.stringify({
                         vn,
                         cid,
@@ -436,7 +455,11 @@ router.post('/check', async (req, res) => {
         if (!savedData?.claim_code) {
             try {
                 const todayStr = new Date().toISOString().slice(0, 10);
-                const authRes = await fetch(`${nhsoUrl}/api/authen-history/${cid}?claimDateFrom=${prevAdmitDate}&claimDateTo=${todayStr}`);
+                const authRes = await fetch(`${nhsoUrl}/api/authen-history/${cid}?claimDateFrom=${prevAdmitDate}&claimDateTo=${todayStr}`, {
+                    headers: {
+                        ...getNhsoAuthHeaders()
+                    }
+                });
                 if (authRes.ok) {
                     const authJson = await authRes.json();
                     if (authJson.success && Array.isArray(authJson.data) && authJson.data.length > 0) {
