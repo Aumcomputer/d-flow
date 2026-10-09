@@ -464,7 +464,7 @@ router.get('/preview-sync/:an', async (req, res) => {
 
         const mainInsclId = fund?.mainInscl?.id || dflowData?.maininscl_id || authenJson?.mainInscl || null;
         const subInsclId = fund?.subInscl?.id || dflowData?.subinscl_id || authenJson?.subInscl || null;
-        const hospmainTarget = fund?.hospMain?.hcode || dflowData?.hospmain_code || authenJson?.hmain || patient.ovst_hospmain || null;
+        const hospmainTarget = fund?.hospMainOp?.hcode || dflowData?.hospmain_op_code || fund?.hospMain?.hcode || dflowData?.hospmain_code || authenJson?.hmain || patient.ovst_hospmain || null;
         const hospsubTarget = fund?.hospSub?.hcode || dflowData?.hospsub_code || patient.ovst_hospsub || null;
 
         const currentPttype = patient.ipt_pttype || patient.ovst_pttype || '';
@@ -770,6 +770,389 @@ router.post('/sync-hos', async (req, res) => {
         res.status(500).json({ error: 'บันทึกข้อมูลลง HOSxP ล้มเหลว: ' + error.message });
     } finally {
         if (hisWriteConn) hisWriteConn.release();
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// ============================================================
+// 5. GET /rights-summary/:an: Rights comparison table (5 sources) & Authen code details
+// ============================================================
+router.get('/rights-summary/:an', async (req, res) => {
+    let hisConn, dflowConn;
+    try {
+        const { an } = req.params;
+        hisConn = await hisPool.getConnection();
+        dflowConn = await dflowPool.getConnection();
+
+        // 1. Get patient and admission info
+        const iptRows = await hisConn.query(`
+            SELECT 
+                i.an, i.vn, i.hn, DATE_FORMAT(i.regdate, '%Y-%m-%d') as admit_date, i.regtime as admit_time,
+                i.pttype as ipt_pttype, pt_i.name as ipt_pttype_name,
+                i.staff as ipt_staff, i.rfrilct,
+                p.pname, p.fname, p.lname, p.cid,
+                TIMESTAMPDIFF(YEAR, p.birthday, CURDATE()) as age_y,
+                w.ward as ward_code, w.name as ward_name,
+                o.pttype as ovst_pttype, pt_o.name as ovst_pttype_name,
+                o.pttypeno as ovst_pttypeno, o.hospmain as ovst_hospmain, o.hospsub as ovst_hospsub, o.staff as ovst_staff
+            FROM ipt i
+            INNER JOIN patient p ON i.hn = p.hn
+            LEFT JOIN ward w ON i.ward = w.ward
+            LEFT JOIN ovst o ON i.vn = o.vn
+            LEFT JOIN pttype pt_i ON i.pttype = pt_i.pttype
+            LEFT JOIN pttype pt_o ON o.pttype = pt_o.pttype
+            WHERE i.an = ?
+        `, [an]);
+
+        if (!iptRows || iptRows.length === 0) {
+            return res.status(404).json({ error: `ไม่พบข้อมูล AN ${an} ใน HOSxP` });
+        }
+
+        const patient = iptRows[0];
+        const vn = patient.vn;
+
+        // 2. Query visit_pttype, ipt_pttype, and vn_nhso_authen concurrently
+        const [vpRows, ipRows, dflowRows] = await Promise.all([
+            hisConn.query(`
+                SELECT vp.*, p.name as pttype_name 
+                FROM visit_pttype vp
+                LEFT JOIN pttype p ON vp.pttype = p.pttype
+                WHERE vp.vn = ?
+                ORDER BY vp.pttype_number ASC
+            `, [vn]),
+            hisConn.query(`
+                SELECT ip.*, p.name as pttype_name 
+                FROM ipt_pttype ip
+                LEFT JOIN pttype p ON ip.pttype = p.pttype
+                WHERE ip.an = ?
+                ORDER BY ip.pttype_number ASC
+            `, [an]),
+            dflowConn.query(`SELECT * FROM vn_nhso_authen WHERE vn = ?`, [vn])
+        ]);
+
+        const dflowData = dflowRows.length > 0 ? dflowRows[0] : null;
+
+        // Collect hospital codes and staff logins for batch lookup
+        const hospCodes = new Set();
+        const staffLogins = new Set();
+
+        if (patient.ovst_hospmain) hospCodes.add(String(patient.ovst_hospmain).trim());
+        if (patient.ovst_hospsub) hospCodes.add(String(patient.ovst_hospsub).trim());
+        if (patient.rfrilct) hospCodes.add(String(patient.rfrilct).trim());
+        if (patient.ovst_staff) staffLogins.add(String(patient.ovst_staff).trim());
+        if (patient.ipt_staff) staffLogins.add(String(patient.ipt_staff).trim());
+
+        for (const r of vpRows) {
+            if (r.hospmain) hospCodes.add(String(r.hospmain).trim());
+            if (r.hospsub) hospCodes.add(String(r.hospsub).trim());
+            if (r.staff) staffLogins.add(String(r.staff).trim());
+        }
+        for (const r of ipRows) {
+            if (r.hospmain) hospCodes.add(String(r.hospmain).trim());
+            if (r.hospsub) hospCodes.add(String(r.hospsub).trim());
+            if (r.staff) staffLogins.add(String(r.staff).trim());
+        }
+
+        if (dflowData?.hospmain_code) hospCodes.add(String(dflowData.hospmain_code).trim());
+        if (dflowData?.hospsub_code) hospCodes.add(String(dflowData.hospsub_code).trim());
+        if (dflowData?.hospmain_op_code) hospCodes.add(String(dflowData.hospmain_op_code).trim());
+
+        const hospArr = Array.from(hospCodes).filter(Boolean);
+        const staffArr = Array.from(staffLogins).filter(Boolean);
+
+        const [hospRows, staffRows] = await Promise.all([
+            hospArr.length > 0 ? hisConn.query(`SELECT hospcode, name FROM hospcode WHERE hospcode IN (?)`, [hospArr]) : [],
+            staffArr.length > 0 ? hisConn.query(`SELECT loginname, name FROM opduser WHERE loginname IN (?)`, [staffArr]) : []
+        ]);
+
+        const hospMap = new Map();
+        for (const h of hospRows) hospMap.set(String(h.hospcode).trim(), h.name);
+
+        const staffMap = new Map();
+        for (const s of staffRows) staffMap.set(String(s.loginname).trim(), s.name);
+
+        // 3. Parse NHSO JSONs & map NHSO Right
+        let rightJson = null;
+        let authenJson = null;
+        if (dflowData?.right_json) {
+            try {
+                rightJson = typeof dflowData.right_json === 'string' ? JSON.parse(dflowData.right_json) : dflowData.right_json;
+            } catch (e) { }
+        }
+        if (dflowData?.authen_json) {
+            try {
+                authenJson = typeof dflowData.authen_json === 'string' ? JSON.parse(dflowData.authen_json) : dflowData.authen_json;
+            } catch (e) { }
+        }
+
+        const fund = (rightJson?.funds && rightJson.funds[0]) || {};
+
+        let dynamicSubCenters = null;
+        try {
+            const subRows = await dflowConn.query('SELECT UPPER(hospcode) as code FROM nhso_ucs_sub_centers WHERE is_active = 1');
+            if (Array.isArray(subRows) && subRows.length > 0) dynamicSubCenters = subRows.map(r => r.code);
+        } catch (e) { }
+
+        let exemptCodes = [];
+        try {
+            const exRows = await dflowConn.query('SELECT UPPER(pttype) as code FROM nhso_exempt_pttypes WHERE is_active = 1');
+            if (Array.isArray(exRows) && exRows.length > 0) exemptCodes = exRows.map(r => r.code);
+        } catch (e) { }
+
+        const mainInsclId = fund?.mainInscl?.id || dflowData?.maininscl_id || authenJson?.mainInscl || null;
+        const subInsclId = fund?.subInscl?.id || dflowData?.subinscl_id || authenJson?.subInscl || null;
+        const hospmainTarget = fund?.hospMainOp?.hcode || dflowData?.hospmain_op_code || fund?.hospMain?.hcode || dflowData?.hospmain_code || authenJson?.hmain || patient.ovst_hospmain || null;
+        const hospsubTarget = fund?.hospSub?.hcode || dflowData?.hospsub_code || patient.ovst_hospsub || null;
+
+        const currentPttype = patient.ipt_pttype || patient.ovst_pttype || '';
+        const isExempt = currentPttype && exemptCodes.includes(String(currentPttype).trim().toUpperCase());
+
+        let mappedPttype = currentPttype;
+        if (!isExempt) {
+            mappedPttype = mapNhsoToHosPttype(mainInsclId, subInsclId, hospmainTarget, hospsubTarget, currentPttype, dynamicSubCenters);
+        }
+
+        let targetPttypeName = '-';
+        if (mappedPttype) {
+            const ptRows = await hisConn.query(`SELECT name FROM pttype WHERE pttype = ?`, [mappedPttype]);
+            if (ptRows.length > 0) targetPttypeName = ptRows[0].name;
+        }
+
+        // 4. Build Table Rows for 5 Sources
+        const rows = [];
+
+        // 4.1 ovst
+        rows.push({
+            source_key: 'ovst',
+            source_name: 'ovst',
+            source_label: 'ovst (ข้อมูลส่งตรวจ)',
+            pttype: patient.ovst_pttype || '-',
+            pttype_name: patient.ovst_pttype_name || '-',
+            pttypeno: patient.ovst_pttypeno || '-',
+            hospmain: patient.ovst_hospmain || '-',
+            hospmain_name: hospMap.get(String(patient.ovst_hospmain).trim()) || '-',
+            hospsub: patient.ovst_hospsub || '-',
+            hospsub_name: hospMap.get(String(patient.ovst_hospsub).trim()) || '-',
+            begin_date: '-',
+            expire_date: '-',
+            auth_code: '-',
+            claim_code: '-',
+            staff: patient.ovst_staff || '-',
+            staff_name: staffMap.get(String(patient.ovst_staff).trim()) || '-'
+        });
+
+        // 4.2 visit_pttype (all rows)
+        if (vpRows.length === 0) {
+            rows.push({
+                source_key: 'visit_pttype',
+                source_name: 'visit_pttype',
+                source_label: 'visit_pttype',
+                pttype: '-',
+                pttype_name: '-',
+                pttypeno: '-',
+                hospmain: '-',
+                hospmain_name: '-',
+                hospsub: '-',
+                hospsub_name: '-',
+                begin_date: '-',
+                expire_date: '-',
+                auth_code: '-',
+                claim_code: '-',
+                staff: '-',
+                staff_name: '-'
+            });
+        } else {
+            vpRows.forEach((r, idx) => {
+                rows.push({
+                    source_key: `visit_pttype_${r.pttype_number || idx + 1}`,
+                    source_name: 'visit_pttype',
+                    source_label: vpRows.length > 1 ? `visit_pttype (#${r.pttype_number || idx + 1})` : 'visit_pttype',
+                    pttype: r.pttype || '-',
+                    pttype_name: r.pttype_name || '-',
+                    pttypeno: r.pttypeno || '-',
+                    hospmain: r.hospmain || '-',
+                    hospmain_name: hospMap.get(String(r.hospmain).trim()) || '-',
+                    hospsub: r.hospsub || '-',
+                    hospsub_name: hospMap.get(String(r.hospsub).trim()) || '-',
+                    begin_date: formatDateOnly(r.begin_date) || '-',
+                    expire_date: formatDateOnly(r.expire_date) || '-',
+                    auth_code: r.auth_code || '-',
+                    claim_code: r.claim_code || '-',
+                    staff: r.staff || '-',
+                    staff_name: staffMap.get(String(r.staff).trim()) || '-'
+                });
+            });
+        }
+
+        // 4.3 ipt
+        rows.push({
+            source_key: 'ipt',
+            source_name: 'ipt',
+            source_label: 'ipt (ข้อมูล Admit)',
+            pttype: patient.ipt_pttype || '-',
+            pttype_name: patient.ipt_pttype_name || '-',
+            pttypeno: '-',
+            hospmain: patient.rfrilct || '-',
+            hospmain_name: hospMap.get(String(patient.rfrilct).trim()) || '-',
+            hospsub: '-',
+            hospsub_name: '-',
+            begin_date: '-',
+            expire_date: '-',
+            auth_code: '-',
+            claim_code: '-',
+            staff: patient.ipt_staff || '-',
+            staff_name: staffMap.get(String(patient.ipt_staff).trim()) || '-'
+        });
+
+        // 4.4 ipt_pttype (all rows)
+        if (ipRows.length === 0) {
+            rows.push({
+                source_key: 'ipt_pttype',
+                source_name: 'ipt_pttype',
+                source_label: 'ipt_pttype',
+                pttype: '-',
+                pttype_name: '-',
+                pttypeno: '-',
+                hospmain: '-',
+                hospmain_name: '-',
+                hospsub: '-',
+                hospsub_name: '-',
+                begin_date: '-',
+                expire_date: '-',
+                auth_code: '-',
+                claim_code: '-',
+                staff: '-',
+                staff_name: '-'
+            });
+        } else {
+            ipRows.forEach((r, idx) => {
+                rows.push({
+                    source_key: `ipt_pttype_${r.pttype_number || idx + 1}`,
+                    source_name: 'ipt_pttype',
+                    source_label: ipRows.length > 1 ? `ipt_pttype (#${r.pttype_number || idx + 1})` : 'ipt_pttype',
+                    pttype: r.pttype || '-',
+                    pttype_name: r.pttype_name || '-',
+                    pttypeno: r.pttypeno || '-',
+                    hospmain: r.hospmain || '-',
+                    hospmain_name: hospMap.get(String(r.hospmain).trim()) || '-',
+                    hospsub: r.hospsub || '-',
+                    hospsub_name: hospMap.get(String(r.hospsub).trim()) || '-',
+                    begin_date: formatDateOnly(r.begin_date) || '-',
+                    expire_date: formatDateOnly(r.expire_date) || '-',
+                    auth_code: r.auth_code || '-',
+                    claim_code: r.claim_code || '-',
+                    staff: r.staff || '-',
+                    staff_name: staffMap.get(String(r.staff).trim()) || '-'
+                });
+            });
+        }
+
+        // 4.5 api (from vn_nhso_authen)
+        const hasApiData = Boolean(dflowData);
+        const apiPttypeno = (fund?.cardId && String(fund.cardId).trim()) || (dflowData?.card_id && String(dflowData.card_id).trim()) || '-';
+        const apiHospmain = hospmainTarget || '-';
+        const apiHospmainName = fund?.hospMainOp?.hname || fund?.hospMain?.hname || dflowData?.hospmain_op_name || dflowData?.hospmain_name || hospMap.get(String(hospmainTarget).trim()) || '-';
+        const apiHospsub = hospsubTarget || '-';
+        const apiHospsubName = fund?.hospSub?.hname || dflowData?.hospsub_name || hospMap.get(String(hospsubTarget).trim()) || '-';
+        const apiBeginDate = formatDateOnly(fund?.startDateTime || dflowData?.right_start_date) || '-';
+        const apiExpireDate = formatDateOnly(fund?.expireDateTime) || '-';
+        const apiClaimCode = dflowData?.claim_code || authenJson?.claimCode || '-';
+
+        rows.push({
+            source_key: 'api',
+            source_name: 'api',
+            source_label: 'สปสช. (API)',
+            has_data: hasApiData,
+            pttype: hasApiData ? mappedPttype : '-',
+            pttype_name: hasApiData ? targetPttypeName : '(ยังไม่มีข้อมูล API)',
+            pttypeno: apiPttypeno,
+            hospmain: apiHospmain,
+            hospmain_name: apiHospmainName,
+            hospsub: apiHospsub,
+            hospsub_name: apiHospsubName,
+            begin_date: apiBeginDate,
+            expire_date: apiExpireDate,
+            auth_code: '-',
+            claim_code: apiClaimCode,
+            staff: hasApiData ? 'สปสช. (API)' : '-',
+            staff_name: hasApiData ? 'ระบบ สปสช.' : '-'
+        });
+
+        // 5. Comparison summary
+        const iptPttype = patient.ipt_pttype || '';
+        const isMatch = hasApiData ? (String(iptPttype).trim() === String(mappedPttype).trim()) : null;
+        let matchStatus = 'unchecked';
+        let matchMessage = 'ยังไม่ได้ตรวจสอบสิทธิ์ สปสช. (API)';
+
+        if (hasApiData) {
+            if (isMatch) {
+                matchStatus = 'match';
+                matchMessage = `สิทธิ์ใน ipt (${patient.ipt_pttype}: ${patient.ipt_pttype_name || ''}) ตรงกับ สปสช. API (${mappedPttype}: ${targetPttypeName || ''})`;
+            } else {
+                matchStatus = 'mismatch';
+                matchMessage = `สิทธิ์ใน ipt (${patient.ipt_pttype}: ${patient.ipt_pttype_name || ''}) ไม่ตรงกับ สปสช. API (${mappedPttype}: ${targetPttypeName || ''})`;
+            }
+        }
+
+        // 6. Authen details
+        const authenDetail = {
+            has_authen: Boolean(dflowData?.claim_code),
+            claim_code: dflowData?.claim_code || null,
+            claim_type: dflowData?.claim_type || null,
+            claim_type_name: dflowData?.claim_type_name || null,
+            source_channel: dflowData?.source_channel || null,
+            claim_authen: dflowData?.claim_authen || null,
+            claim_status: dflowData?.claim_status || null,
+            authen_status: dflowData?.authen_status || (dflowData?.claim_code ? 'ยืนยันแล้ว' : 'ยังไม่มี Authen Code'),
+            create_date: dflowData?.create_date || null,
+            received_datetime: dflowData?.received_datetime || null,
+            authen_hcode: dflowData?.authen_hcode || null,
+            authen_hname: dflowData?.authen_hname || null,
+            tel: dflowData?.tel || null,
+            trans_id: dflowData?.trans_id ? String(dflowData.trans_id) : null,
+            right_check_date: dflowData?.right_check_date || null,
+            maininscl_id: dflowData?.maininscl_id || null,
+            maininscl_name: dflowData?.maininscl_name || null,
+            subinscl_id: dflowData?.subinscl_id || null,
+            subinscl_name: dflowData?.subinscl_name || null,
+            card_id: dflowData?.card_id || null,
+            hospmain_code: dflowData?.hospmain_code || null,
+            hospmain_name: dflowData?.hospmain_name || null,
+            hospsub_code: dflowData?.hospsub_code || null,
+            hospsub_name: dflowData?.hospsub_name || null,
+            hospmain_op_code: dflowData?.hospmain_op_code || null,
+            hospmain_op_name: dflowData?.hospmain_op_name || null
+        };
+
+        res.json({
+            an,
+            vn,
+            hn: patient.hn,
+            cid: patient.cid,
+            ptname: `${patient.pname || ''}${patient.fname || ''} ${patient.lname || ''}`.trim(),
+            admit_date: patient.admit_date,
+            admit_time: patient.admit_time,
+            ward_code: patient.ward_code,
+            ward_name: patient.ward_name,
+            rows,
+            comparison: {
+                has_api: hasApiData,
+                ipt_pttype: patient.ipt_pttype,
+                ipt_pttype_name: patient.ipt_pttype_name,
+                api_pttype: hasApiData ? mappedPttype : null,
+                api_pttype_name: hasApiData ? targetPttypeName : null,
+                is_match: isMatch,
+                status: matchStatus,
+                message: matchMessage
+            },
+            authen: authenDetail
+        });
+
+    } catch (error) {
+        console.error('[NhsoAuthen] Rights summary error:', error);
+        res.status(500).json({ error: 'Failed to get rights summary: ' + error.message });
+    } finally {
+        if (hisConn) hisConn.release();
         if (dflowConn) dflowConn.release();
     }
 });

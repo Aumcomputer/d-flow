@@ -38,6 +38,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select } from './ui/select'
 import { Button } from './ui/button'
 import FileViewerModal from './FileViewerModal'
+import RightsAndAuthenBox from './RightsAndAuthenBox'
 
 const DOC_TYPES = [
   { id: 1, name: 'บัตรประชาชน', required: true },
@@ -704,6 +705,9 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
 
   return (
     <div className="py-2 w-full space-y-6">
+      {/* 2 กล่องด้านบนรายการเอกสาร: 1. สิทธิ์การรักษา  2. Authen */}
+      <RightsAndAuthenBox an={patient?.an} patient={patient} />
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Document Checklist & Uploads */}
         <div className="lg:col-span-6 xl:col-span-6 space-y-5">
