@@ -138,6 +138,11 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
     });
   }, [patients, searchQuery, selectedWard, statusFilter]);
 
+  // Unchecked patients in filtered list (เฉพาะรายที่ยังไม่เคยกดเช็ค สปสช.)
+  const uncheckedPatientsInFilter = useMemo(() => {
+    return filteredPatients.filter(p => !p.nhso?.has_checked && !p.nhso?.right_check_date);
+  }, [filteredPatients]);
+
   // Paginated items
   const totalPages = Math.ceil(filteredPatients.length / pageSize) || 1;
   const paginatedPatients = useMemo(() => {
@@ -316,15 +321,15 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
     await executeBatchCheck(targetPatients);
   };
 
-  // Check ALL Patients (or All in current filter)
+  // Check ALL Patients (เฉพาะรายที่ยังไม่เคยเช็ค สปสช.)
   const handleCheckAll = async () => {
-    const targetPatients = filteredPatients.length > 0 ? filteredPatients : patients;
-    if (targetPatients.length === 0) return;
+    const targetPatients = uncheckedPatientsInFilter;
+    if (targetPatients.length === 0) {
+      alert('ไม่มีผู้ป่วยที่ยังไม่ได้ตรวจสอบสิทธิ์ สปสช. ในรายการนี้');
+      return;
+    }
 
-    const confirmMsg = filteredPatients.length !== patients.length
-      ? `คุณต้องการตรวจสอบสิทธิ์ สปสช. สำหรับผู้ป่วยตามตัวกรองปัจจุบันจำนวน ${targetPatients.length} ราย (จากทั้งหมด ${stats.total} ราย) หรือไม่?`
-      : `คุณต้องการตรวจสอบสิทธิ์ สปสช. สำหรับผู้ป่วยทั้งหมดจำนวน ${targetPatients.length} ราย หรือไม่?`;
-
+    const confirmMsg = `คุณต้องการตรวจสอบสิทธิ์ สปสช. สำหรับผู้ป่วยที่ยังไม่เคยเช็คจำนวน ${targetPatients.length} ราย หรือไม่?`;
     if (!confirm(confirmMsg)) {
       return;
     }
@@ -478,12 +483,12 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                   size="sm"
                   variant="default"
                   onClick={handleCheckAll}
-                  disabled={loading || refreshing || filteredPatients.length === 0}
+                  disabled={loading || refreshing || uncheckedPatientsInFilter.length === 0}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs shadow-xs"
-                  title="ตรวจสอบสิทธิ์ สปสช. ผู้ป่วยทั้งหมดในรายการ"
+                  title="ตรวจสอบสิทธิ์ สปสช. เฉพาะรายที่ยังไม่เคยเช็ค"
                 >
                   <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                  เช็ค สปสช. ทั้งหมด ({filteredPatients.length})
+                  เช็ค สปสช. ทั้งหมด ({uncheckedPatientsInFilter.length})
                 </Button>
               </>
             )}
