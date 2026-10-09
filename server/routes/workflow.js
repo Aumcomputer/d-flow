@@ -1084,12 +1084,71 @@ router.post('/pharmacy/pack-done/:an', authMiddleware, async (req, res) => {
             getIO().emit('workflow:updated', { an, status: newStatus || 'pharmacy_pack_done' });
         } catch (e) {}
 
-        res.json({ success: true, status: newStatus, message: 'บันทึกจ่ายยาเสร็จเรียบร้อย' });
+        res.json({ success: true, status: newStatus, message: 'บันทึกเช็คยาเสร็จเรียบร้อย' });
     } catch (err) {
         console.error('Pharmacy pack done error:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (hisConn) hisConn.release();
+        if (conn) conn.release();
+    }
+});
+
+// Cancel pharmacy pack/check done from modal (or anywhere)
+router.post('/pharmacy/cancel-pack-done/:an', authMiddleware, async (req, res) => {
+    let conn;
+    try {
+        const { an } = req.params;
+        const loginname = req.user.loginname;
+
+        conn = await getDflowConnection();
+
+        // 1. Check existing an_detail
+        const detailRows = await conn.query('SELECT * FROM an_detail WHERE an = ?', [an]);
+        if (detailRows.length === 0 || !detailRows[0].pharmacy_pack_date) {
+            return res.status(400).json({ error: 'รายการนี้ยังไม่ได้บันทึกเช็คยา หรือถูกยกเลิกไปแล้ว' });
+        }
+
+        const existing = detailRows[0];
+
+        // 2. ตรวจสอบว่าผ่านศูนย์จำหน่ายไปหรือยัง
+        if (existing.dc_done_date || existing.workflow_status === 'completed' || existing.workflow_status === 'finance') {
+            return res.status(400).json({ error: 'ไม่สามารถยกเลิกได้ เนื่องจากผู้ป่วยผ่านศูนย์จำหน่ายหรือการเงินไปแล้ว' });
+        }
+
+        // 3. กำหนด workflow_status ใหม่ (ถ้าเคยส่งไปศูนย์จำหน่ายจากการเช็คยา ให้ถอยกลับมา)
+        let revertedStatus = existing.workflow_status;
+        if (existing.workflow_status === 'discharge_center') {
+            revertedStatus = existing.sent_pharmacy_date ? 'pharmacy_prepare' : (existing.discharge_date ? 'discharged' : null);
+        }
+
+        await conn.query(
+            `UPDATE an_detail SET
+                pharmacy_pack_by = NULL,
+                pharmacy_pack_date = NULL,
+                phar_chk_hm = 0,
+                phar_chk_hm_date = NULL,
+                workflow_status = ?,
+                sent_dc_by = IF(workflow_status = 'discharge_center', NULL, sent_dc_by),
+                sent_dc_date = IF(workflow_status = 'discharge_center', NULL, sent_dc_date)
+             WHERE an = ?`,
+            [revertedStatus, an]
+        );
+
+        await conn.query(
+            'INSERT INTO activity_logs (an, action_type, loginname) VALUES (?, ?, ?)',
+            [an, 'CANCEL_PHARMACY_PACK_DONE', loginname]
+        );
+
+        try {
+            getIO().emit('workflow:updated', { an, status: revertedStatus || 'pharmacy_prepare' });
+        } catch (e) {}
+
+        res.json({ success: true, status: revertedStatus, message: 'ยกเลิกการเช็คยาเรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('Cancel pharmacy pack done error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
         if (conn) conn.release();
     }
 });

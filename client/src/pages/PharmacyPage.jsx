@@ -346,7 +346,7 @@ export default function PharmacyPage() {
       await api.post(`/workflow/pharmacy/pack-done/${patientForCheck.an}`)
       playScanBeep(true)
       const pName = `${patientForCheck.pname || ''}${patientForCheck.fname} ${patientForCheck.lname}`
-      setCheckDoneSuccess(`บันทึกจ่ายยาเสร็จเรียบร้อย: ${pName} (AN: ${patientForCheck.an})`)
+      setCheckDoneSuccess(`บันทึกเช็คยาเสร็จเรียบร้อย: ${pName} (AN: ${patientForCheck.an})`)
       
       // Clear patient and input, keep modal open
       setPatientForCheck(null)
@@ -362,6 +362,39 @@ export default function PharmacyPage() {
     } catch (err) {
       playScanBeep(false)
       setCheckDoneError(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึก')
+    } finally {
+      setSavingCheckDone(false)
+    }
+  }
+
+  const handleCancelCheckDone = async () => {
+    if (!patientForCheck || savingCheckDone) return
+    const pName = `${patientForCheck.pname || ''}${patientForCheck.fname} ${patientForCheck.lname}`
+    if (!window.confirm(`ยืนยันยกเลิกการเช็คยาสำหรับผู้ป่วย:\n${pName} (AN: ${patientForCheck.an}) หรือไม่?`)) {
+      return
+    }
+    setSavingCheckDone(true)
+    setCheckDoneError('')
+    setCheckDoneSuccess('')
+    try {
+      await api.post(`/workflow/pharmacy/cancel-pack-done/${patientForCheck.an}`)
+      playScanBeep(true)
+      setCheckDoneSuccess(`ยกเลิกการเช็คยาเรียบร้อย: ${pName} (AN: ${patientForCheck.an})`)
+
+      // Clear patient and input, keep modal open
+      setPatientForCheck(null)
+      setCheckDoneAn('')
+
+      // Refresh background table list
+      fetchPatients()
+
+      // Refocus input field
+      setTimeout(() => {
+        checkDoneInputRef.current?.focus()
+      }, 80)
+    } catch (err) {
+      playScanBeep(false)
+      setCheckDoneError(err.response?.data?.error || 'เกิดข้อผิดพลาดในการยกเลิกการเช็คยา')
     } finally {
       setSavingCheckDone(false)
     }
@@ -1918,40 +1951,64 @@ export default function PharmacyPage() {
                     </div>
                   )}
 
-                  {patientForCheck.pharmacy_pack_date && (
-                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-1.5">
-                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>รายการนี้เคยบันทึกเช็คยาแล้วเมื่อ {new Date(patientForCheck.pharmacy_pack_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น. (สามารถกดบันทึกซ้ำได้)</span>
+                  {patientForCheck.pharmacy_pack_date ? (
+                    <div className="space-y-3 pt-1">
+                      <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-xs sm:text-sm text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-semibold">รายการนี้เคยบันทึกเช็คยาแล้ว</div>
+                          <div className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                            บันทึกเมื่อ: {new Date(patientForCheck.pharmacy_pack_date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                            {patientForCheck.pharmacy_pack_by ? ` โดย ${patientForCheck.pharmacy_pack_by}` : ''}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Button: ยกเลิกการเช็คยา */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={handleCancelCheckDone}
+                          disabled={savingCheckDone}
+                          className="w-full py-3 rounded-xl text-base font-bold shadow-md transition-all flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white hover:shadow-lg cursor-pointer disabled:opacity-50"
+                        >
+                          <RotateCcw className={`w-5 h-5 ${savingCheckDone ? 'animate-spin' : ''}`} />
+                          <span>{savingCheckDone ? 'กำลังยกเลิก...' : 'ยกเลิกการเช็คยา'}</span>
+                        </button>
+                        <p className="text-[11px] text-center text-muted-foreground mt-2">
+                          เมื่อกดยกเลิก ระบบจะล้างประวัติการเช็คยาและปรับสถานะผู้ป่วยกลับไปยังขั้นตอนก่อนหน้า
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Action Button: บันทึกเช็คยาเสร็จ */
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={handleSubmitCheckDone}
+                        disabled={savingCheckDone || !patientForCheck.is_admitted}
+                        className={`w-full py-3 rounded-xl text-base font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
+                          !patientForCheck.is_admitted
+                            ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                            : 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white hover:shadow-lg cursor-pointer disabled:opacity-50'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>
+                          {savingCheckDone
+                            ? 'กำลังบันทึก...'
+                            : !patientForCheck.is_admitted
+                              ? 'ไม่สามารถบันทึกได้ (ผู้ป่วยไม่ได้ Admit อยู่)'
+                              : 'บันทึกเช็คยาเสร็จ'}
+                        </span>
+                      </button>
+                      <p className="text-[11px] text-center text-muted-foreground mt-2">
+                        {patientForCheck.is_admitted
+                          ? 'เมื่อกดบันทึก ระบบจะลงประวัติเช็คยาสำเร็จ และล้างข้อมูลเพื่อพร้อมคีย์ AN/HN รายถัดไปทันที'
+                          : 'ระบบอนุญาตให้บันทึกได้เฉพาะเคสที่ยังคงสถานะ Admit อยู่ในโรงพยาบาลเท่านั้น'}
+                      </p>
                     </div>
                   )}
-
-                  {/* Action Button บันทึกจ่ายยาเสร็จ */}
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={handleSubmitCheckDone}
-                      disabled={savingCheckDone || !patientForCheck.is_admitted}
-                      className={`w-full py-3 rounded-xl text-base font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
-                        !patientForCheck.is_admitted
-                          ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
-                          : 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white hover:shadow-lg cursor-pointer disabled:opacity-50'
-                      }`}
-                    >
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span>
-                        {savingCheckDone
-                          ? 'กำลังบันทึก...'
-                          : !patientForCheck.is_admitted
-                            ? 'ไม่สามารถบันทึกได้ (ผู้ป่วยไม่ได้ Admit อยู่)'
-                            : 'บันทึกจ่ายยาเสร็จ'}
-                      </span>
-                    </button>
-                    <p className="text-[11px] text-center text-muted-foreground mt-2">
-                      {patientForCheck.is_admitted
-                        ? 'เมื่อกดบันทึก ระบบจะลงประวัติเช็คยาสำเร็จ และล้างข้อมูลเพื่อพร้อมคีย์ AN/HN รายถัดไปทันที'
-                        : 'ระบบอนุญาตให้บันทึกได้เฉพาะเคสที่ยังคงสถานะ Admit อยู่ในโรงพยาบาลเท่านั้น'}
-                    </p>
-                  </div>
                 </div>
               ) : (
                 <div className="text-center py-10 text-muted-foreground border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
