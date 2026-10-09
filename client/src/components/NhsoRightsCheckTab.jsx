@@ -998,79 +998,35 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                     </div>
                   </div>
 
-                  {/* 2. แสดงสิทธิ์จาก ipt (ข้อมูล Admit) */}
-                  <div className="border border-sky-200/80 rounded-xl p-4 bg-sky-50/20 space-y-3">
-                    <div className="font-bold text-slate-900 text-sm flex items-center justify-between border-b border-sky-100 pb-2">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-sky-600" />
-                        <span>1. สิทธิ์การรักษาจากตาราง ipt (ข้อมูล Admit)</span>
-                      </div>
-                      <Badge variant="outline" className="bg-sky-50 text-sky-800 border-sky-200 text-[11px]">
-                        ipt
-                      </Badge>
+                  {/* สิทธิ์หลัก และ ผู้บันทึก (กล่องเดียวกระชับ ประหยัดพื้นที่) */}
+                  <div className="bg-sky-50/60 border border-sky-200/90 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-slate-600 font-medium">สิทธิ์หลัก:</span>
+                      <span className="bg-sky-100 text-sky-800 px-2 py-0.5 rounded font-mono font-bold">
+                        {detailPatient.ipt?.pttype || detailData?.ipt?.pttype || '-'}
+                      </span>
+                      <span className="font-semibold text-slate-900 text-sm">
+                        {detailPatient.ipt?.pttype_name || detailData?.ipt?.pttype_name || '-'}
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs space-y-1">
-                        <span className="text-muted-foreground block text-[11px]">สิทธิ์หลักใน ipt:</span>
-                        <div className="font-semibold text-slate-900 text-sm">
-                          <span className="bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded font-mono mr-1.5">
-                            {detailPatient.ipt?.pttype || detailData?.ipt?.pttype || '-'}
-                          </span>
-                          <span>{detailPatient.ipt?.pttype_name || detailData?.ipt?.pttype_name || '-'}</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs space-y-1">
-                        <span className="text-muted-foreground block text-[11px]">ผู้บันทึก (ipt.staff):</span>
-                        <div className="font-semibold text-slate-900 text-sm flex items-center gap-2">
-                          <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded text-slate-700">
-                            {detailPatient.ipt?.staff || detailData?.ipt?.staff || '-'}
-                          </span>
-                          <span>
-                            {detailPatient.ipt?.staff_name || detailData?.ipt?.staff_name || '-'}
-                          </span>
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="font-medium">ผู้บันทึก:</span>
+                      <span className="font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-800 font-semibold shadow-2xs">
+                        {detailPatient.ipt?.staff || detailData?.ipt?.staff || '-'}
+                      </span>
+                      <span className="text-slate-900 font-semibold">
+                        {detailPatient.ipt?.staff_name || detailData?.ipt?.staff_name || '-'}
+                      </span>
                     </div>
-
-                    {/* แสดงสิทธิ์ทั้งหมดใน ipt_pttype */}
-                    {detailPatient.ipt_pttype_list && detailPatient.ipt_pttype_list.length > 0 && (
-                      <div className="pt-1 space-y-1.5">
-                        <span className="text-[11px] font-semibold text-slate-700 block">
-                          รายการสิทธิ์ใน ipt_pttype ทั้งหมด ({detailPatient.ipt_pttype_list.length} สิทธิ์):
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {detailPatient.ipt_pttype_list.map((ip, i) => (
-                            <div key={i} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs shadow-2xs space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-slate-900">
-                                  <span className="bg-slate-100 text-slate-800 px-1 py-0.2 rounded font-mono mr-1">
-                                    #{ip.pttype_number}
-                                  </span>
-                                  [{ip.pttype}] {ip.pttype_name}
-                                </span>
-                                <span className="font-mono text-emerald-700 font-semibold text-[11px]">
-                                  Auth: {ip.auth_code || ip.claim_code || '-'}
-                                </span>
-                              </div>
-                              <div className="text-[11px] text-muted-foreground flex justify-between">
-                                <span>รพ: {ip.hospmain || '-'}/{ip.hospsub || '-'}</span>
-                                <span>เลขที่: {ip.pttypeno || '-'}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  {/* 3. ถัดมาแสดงตารางเปรียบเทียบ pttype และ api สปสช */}
+                  {/* ตารางเปรียบเทียบ pttype และ api สปสช */}
                   <div className="space-y-2.5">
                     <div className="font-bold text-slate-900 text-sm flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Database className="w-4 h-4 text-purple-600" />
-                        <span>2. ตารางเปรียบเทียบสิทธิ pttype และ API สปสช.</span>
+                        <span>ตารางเปรียบเทียบสิทธิ pttype และ API สปสช.</span>
                       </div>
                       {detailData?.comparison?.has_api && (
                         <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-200 text-[11px]">
