@@ -107,6 +107,121 @@ export default function RightsAndAuthenBox({ an, patient }) {
     (col) => col.source_name === 'ipt_pttype' || col.source_name === 'api'
   );
 
+  const apiCol = (data?.rows || []).find((col) => col.source_name === 'api');
+
+  // ตรวจสอบความไม่ตรงกันระหว่าง Hosxp กับ API (ถ้าค่าจาก API ไม่แสดง ไม่ต้องตรวจสอบ)
+  const checkMismatch = (attr, hosxpCol, apiCol) => {
+    if (!hosxpCol || !apiCol) return false;
+    const isHosxp = hosxpCol.source_name === 'ipt_pttype' || hosxpCol.source_name === 'ipt';
+    if (!isHosxp) return false;
+
+    const clean = (val) => (val == null ? '' : String(val).trim());
+    const isApiEmpty = (val) => {
+      const c = clean(val);
+      return !c || c === '-' || c.toLowerCase() === 'null';
+    };
+
+    switch (attr) {
+      case 'pttype': {
+        const apiCode = clean(apiCol.pttype);
+        const apiName = clean(apiCol.pttype_name);
+        // ถ้าค่าจาก API ไม่แสดง ไม่ต้องตรวจสอบ
+        if (isApiEmpty(apiCode) && isApiEmpty(apiName)) return false;
+
+        const hosxpCode = clean(hosxpCol.pttype);
+        const hosxpName = clean(hosxpCol.pttype_name);
+
+        if (!isApiEmpty(apiCode)) {
+          return hosxpCode.toLowerCase() !== apiCode.toLowerCase();
+        }
+        if (!isApiEmpty(apiName)) {
+          return hosxpName.toLowerCase() !== apiName.toLowerCase();
+        }
+        return false;
+      }
+
+      case 'pttypeno': {
+        if (isApiEmpty(apiCol.pttypeno)) return false;
+        const hNo = clean(hosxpCol.pttypeno).replace(/[-\s]/g, '');
+        const aNo = clean(apiCol.pttypeno).replace(/[-\s]/g, '');
+        if (!aNo || aNo === '-') return false;
+        return hNo !== aNo;
+      }
+
+      case 'hospmain': {
+        if (isApiEmpty(apiCol.hospmain)) return false;
+        const hCode = clean(hosxpCol.hospmain);
+        const aCode = clean(apiCol.hospmain);
+        return hCode !== aCode;
+      }
+
+      case 'hospsub': {
+        if (isApiEmpty(apiCol.hospsub)) return false;
+        const hCode = clean(hosxpCol.hospsub);
+        const aCode = clean(apiCol.hospsub);
+        return hCode !== aCode;
+      }
+
+      case 'begin_date': {
+        if (isApiEmpty(apiCol.begin_date)) return false;
+        const toD = (v) => {
+          if (isApiEmpty(v)) return '';
+          const s = clean(v);
+          const match = s.match(/^(\d{4}-\d{2}-\d{2})/);
+          if (match) return match[1];
+          try {
+            const d = new Date(s);
+            if (isNaN(d.getTime())) return s.slice(0, 10);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+          } catch {
+            return s.slice(0, 10);
+          }
+        };
+        const hDate = toD(hosxpCol.begin_date);
+        const aDate = toD(apiCol.begin_date);
+        if (!aDate) return false;
+        return hDate !== aDate;
+      }
+
+      case 'expire_date': {
+        if (isApiEmpty(apiCol.expire_date)) return false;
+        const toD = (v) => {
+          if (isApiEmpty(v)) return '';
+          const s = clean(v);
+          const match = s.match(/^(\d{4}-\d{2}-\d{2})/);
+          if (match) return match[1];
+          try {
+            const d = new Date(s);
+            if (isNaN(d.getTime())) return s.slice(0, 10);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+          } catch {
+            return s.slice(0, 10);
+          }
+        };
+        const hDate = toD(hosxpCol.expire_date);
+        const aDate = toD(apiCol.expire_date);
+        if (!aDate) return false;
+        return hDate !== aDate;
+      }
+
+      case 'auth_code': {
+        const apiAuth = clean(apiCol.auth_code || apiCol.claim_code);
+        if (isApiEmpty(apiAuth)) return false;
+        const hAuth = clean(hosxpCol.auth_code || hosxpCol.claim_code);
+        return hAuth.toUpperCase() !== apiAuth.toUpperCase();
+      }
+
+      default:
+        return false;
+    }
+  };
+
   return (
     <div className="w-full space-y-5 mb-2">
       {/* ======================================================== */}
@@ -180,7 +295,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       {/* Source Columns */}
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
 
                         return (
                           <th
@@ -188,21 +303,15 @@ export default function RightsAndAuthenBox({ an, patient }) {
                             className={`py-2 px-3 whitespace-nowrap min-w-[160px] text-center ${
                               isApi
                                 ? 'bg-purple-100/70 border-b border-purple-200'
-                                : isIpt
+                                : isHosxp
                                 ? 'bg-emerald-100/60 border-b border-emerald-200'
                                 : 'border-b border-border'
                             }`}
                           >
                             <span
                               className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs sm:text-sm font-bold border shadow-xs ${
-                                col.source_name === 'ovst'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : col.source_name === 'visit_pttype'
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                  : col.source_name === 'ipt'
+                                isHosxp
                                   ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-1 ring-emerald-200/60'
-                                  : col.source_name === 'ipt_pttype'
-                                  ? 'bg-teal-50 text-teal-700 border-teal-200'
                                   : 'bg-purple-100 text-purple-800 border-purple-300 ring-1 ring-purple-200/60'
                               }`}
                             >
@@ -224,20 +333,28 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       </td>
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
+                        const isMismatch = isHosxp && checkMismatch('pttype', col, apiCol);
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2 px-3 ${
-                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            className={`py-2 px-3 transition-colors ${
+                              isMismatch
+                                ? 'bg-red-100 text-red-950 border-x border-red-300'
+                                : isApi
+                                ? 'bg-purple-50/20'
+                                : isHosxp
+                                ? 'bg-emerald-50/15'
+                                : ''
                             }`}
+                            title={isMismatch ? 'ข้อมูลใน Hosxp ไม่ตรงกับ สปสช. (API)' : undefined}
                           >
                             <div className="flex flex-col items-center text-center">
-                              <span className="font-mono font-bold text-slate-800 text-sm sm:text-base">
+                              <span className={`font-mono font-bold text-sm sm:text-base ${isMismatch ? 'text-red-900 font-extrabold' : 'text-slate-800'}`}>
                                 {col.pttype !== '-' ? col.pttype : '-'}
                               </span>
                               {col.pttype_name && col.pttype_name !== '-' && (
-                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug w-full">
+                                <span className={`text-xs sm:text-sm mt-0.5 leading-snug w-full ${isMismatch ? 'text-red-900 font-medium' : 'text-slate-600'}`}>
                                   {col.pttype_name}
                                 </span>
                               )}
@@ -257,15 +374,23 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       </td>
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
+                        const isMismatch = isHosxp && checkMismatch('pttypeno', col, apiCol);
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2 px-3 ${
-                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            className={`py-2 px-3 transition-colors ${
+                              isMismatch
+                                ? 'bg-red-100 text-red-950 border-x border-red-300'
+                                : isApi
+                                ? 'bg-purple-50/20'
+                                : isHosxp
+                                ? 'bg-emerald-50/15'
+                                : ''
                             }`}
+                            title={isMismatch ? 'ข้อมูลใน Hosxp ไม่ตรงกับ สปสช. (API)' : undefined}
                           >
-                            <span className="font-mono text-slate-700 text-center block select-all text-xs sm:text-sm">
+                            <span className={`font-mono text-center block select-all text-xs sm:text-sm ${isMismatch ? 'text-red-900 font-bold' : 'text-slate-700'}`}>
                               {col.pttypeno || '-'}
                             </span>
                           </td>
@@ -283,20 +408,28 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       </td>
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
+                        const isMismatch = isHosxp && checkMismatch('hospmain', col, apiCol);
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2 px-3 ${
-                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            className={`py-2 px-3 transition-colors ${
+                              isMismatch
+                                ? 'bg-red-100 text-red-950 border-x border-red-300'
+                                : isApi
+                                ? 'bg-purple-50/20'
+                                : isHosxp
+                                ? 'bg-emerald-50/15'
+                                : ''
                             }`}
+                            title={isMismatch ? 'ข้อมูลใน Hosxp ไม่ตรงกับ สปสช. (API)' : undefined}
                           >
                             <div className="flex flex-col items-center text-center">
-                              <span className="font-mono font-bold text-slate-700 text-xs sm:text-sm">
+                              <span className={`font-mono font-bold text-xs sm:text-sm ${isMismatch ? 'text-red-900' : 'text-slate-700'}`}>
                                 {col.hospmain || '-'}
                               </span>
                               {col.hospmain_name && col.hospmain_name !== '-' && (
-                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug w-full" title={col.hospmain_name}>
+                                <span className={`text-xs sm:text-sm mt-0.5 leading-snug w-full ${isMismatch ? 'text-red-900 font-medium' : 'text-slate-600'}`} title={col.hospmain_name}>
                                   {col.hospmain_name}
                                 </span>
                               )}
@@ -316,20 +449,28 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       </td>
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
+                        const isMismatch = isHosxp && checkMismatch('hospsub', col, apiCol);
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2 px-3 ${
-                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            className={`py-2 px-3 transition-colors ${
+                              isMismatch
+                                ? 'bg-red-100 text-red-950 border-x border-red-300'
+                                : isApi
+                                ? 'bg-purple-50/20'
+                                : isHosxp
+                                ? 'bg-emerald-50/15'
+                                : ''
                             }`}
+                            title={isMismatch ? 'ข้อมูลใน Hosxp ไม่ตรงกับ สปสช. (API)' : undefined}
                           >
                             <div className="flex flex-col items-center text-center">
-                              <span className="font-mono font-bold text-slate-700 text-xs sm:text-sm">
+                              <span className={`font-mono font-bold text-xs sm:text-sm ${isMismatch ? 'text-red-900' : 'text-slate-700'}`}>
                                 {col.hospsub || '-'}
                               </span>
                               {col.hospsub_name && col.hospsub_name !== '-' && (
-                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug w-full" title={col.hospsub_name}>
+                                <span className={`text-xs sm:text-sm mt-0.5 leading-snug w-full ${isMismatch ? 'text-red-900 font-medium' : 'text-slate-600'}`} title={col.hospsub_name}>
                                   {col.hospsub_name}
                                 </span>
                               )}
@@ -349,15 +490,23 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       </td>
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
+                        const isMismatch = isHosxp && checkMismatch('begin_date', col, apiCol);
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2 px-3 ${
-                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            className={`py-2 px-3 transition-colors ${
+                              isMismatch
+                                ? 'bg-red-100 text-red-950 border-x border-red-300'
+                                : isApi
+                                ? 'bg-purple-50/20'
+                                : isHosxp
+                                ? 'bg-emerald-50/15'
+                                : ''
                             }`}
+                            title={isMismatch ? 'ข้อมูลใน Hosxp ไม่ตรงกับ สปสช. (API)' : undefined}
                           >
-                            <span className="font-mono text-slate-700 text-center block whitespace-nowrap text-xs sm:text-sm font-medium">
+                            <span className={`font-mono text-center block whitespace-nowrap text-xs sm:text-sm ${isMismatch ? 'text-red-900 font-bold' : 'text-slate-700 font-medium'}`}>
                               {formatThDate(col.begin_date)}
                             </span>
                           </td>
@@ -375,15 +524,23 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       </td>
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
+                        const isMismatch = isHosxp && checkMismatch('expire_date', col, apiCol);
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2 px-3 ${
-                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            className={`py-2 px-3 transition-colors ${
+                              isMismatch
+                                ? 'bg-red-100 text-red-950 border-x border-red-300'
+                                : isApi
+                                ? 'bg-purple-50/20'
+                                : isHosxp
+                                ? 'bg-emerald-50/15'
+                                : ''
                             }`}
+                            title={isMismatch ? 'ข้อมูลใน Hosxp ไม่ตรงกับ สปสช. (API)' : undefined}
                           >
-                            <span className="font-mono text-slate-700 text-center block whitespace-nowrap text-xs sm:text-sm font-medium">
+                            <span className={`font-mono text-center block whitespace-nowrap text-xs sm:text-sm ${isMismatch ? 'text-red-900 font-bold' : 'text-slate-700 font-medium'}`}>
                               {formatThDate(col.expire_date)}
                             </span>
                           </td>
@@ -401,17 +558,31 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       </td>
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
+                        const isMismatch = isHosxp && checkMismatch('auth_code', col, apiCol);
                         const hasCode = col.auth_code && col.auth_code !== '-';
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2 px-3 ${
-                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            className={`py-2 px-3 transition-colors ${
+                              isMismatch
+                                ? 'bg-red-100 text-red-950 border-x border-red-300'
+                                : isApi
+                                ? 'bg-purple-50/20'
+                                : isHosxp
+                                ? 'bg-emerald-50/15'
+                                : ''
                             }`}
+                            title={isMismatch ? 'ข้อมูลใน Hosxp ไม่ตรงกับ สปสช. (API)' : undefined}
                           >
                             <span className={`font-mono text-center block text-xs sm:text-sm ${
-                              hasCode ? (isApi ? 'font-bold text-purple-700 select-all' : 'font-bold text-emerald-700 select-all') : 'text-slate-600'
+                              hasCode
+                                ? (isMismatch
+                                    ? 'font-bold text-red-900 select-all'
+                                    : isApi
+                                    ? 'font-bold text-purple-700 select-all'
+                                    : 'font-bold text-emerald-700 select-all')
+                                : (isMismatch ? 'text-red-800 font-semibold' : 'text-slate-600')
                             }`}>
                               {col.auth_code || '-'}
                             </span>
@@ -430,12 +601,12 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       </td>
                       {filteredRows.map((col, idx) => {
                         const isApi = col.source_name === 'api';
-                        const isIpt = col.source_name === 'ipt';
+                        const isHosxp = col.source_name === 'ipt_pttype' || col.source_name === 'ipt';
                         return (
                           <td
                             key={col.source_key || idx}
                             className={`py-2 px-3 ${
-                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                              isApi ? 'bg-purple-50/20' : isHosxp ? 'bg-emerald-50/15' : ''
                             }`}
                           >
                             <div className="flex flex-col items-center text-center">
