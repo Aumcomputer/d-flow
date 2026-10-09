@@ -106,7 +106,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
   return (
     <div className="w-full space-y-5 mb-2">
       {/* ======================================================== */}
-      {/* กล่องที่ 1: สิทธิ์การรักษา (เปรียบเทียบ 5 แหล่งข้อมูล) */}
+      {/* กล่องที่ 1: สิทธิ์การรักษา */}
       {/* ======================================================== */}
       <div className="bg-card shadow-sm border border-border rounded-2xl overflow-hidden transition-all duration-200">
         <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
@@ -120,9 +120,6 @@ export default function RightsAndAuthenBox({ an, patient }) {
               <div>
                 <h3 className="font-bold text-slate-800 text-base sm:text-lg flex items-center gap-2">
                   <span>1. สิทธิ์การรักษา</span>
-                  <span className="text-xs font-normal text-muted-foreground bg-slate-100 px-2 py-0.5 rounded-full">
-                    5 แหล่งข้อมูล
-                  </span>
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   เปรียบเทียบข้อมูลสิทธิจาก: ovst • visit_pttype • ipt • ipt_pttype • สปสช. (API)
@@ -155,7 +152,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
             </div>
           </div>
 
-          {/* Table Container */}
+          {/* Table Container (Transposed: Rows = Attributes, Columns = Sources) */}
           {loading && !data ? (
             <div className="py-12 flex flex-col items-center justify-center text-muted-foreground gap-2">
               <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -172,134 +169,308 @@ export default function RightsAndAuthenBox({ an, patient }) {
                 <table className="w-full text-xs text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-100/90 text-slate-700 font-semibold border-b border-border select-none">
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[130px]">แหล่งข้อมูล</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[160px]">pttype</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[140px]">pttypeno</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[140px]">hospmain</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[140px]">hospsub</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[100px]">begin_date</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[100px]">expire_date</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[90px]">auth_code</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[110px]">claim_code</th>
-                      <th className="py-2.5 px-3 whitespace-nowrap min-w-[130px]">staff</th>
+                      {/* Left Header Column */}
+                      <th className="py-3 px-3.5 whitespace-nowrap min-w-[130px] bg-slate-100 sticky left-0 z-20 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        หัวข้อ / รายการ
+                      </th>
+                      {/* Source Columns */}
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+
+                        return (
+                          <th
+                            key={col.source_key || idx}
+                            className={`py-3 px-3.5 whitespace-nowrap min-w-[190px] text-center ${
+                              isApi
+                                ? 'bg-purple-100/70 border-b border-purple-200'
+                                : isIpt
+                                ? 'bg-emerald-100/60 border-b border-emerald-200'
+                                : 'border-b border-border'
+                            }`}
+                          >
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold border shadow-xs ${
+                                col.source_name === 'ovst'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : col.source_name === 'visit_pttype'
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                  : col.source_name === 'ipt'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-1 ring-emerald-200/60'
+                                  : col.source_name === 'ipt_pttype'
+                                  ? 'bg-teal-50 text-teal-700 border-teal-200'
+                                  : 'bg-purple-100 text-purple-800 border-purple-300 ring-1 ring-purple-200/60'
+                              }`}
+                            >
+                              {col.source_label}
+                            </span>
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60 bg-white">
-                    {data?.rows?.map((row, idx) => {
-                      const isApi = row.source_name === 'api';
-                      const isIpt = row.source_name === 'ipt';
+                    {/* 1. pttype */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">pttype</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">รหัส/ชื่อสิทธิ์</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <div className="flex flex-col items-center text-center">
+                              <span className="font-mono font-bold text-slate-800 text-sm">
+                                {col.pttype !== '-' ? col.pttype : '-'}
+                              </span>
+                              {col.pttype_name && col.pttype_name !== '-' && (
+                                <span className="text-[11px] text-slate-600 mt-0.5 leading-tight max-w-[210px]">
+                                  {col.pttype_name}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
 
-                      return (
-                        <tr
-                          key={row.source_key || idx}
-                          className={`hover:bg-slate-50/80 transition-colors ${
-                            isApi ? 'bg-purple-50/25 font-medium' : isIpt ? 'bg-emerald-50/20' : ''
-                          }`}
-                        >
-                          {/* 1. แหล่งข้อมูล */}
-                          <td className="py-2.5 px-3 whitespace-nowrap">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${
-                                row.source_name === 'ovst'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : row.source_name === 'visit_pttype'
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                  : row.source_name === 'ipt'
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                  : row.source_name === 'ipt_pttype'
-                                  ? 'bg-teal-50 text-teal-700 border-teal-200'
-                                  : 'bg-purple-100 text-purple-800 border-purple-300'
-                              }`}
-                            >
-                              {row.source_label}
+                    {/* 2. pttypeno */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">pttypeno</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">เลขที่สิทธิ์</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <span className="font-mono text-slate-700 text-center block select-all">
+                              {col.pttypeno || '-'}
                             </span>
                           </td>
+                        );
+                      })}
+                    </tr>
 
-                          {/* 2. pttype */}
-                          <td className="py-2.5 px-3">
-                            <div className="flex flex-col">
-                              <span className="font-mono font-bold text-slate-800">
-                                {row.pttype !== '-' ? row.pttype : '-'}
+                    {/* 3. hospmain */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">hospmain</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">สถานพยาบาลหลัก</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <div className="flex flex-col items-center text-center">
+                              <span className="font-mono font-semibold text-slate-700">
+                                {col.hospmain || '-'}
                               </span>
-                              {row.pttype_name && row.pttype_name !== '-' && (
-                                <span className="text-[11px] text-slate-500 leading-tight">
-                                  {row.pttype_name}
+                              {col.hospmain_name && col.hospmain_name !== '-' && (
+                                <span className="text-[11px] text-slate-500 mt-0.5 leading-tight max-w-[210px]" title={col.hospmain_name}>
+                                  {col.hospmain_name}
                                 </span>
                               )}
                             </div>
                           </td>
+                        );
+                      })}
+                    </tr>
 
-                          {/* 3. pttypeno */}
-                          <td className="py-2.5 px-3 whitespace-nowrap">
-                            <span className="font-mono text-slate-700">
-                              {row.pttypeno || '-'}
+                    {/* 4. hospsub */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">hospsub</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">สถานพยาบาลรอง</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <div className="flex flex-col items-center text-center">
+                              <span className="font-mono font-semibold text-slate-700">
+                                {col.hospsub || '-'}
+                              </span>
+                              {col.hospsub_name && col.hospsub_name !== '-' && (
+                                <span className="text-[11px] text-slate-500 mt-0.5 leading-tight max-w-[210px]" title={col.hospsub_name}>
+                                  {col.hospsub_name}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+
+                    {/* 5. begin_date */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">begin_date</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">วันเริ่มใช้สิทธิ์</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <span className="font-mono text-slate-600 text-center block whitespace-nowrap">
+                              {formatThDate(col.begin_date)}
                             </span>
                           </td>
+                        );
+                      })}
+                    </tr>
 
-                          {/* 4. hospmain */}
-                          <td className="py-2.5 px-3">
-                            <div className="flex flex-col">
-                              <span className="font-mono font-semibold text-slate-700">
-                                {row.hospmain || '-'}
-                              </span>
-                              {row.hospmain_name && row.hospmain_name !== '-' && (
-                                <span className="text-[11px] text-slate-500 leading-tight max-w-[200px] truncate" title={row.hospmain_name}>
-                                  {row.hospmain_name}
-                                </span>
-                              )}
-                            </div>
+                    {/* 6. expire_date */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">expire_date</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">วันหมดอายุสิทธิ์</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <span className="font-mono text-slate-600 text-center block whitespace-nowrap">
+                              {formatThDate(col.expire_date)}
+                            </span>
                           </td>
+                        );
+                      })}
+                    </tr>
 
-                          {/* 5. hospsub */}
-                          <td className="py-2.5 px-3">
-                            <div className="flex flex-col">
-                              <span className="font-mono font-semibold text-slate-700">
-                                {row.hospsub || '-'}
-                              </span>
-                              {row.hospsub_name && row.hospsub_name !== '-' && (
-                                <span className="text-[11px] text-slate-500 leading-tight max-w-[200px] truncate" title={row.hospsub_name}>
-                                  {row.hospsub_name}
-                                </span>
-                              )}
-                            </div>
+                    {/* 7. auth_code */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">auth_code</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">รหัสอนุมัติ</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <span className="font-mono text-slate-600 text-center block">
+                              {col.auth_code || '-'}
+                            </span>
                           </td>
+                        );
+                      })}
+                    </tr>
 
-                          {/* 6. begin_date */}
-                          <td className="py-2.5 px-3 whitespace-nowrap font-mono text-slate-600">
-                            {formatThDate(row.begin_date)}
+                    {/* 8. claim_code */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">claim_code</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">รหัสเคลม / Authen</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20 font-bold' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <span className="font-mono font-semibold text-purple-700 text-center block select-all">
+                              {col.claim_code || '-'}
+                            </span>
                           </td>
+                        );
+                      })}
+                    </tr>
 
-                          {/* 7. expire_date */}
-                          <td className="py-2.5 px-3 whitespace-nowrap font-mono text-slate-600">
-                            {formatThDate(row.expire_date)}
-                          </td>
-
-                          {/* 8. auth_code */}
-                          <td className="py-2.5 px-3 whitespace-nowrap font-mono text-slate-600">
-                            {row.auth_code || '-'}
-                          </td>
-
-                          {/* 9. claim_code */}
-                          <td className="py-2.5 px-3 whitespace-nowrap font-mono font-semibold text-purple-700">
-                            {row.claim_code || '-'}
-                          </td>
-
-                          {/* 10. staff */}
-                          <td className="py-2.5 px-3">
-                            <div className="flex flex-col">
+                    {/* 9. staff */}
+                    <tr className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-slate-800 text-xs">staff</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">ผู้บันทึก</span>
+                        </div>
+                      </td>
+                      {data?.rows?.map((col, idx) => {
+                        const isApi = col.source_name === 'api';
+                        const isIpt = col.source_name === 'ipt';
+                        return (
+                          <td
+                            key={col.source_key || idx}
+                            className={`py-2.5 px-3.5 ${
+                              isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
+                            }`}
+                          >
+                            <div className="flex flex-col items-center text-center">
                               <span className="font-mono text-slate-700">
-                                {row.staff || '-'}
+                                {col.staff || '-'}
                               </span>
-                              {row.staff_name && row.staff_name !== '-' && (
-                                <span className="text-[11px] text-slate-500 leading-tight">
-                                  {row.staff_name}
+                              {col.staff_name && col.staff_name !== '-' && (
+                                <span className="text-[11px] text-slate-500 mt-0.5 leading-tight max-w-[190px]">
+                                  {col.staff_name}
                                 </span>
                               )}
                             </div>
                           </td>
-                        </tr>
-                      );
-                    })}
+                        );
+                      })}
+                    </tr>
                   </tbody>
                 </table>
               </div>
