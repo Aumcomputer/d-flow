@@ -837,6 +837,7 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
 
         const xrayDupRows = await conn.query(`
             SELECT 
+                xr.xn,
                 o.icode,
                 COALESCE(o.vstdate, o.rxdate, xr.request_date) as order_date,
                 COALESCE(o.vsttime, o.rxtime, xr.request_time, '') as order_time,
@@ -868,6 +869,7 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
                 }
             }
             return {
+                xn: r.xn != null ? String(r.xn) : '',
                 icode: String(r.icode || ''),
                 order_date: dateStr,
                 order_time: r.order_time ? String(r.order_time).slice(0, 8) : '',
