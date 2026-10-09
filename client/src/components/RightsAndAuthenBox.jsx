@@ -647,19 +647,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 sm:text-right">
-                  {/* สถานะ (ย้ายมาจากกล่อง 1) */}
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                    <span>{data.authen.authen_status || (data.authen.claim_status === 'E' ? 'ยืนยันแล้ว' : 'ได้รับอนุมัติแล้ว')}</span>
-                    {data.authen.claim_status && (
-                      <span className="text-[10px] font-mono text-emerald-700/80">({data.authen.claim_status})</span>
-                    )}
-                  </div>
-
-                  {/* วันที่ขอ Authen Code (ย้ายมาจากกล่อง 4) */}
+                <div className="flex flex-col sm:items-end gap-1.5 ml-auto text-right">
+                  {/* วันที่ขอ Authen Code */}
                   {(data.authen.create_date || data.authen.received_datetime) && (
-                    <div className="text-xs font-mono text-slate-600 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100 flex items-center gap-1.5">
+                    <div className="text-xs font-mono text-slate-600 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100 flex items-center gap-1.5 justify-end">
                       <Calendar className="w-3.5 h-3.5 text-amber-600" />
                       <span>ขอเมื่อ: <strong className="text-slate-800">{formatThDateTime(data.authen.create_date || data.authen.received_datetime)}</strong></span>
                     </div>
@@ -669,13 +660,6 @@ export default function RightsAndAuthenBox({ an, patient }) {
                   {data.authen.trans_id && (
                     <div className="text-xs font-mono text-slate-500 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100">
                       Trans ID: <strong className="text-slate-700">{data.authen.trans_id}</strong>
-                    </div>
-                  )}
-
-                  {/* ช่องทาง (ลบ Channel: ออก) */}
-                  {data.authen.source_channel && (
-                    <div className="text-xs font-mono text-slate-700 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100 font-semibold">
-                      {data.authen.source_channel}
                     </div>
                   )}
                 </div>
@@ -710,9 +694,6 @@ export default function RightsAndAuthenBox({ an, patient }) {
                   <div className="mt-2">
                     <div className="text-xs sm:text-sm font-bold text-slate-800 font-mono">
                       {formatThDate(data.admit_date)} {data.admit_time ? `${data.admit_time} น.` : ''}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      วันเข้ารักษาใน รพ. (Admit Date)
                     </div>
                   </div>
                 </div>
@@ -785,9 +766,6 @@ export default function RightsAndAuthenBox({ an, patient }) {
                           ({data.authen.claim_authen === 'SMC' ? 'Smart Card' : data.authen.claim_authen})
                         </span>
                       )}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      ช่องทางและวิธีการยืนยันตัวตน
                     </div>
                   </div>
                 </div>
