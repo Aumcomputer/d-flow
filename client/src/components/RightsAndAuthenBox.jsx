@@ -174,7 +174,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                   <thead>
                     <tr className="bg-slate-100/90 text-slate-700 font-semibold border-b border-border select-none">
                       {/* Left Header Column */}
-                      <th className="py-3 px-4 whitespace-nowrap min-w-[140px] bg-slate-100 sticky left-0 z-20 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] text-xs sm:text-sm">
+                      <th className="py-2 px-3 whitespace-nowrap min-w-[120px] bg-slate-100 sticky left-0 z-20 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] text-xs sm:text-sm">
                         หัวข้อ / รายการ
                       </th>
                       {/* Source Columns */}
@@ -185,7 +185,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <th
                             key={col.source_key || idx}
-                            className={`py-3 px-4 whitespace-nowrap min-w-[170px] text-center ${
+                            className={`py-2 px-3 whitespace-nowrap min-w-[160px] text-center ${
                               isApi
                                 ? 'bg-purple-100/70 border-b border-purple-200'
                                 : isIpt
@@ -194,7 +194,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                             }`}
                           >
                             <span
-                              className={`inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs sm:text-sm font-bold border shadow-xs ${
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs sm:text-sm font-bold border shadow-xs ${
                                 col.source_name === 'ovst'
                                   ? 'bg-blue-50 text-blue-700 border-blue-200'
                                   : col.source_name === 'visit_pttype'
@@ -216,7 +216,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                   <tbody className="divide-y divide-border/60 bg-white">
                     {/* 1. pttype */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-2 px-3 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">pttype</span>
                           <span className="text-xs text-muted-foreground font-normal">รหัส/ชื่อสิทธิ์</span>
@@ -228,7 +228,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-3 px-4 ${
+                            className={`py-2 px-3 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
@@ -237,7 +237,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                                 {col.pttype !== '-' ? col.pttype : '-'}
                               </span>
                               {col.pttype_name && col.pttype_name !== '-' && (
-                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug max-w-[220px]">
+                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug w-full">
                                   {col.pttype_name}
                                 </span>
                               )}
@@ -249,7 +249,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 2. pttypeno */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-2 px-3 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">pttypeno</span>
                           <span className="text-xs text-muted-foreground font-normal">เลขที่สิทธิ์</span>
@@ -261,7 +261,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-3 px-4 ${
+                            className={`py-2 px-3 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
@@ -275,7 +275,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 3. hospmain */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-2 px-3 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">hospmain</span>
                           <span className="text-xs text-muted-foreground font-normal">สถานพยาบาลหลัก</span>
@@ -287,7 +287,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-3 px-4 ${
+                            className={`py-2 px-3 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
@@ -296,7 +296,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                                 {col.hospmain || '-'}
                               </span>
                               {col.hospmain_name && col.hospmain_name !== '-' && (
-                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug max-w-[220px]" title={col.hospmain_name}>
+                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug w-full" title={col.hospmain_name}>
                                   {col.hospmain_name}
                                 </span>
                               )}
@@ -308,7 +308,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 4. hospsub */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-2 px-3 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">hospsub</span>
                           <span className="text-xs text-muted-foreground font-normal">สถานพยาบาลรอง</span>
@@ -320,7 +320,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-3 px-4 ${
+                            className={`py-2 px-3 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
@@ -329,7 +329,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                                 {col.hospsub || '-'}
                               </span>
                               {col.hospsub_name && col.hospsub_name !== '-' && (
-                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug max-w-[220px]" title={col.hospsub_name}>
+                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug w-full" title={col.hospsub_name}>
                                   {col.hospsub_name}
                                 </span>
                               )}
@@ -341,7 +341,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 5. begin_date */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-2 px-3 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">begin_date</span>
                           <span className="text-xs text-muted-foreground font-normal">วันเริ่มใช้สิทธิ์</span>
@@ -353,7 +353,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-3 px-4 ${
+                            className={`py-2 px-3 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
@@ -367,7 +367,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 6. expire_date */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-2 px-3 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">expire_date</span>
                           <span className="text-xs text-muted-foreground font-normal">วันหมดอายุสิทธิ์</span>
@@ -379,7 +379,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-3 px-4 ${
+                            className={`py-2 px-3 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
@@ -393,7 +393,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 7. auth_code */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-2 px-3 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">auth_code</span>
                           <span className="text-xs text-muted-foreground font-normal">รหัสอนุมัติ (Auth / Claim Code)</span>
@@ -406,7 +406,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-3 px-4 ${
+                            className={`py-2 px-3 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
@@ -422,7 +422,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 9. staff */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-2 px-3 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
                           <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">staff</span>
                           <span className="text-xs text-muted-foreground font-normal">ผู้บันทึก</span>
@@ -434,7 +434,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-3 px-4 ${
+                            className={`py-2 px-3 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
@@ -443,7 +443,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                                 {col.staff || '-'}
                               </span>
                               {col.staff_name && col.staff_name !== '-' && (
-                                <span className="text-xs text-slate-500 mt-0.5 leading-snug max-w-[200px]">
+                                <span className="text-xs text-slate-500 mt-0.5 leading-snug w-full">
                                   {col.staff_name}
                                 </span>
                               )}
