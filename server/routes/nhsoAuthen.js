@@ -1226,6 +1226,7 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
         }
 
         // 4.5 api (from vn_nhso_authen)
+        const hasApiData = Boolean(dflowData);
         const rawCardId = (fund?.cardId && String(fund.cardId).trim()) || (dflowData?.card_id && String(dflowData.card_id).trim()) || null;
         const apiPttypeno = (rawCardId && rawCardId !== '-') ? rawCardId : (patient.cid ? formatCid(patient.cid) : '-');
         const apiHospmain = hospmainTarget || '-';
