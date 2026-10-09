@@ -162,13 +162,26 @@ router.get('/inpatients', async (req, res) => {
 
         dflowConn = await getDflowConnection();
 
-        // 2. Fetch documents for these admitted ANs
+        // 2. Fetch documents, exempt pttypes, and API claim codes for these admitted ANs
         const ans = hisPatients.map(p => p.an);
         const placeholders = ans.map(() => '?').join(',');
-        const docs = await dflowConn.query(
-            `SELECT an, doc_type_id FROM documents WHERE is_deleted = 0 AND an IN (${placeholders})`,
-            ans
-        );
+        const [docs, exemptRows, authenRows] = await Promise.all([
+            dflowConn.query(
+                `SELECT an, doc_type_id FROM documents WHERE is_deleted = 0 AND an IN (${placeholders})`,
+                ans
+            ),
+            dflowConn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1'),
+            dflowConn.query(
+                `SELECT i.an, vna.claim_code 
+                 FROM vn_nhso_authen vna 
+                 INNER JOIN ipt i ON vna.vn = i.vn 
+                 WHERE i.an IN (${placeholders}) AND vna.claim_code IS NOT NULL AND vna.claim_code != ""`,
+                ans
+            ).catch(() => [])
+        ]);
+
+        const exemptCodes = new Set((exemptRows || []).map(r => String(r.code).trim().toUpperCase()));
+        const apiAuthenAnSet = new Set((authenRows || []).map(r => r.an));
 
         const docMap = new Map();
         docs.forEach(d => {
@@ -183,7 +196,11 @@ router.get('/inpatients', async (req, res) => {
             const docSet = docMap.get(p.an) || new Set();
             const has_id_card = docSet.has(1);
             const has_pttype_check = docSet.has(2);
-            const has_authen_code = docSet.has(3);
+            
+            const isExempt = p.pttype_code && exemptCodes.has(String(p.pttype_code).trim().toUpperCase());
+            const hasApiAuthen = apiAuthenAnSet.has(p.an);
+            const has_authen_code = docSet.has(3) || isExempt || hasApiAuthen;
+
             const doc_count = (has_id_card ? 1 : 0) + (has_pttype_check ? 1 : 0) + (has_authen_code ? 1 : 0);
 
             const item = {
@@ -191,7 +208,9 @@ router.get('/inpatients', async (req, res) => {
                 has_id_card,
                 has_pttype_check,
                 has_authen_code,
-                doc_count
+                doc_count,
+                is_exempt_authen: isExempt,
+                has_api_authen: hasApiAuthen
             };
 
             if (doc_count === 0) {
@@ -480,28 +499,65 @@ router.delete('/:id', async (req, res) => {
 });
 
 router.get('/:an/completeness', async (req, res) => {
-    let conn;
+    let conn, hisConn;
     try {
         const { an } = req.params;
         conn = await getDflowConnection();
+        hisConn = await getHisConnection();
         
-        const reqTypesResult = await conn.query(
-            'SELECT id, name FROM document_types WHERE id IN (1, 2, 3)'
-        );
+        const [reqTypesResult, docsResult, exemptRows, authenRows, patientRows] = await Promise.all([
+            conn.query('SELECT id, name FROM document_types WHERE id IN (1, 2, 3) ORDER BY id ASC'),
+            conn.query('SELECT doc_type_id FROM documents WHERE an = ? AND is_deleted = 0 AND doc_type_id IN (1, 2, 3)', [an]),
+            conn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1'),
+            conn.query('SELECT claim_code FROM vn_nhso_authen vna INNER JOIN ipt i ON vna.vn = i.vn WHERE i.an = ? AND vna.claim_code IS NOT NULL AND vna.claim_code != "" LIMIT 1', [an]),
+            hisConn.query(`
+                SELECT i.pttype as ipt_pttype, o.pttype as ovst_pttype,
+                       (SELECT GROUP_CONCAT(ip.pttype) FROM ipt_pttype ip WHERE ip.an = i.an) as all_ipt_pttypes
+                FROM ipt i
+                LEFT JOIN ovst o ON i.vn = o.vn
+                WHERE i.an = ?
+                LIMIT 1
+            `, [an])
+        ]);
+
         const reqTypes = reqTypesResult || [];
-
-        const docsResult = await conn.query(
-            'SELECT doc_type_id FROM documents WHERE an = ? AND is_deleted = 0 AND doc_type_id IN (1, 2, 3)',
-            [an]
-        );
-
         const uploadedTypeIds = new Set((docsResult || []).map(d => d.doc_type_id));
+        const exemptCodes = new Set((exemptRows || []).map(r => String(r.code).trim().toUpperCase()));
 
-        const details = reqTypes.map(t => ({
-            type_id: t.id,
-            type_name: t.name,
-            has_document: uploadedTypeIds.has(t.id)
-        }));
+        // Check if patient's pttype is exempt from Authen Code
+        const p = patientRows?.[0] || {};
+        const pttypeCandidates = [
+            p.ipt_pttype,
+            p.ovst_pttype,
+            ...(p.all_ipt_pttypes ? String(p.all_ipt_pttypes).split(',') : [])
+        ].filter(Boolean).map(c => String(c).trim().toUpperCase());
+
+        const isExemptAuthen = pttypeCandidates.some(c => exemptCodes.has(c));
+        const hasApiAuthen = Boolean(authenRows?.[0]?.claim_code);
+
+        const details = reqTypes.map(t => {
+            let hasDoc = uploadedTypeIds.has(t.id);
+            let exempt = false;
+            let fromApi = false;
+
+            if (t.id === 3) { // Authen Code
+                if (isExemptAuthen) {
+                    hasDoc = true;
+                    exempt = true;
+                } else if (hasApiAuthen) {
+                    hasDoc = true;
+                    fromApi = true;
+                }
+            }
+
+            return {
+                type_id: t.id,
+                type_name: t.name,
+                has_document: hasDoc,
+                is_exempt: exempt,
+                from_api: fromApi
+            };
+        });
 
         const uploadedCount = details.filter(d => d.has_document).length;
         const total = 3;
@@ -510,7 +566,9 @@ router.get('/:an/completeness', async (req, res) => {
             complete: uploadedCount === total,
             total,
             uploaded: uploadedCount,
-            details
+            details,
+            is_exempt_authen: isExemptAuthen,
+            has_api_authen: hasApiAuthen
         });
 
     } catch (error) {
@@ -518,6 +576,7 @@ router.get('/:an/completeness', async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (conn) conn.release();
+        if (hisConn) hisConn.release();
     }
 });
 

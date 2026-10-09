@@ -746,7 +746,10 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
               <div className="space-y-3">
                 {DOC_TYPES.map(docType => {
                   const typeDocs = documents.filter(d => d.doc_type_id === docType.id)
-                  const hasDoc = typeDocs.length > 0
+                  const detail = completeness?.details?.find(d => d.type_id === docType.id)
+                  const isAuthenFromApi = docType.id === 3 && detail?.from_api
+                  const isAuthenExempt = docType.id === 3 && detail?.is_exempt
+                  const hasDoc = typeDocs.length > 0 || isAuthenFromApi || isAuthenExempt
 
                   return (
                     <div key={docType.id} className={`border rounded-xl p-4 transition-all duration-200 hover:shadow-sm ${hasDoc ? 'bg-white border-green-100' : 'bg-white border-slate-100'}`}>
@@ -760,10 +763,20 @@ export default function DocumentsTab({ patient, details, fetchDetails }) {
                           <span className={`font-medium ${hasDoc ? 'text-slate-800' : 'text-slate-500'}`}>
                             {docType.name}
                           </span>
-                          {docType.required && (
+                          {docType.required && !isAuthenExempt && (
                             <span className="text-red-400 text-xs font-bold">*จำเป็น</span>
                           )}
-                          {hasDoc && (
+                          {isAuthenExempt && (
+                            <Badge className="text-xs rounded-full bg-emerald-50 text-emerald-700 border-emerald-200">
+                              ยกเว้น (No Authen Code)
+                            </Badge>
+                          )}
+                          {isAuthenFromApi && typeDocs.length === 0 && (
+                            <Badge className="text-xs rounded-full bg-emerald-50 text-emerald-700 border-emerald-200">
+                              มี Authen จากระบบ (สปสช.)
+                            </Badge>
+                          )}
+                          {typeDocs.length > 0 && (
                             <Badge variant="secondary" className="text-xs rounded-full">{typeDocs.length} ไฟล์</Badge>
                           )}
                         </div>

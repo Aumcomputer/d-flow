@@ -518,4 +518,129 @@ router.get('/xray/groups', authMiddleware, requireAdmin, async (req, res) => {
     }
 });
 
+// 16. Get No Authen Code exempt pttypes (Admin only)
+router.get('/no-authen-pttypes', authMiddleware, requireAdmin, async (req, res) => {
+    let dflowConn;
+    try {
+        dflowConn = await getDflowConnection();
+        const rows = await dflowConn.query(`
+            SELECT id, pttype, name, is_active, note, created_at, updated_at, created_by 
+            FROM nhso_no_authen_exempt_pttypes 
+            ORDER BY pttype ASC
+        `);
+        res.json({ pttypes: rows });
+    } catch (err) {
+        console.error('Error in GET /no-authen-pttypes:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// 17. Search pttype from HOSxP (Admin only)
+router.get('/no-authen-pttypes/search', authMiddleware, requireAdmin, async (req, res) => {
+    const query = req.query.q || '';
+    let hisConn;
+    try {
+        hisConn = await getHisConnection();
+        const searchTerm = `%${query.trim()}%`;
+        const rows = await hisConn.query(`
+            SELECT pttype, name 
+            FROM pttype 
+            WHERE (pttype LIKE ? OR name LIKE ?) 
+            ORDER BY pttype ASC 
+            LIMIT 30
+        `, [searchTerm, searchTerm]);
+        res.json({ pttypes: rows });
+    } catch (err) {
+        console.error('Error in GET /no-authen-pttypes/search:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (hisConn) hisConn.release();
+    }
+});
+
+// 18. Add No Authen Code exempt pttype (Admin only)
+router.post('/no-authen-pttypes', authMiddleware, requireAdmin, async (req, res) => {
+    const { pttype, name, note } = req.body;
+    if (!pttype || !String(pttype).trim()) {
+        return res.status(400).json({ error: 'กรุณาระบุรหัสสิทธิ (pttype)' });
+    }
+
+    const cleanPttype = String(pttype).trim();
+    let dflowConn, hisConn;
+    try {
+        dflowConn = await getDflowConnection();
+
+        // Check if exists
+        const existing = await dflowConn.query(
+            'SELECT id FROM nhso_no_authen_exempt_pttypes WHERE pttype = ? LIMIT 1',
+            [cleanPttype]
+        );
+        if (existing.length > 0) {
+            return res.status(400).json({ error: `รหัสสิทธิ "${cleanPttype}" ได้รับการยกเว้น Authen อยู่แล้ว` });
+        }
+
+        let pttypeName = name ? String(name).trim() : null;
+        if (!pttypeName) {
+            hisConn = await getHisConnection();
+            const hRows = await hisConn.query('SELECT name FROM pttype WHERE pttype = ? LIMIT 1', [cleanPttype]);
+            if (hRows.length > 0) {
+                pttypeName = hRows[0].name;
+            }
+        }
+
+        const currentAdmin = req.user?.loginname || 'admin';
+        await dflowConn.query(
+            'INSERT INTO nhso_no_authen_exempt_pttypes (pttype, name, is_active, note, created_by) VALUES (?, ?, 1, ?, ?)',
+            [cleanPttype, pttypeName || cleanPttype, note || 'ยกเว้นการบังคับมี Authen Code', currentAdmin]
+        );
+
+        try {
+            getIO().emit('settings:no_authen_updated');
+            getIO().emit('workflow:updated', { type: 'no_authen_updated' });
+        } catch (e) {}
+
+        res.json({
+            success: true,
+            message: `เพิ่มรหัสสิทธิ "${cleanPttype} - ${pttypeName || ''}" ในรายการยกเว้น Authen Code เรียบร้อยแล้ว`
+        });
+    } catch (err) {
+        console.error('Error in POST /no-authen-pttypes:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+        if (hisConn) hisConn.release();
+    }
+});
+
+// 19. Delete No Authen Code exempt pttype (Admin only)
+router.delete('/no-authen-pttypes/:id', authMiddleware, requireAdmin, async (req, res) => {
+    const { id } = req.params;
+    let dflowConn;
+    try {
+        dflowConn = await getDflowConnection();
+        const result = await dflowConn.query(
+            'DELETE FROM nhso_no_authen_exempt_pttypes WHERE id = ?',
+            [id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'ไม่พบรายการที่ต้องการลบ' });
+        }
+
+        try {
+            getIO().emit('settings:no_authen_updated');
+            getIO().emit('workflow:updated', { type: 'no_authen_updated' });
+        } catch (e) {}
+
+        res.json({ success: true, message: 'ลบรายการยกเว้น Authen Code เรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('Error in DELETE /no-authen-pttypes:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (dflowConn) dflowConn.release();
+    }
+});
+
 module.exports = router;

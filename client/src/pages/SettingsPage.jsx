@@ -36,7 +36,8 @@ import {
   Tag,
   CheckSquare,
   HeartHandshake,
-  Radiation
+  Radiation,
+  KeyRound
 } from 'lucide-react'
 
 const MODULE_META = {
@@ -167,6 +168,17 @@ export default function SettingsPage() {
   const [xraySearchResults, setXraySearchResults] = useState([])
   const [isSearchingXray, setIsSearchingXray] = useState(false)
 
+  // No Authen Code Setting State
+  const [noAuthenPttypes, setNoAuthenPttypes] = useState([])
+  const [loadingNoAuthen, setLoadingNoAuthen] = useState(false)
+  const [savingNoAuthen, setSavingNoAuthen] = useState(false)
+  const [noAuthenMessage, setNoAuthenMessage] = useState(null)
+  const [noAuthenSearchQuery, setNoAuthenSearchQuery] = useState('')
+  const [noAuthenSearchResults, setNoAuthenSearchResults] = useState([])
+  const [isSearchingNoAuthen, setIsSearchingNoAuthen] = useState(false)
+  const [manualNoAuthenPttype, setManualNoAuthenPttype] = useState('')
+  const [manualNoAuthenName, setManualNoAuthenName] = useState('')
+
   // Fetch Admins
   const fetchAdmins = async () => {
     setLoadingAdmins(true)
@@ -254,11 +266,26 @@ export default function SettingsPage() {
     }
   }
 
+  // Fetch No Authen Settings
+  const fetchNoAuthenSettings = async () => {
+    setLoadingNoAuthen(true)
+    try {
+      const res = await api.get('/settings/no-authen-pttypes')
+      setNoAuthenPttypes(res.data.pttypes || [])
+    } catch (err) {
+      console.error('Failed to fetch no-authen pttypes:', err)
+      setNoAuthenMessage({ type: 'error', text: err.response?.data?.error || 'เกิดข้อผิดพลาดในการโหลดรายการสิทธิยกเว้น Authen' })
+    } finally {
+      setLoadingNoAuthen(false)
+    }
+  }
+
   useEffect(() => {
     fetchAdmins()
     fetchRolesData()
     fetchDrugSettings()
     fetchXraySettings()
+    fetchNoAuthenSettings()
   }, [])
 
   // Live search users in HOSxP opduser
@@ -326,6 +353,71 @@ export default function SettingsPage() {
 
     return () => clearTimeout(timer)
   }, [xraySearchQuery])
+
+  // Live search pttype for No Authen Code
+  useEffect(() => {
+    if (!noAuthenSearchQuery.trim() || noAuthenSearchQuery.trim().length < 1) {
+      setNoAuthenSearchResults([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingNoAuthen(true)
+      try {
+        const res = await api.get(`/settings/no-authen-pttypes/search?q=${encodeURIComponent(noAuthenSearchQuery.trim())}`)
+        setNoAuthenSearchResults(res.data.pttypes || [])
+      } catch (err) {
+        console.error('Search no-authen pttypes error:', err)
+      } finally {
+        setIsSearchingNoAuthen(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [noAuthenSearchQuery])
+
+  // Add No Authen Pttype Handler
+  const handleAddNoAuthenPttype = async (item) => {
+    setSavingNoAuthen(true)
+    setNoAuthenMessage(null)
+    try {
+      const res = await api.post('/settings/no-authen-pttypes', {
+        pttype: item.pttype,
+        name: item.name
+      })
+      setNoAuthenMessage({ type: 'success', text: res.data.message })
+      setNoAuthenSearchQuery('')
+      setNoAuthenSearchResults([])
+      setManualNoAuthenPttype('')
+      setManualNoAuthenName('')
+      await fetchNoAuthenSettings()
+    } catch (err) {
+      console.error('Add no-authen pttype error:', err)
+      setNoAuthenMessage({ type: 'error', text: err.response?.data?.error || 'ไม่สามารถเพิ่มรหัสสิทธิได้' })
+    } finally {
+      setSavingNoAuthen(false)
+    }
+  }
+
+  // Delete No Authen Pttype Handler
+  const handleDeleteNoAuthenPttype = async (id, pttype, name) => {
+    if (!window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบสิทธิ "${pttype} - ${name || ''}" ออกจากรายการยกเว้น Authen Code?`)) {
+      return
+    }
+
+    setSavingNoAuthen(true)
+    setNoAuthenMessage(null)
+    try {
+      const res = await api.delete(`/settings/no-authen-pttypes/${id}`)
+      setNoAuthenMessage({ type: 'success', text: res.data.message })
+      await fetchNoAuthenSettings()
+    } catch (err) {
+      console.error('Delete no-authen pttype error:', err)
+      setNoAuthenMessage({ type: 'error', text: err.response?.data?.error || 'ไม่สามารถลบรายการได้' })
+    } finally {
+      setSavingNoAuthen(false)
+    }
+  }
 
   // Add Admin Handler
   const handleAddAdmin = async (targetUser) => {
@@ -653,6 +745,18 @@ export default function SettingsPage() {
           {hasXrayChanges && (
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="มีการเปลี่ยนแปลงที่ยังไม่บันทึก" />
           )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('no_authen')}
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-t-xl font-medium text-sm transition-all border-b-2 ${
+            activeTab === 'no_authen'
+              ? 'border-blue-600 text-blue-600 bg-blue-50/50 shadow-xs'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <KeyRound className="w-4 h-4 text-emerald-600" />
+          <span>5. No Authen Code</span>
         </button>
       </div>
 
@@ -2117,6 +2221,275 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB 5: NO AUTHEN CODE SETTING */}
+      {/* ========================================================= */}
+      {activeTab === 'no_authen' && (
+        <div className="space-y-6">
+          {/* Info Card */}
+          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 flex items-start gap-3.5 text-emerald-900 text-sm">
+            <Info className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-emerald-950 mb-0.5">การยกเว้น Authen Code (No Authen Code)</p>
+              <p className="text-emerald-800/90 leading-relaxed">
+                รหัสสิทธิการรักษา (pttype) ที่อยู่ในรายการนี้ จะได้รับการ<strong>ยกเว้นไม่ต้องมี Authen Code</strong> โดยอัตโนมัติ 
+                ระบบจะถือว่ามีเอกสารสิทธิ์ครบถ้วน ทั้งในหน้า<strong>อัปโหลดเอกสาร (Documents)</strong> และหน้า<strong>ตรวจสอบความครบถ้วน (Checklist & Audit)</strong> โดยไม่จำเป็นต้องอัปโหลดไฟล์
+              </p>
+            </div>
+          </div>
+
+          {/* Feedback Message */}
+          {noAuthenMessage && (
+            <div
+              className={`p-4 rounded-xl border flex items-center justify-between text-sm ${
+                noAuthenMessage.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-red-50 text-red-800 border-red-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {noAuthenMessage.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                )}
+                <span>{noAuthenMessage.text}</span>
+              </div>
+              <button
+                onClick={() => setNoAuthenMessage(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-semibold px-2 py-1"
+              >
+                ปิด
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Search & Add Pttype Card */}
+            <div className="space-y-6 lg:col-span-1">
+              <Card className="border-slate-200 shadow-xs">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-emerald-600" />
+                    ค้นหาสิทธิการรักษา
+                  </CardTitle>
+                  <CardDescription>
+                    ค้นหารหัสสิทธิจากตาราง pttype ในระบบ HOSxP ด้วยรหัสหรือชื่อสิทธิ
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                    <Input
+                      placeholder="พิมพ์รหัสสิทธิ หรือชื่อ เช่น 78, จ่ายตรง..."
+                      value={noAuthenSearchQuery}
+                      onChange={(e) => setNoAuthenSearchQuery(e.target.value)}
+                      className="pl-9 rounded-xl border-slate-200 focus-visible:ring-emerald-500"
+                    />
+                    {isSearchingNoAuthen && (
+                      <RefreshCw className="w-4 h-4 absolute right-3 top-3 text-slate-400 animate-spin" />
+                    )}
+                  </div>
+
+                  {/* Search Results Dropdown/List */}
+                  {noAuthenSearchQuery.trim().length >= 1 && (
+                    <div className="space-y-2 border border-slate-200 rounded-xl p-2 max-h-72 overflow-y-auto bg-slate-50/50">
+                      {noAuthenSearchResults.length === 0 ? (
+                        <p className="text-center text-xs text-slate-400 py-4">
+                          {isSearchingNoAuthen ? 'กำลังค้นหา...' : 'ไม่พบสิทธิการรักษาที่ตรงกับคำค้นหา'}
+                        </p>
+                      ) : (
+                        noAuthenSearchResults.map((pt) => {
+                          const isAlreadyExempt = noAuthenPttypes.some((e) => String(e.pttype).trim() === String(pt.pttype).trim())
+                          return (
+                            <div
+                              key={pt.pttype}
+                              className="p-2.5 rounded-lg bg-white border border-slate-100 flex items-center justify-between gap-2 hover:border-emerald-200 transition-colors"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded text-xs font-semibold">
+                                    {pt.pttype}
+                                  </span>
+                                  <p className="text-xs font-semibold text-slate-800 truncate" title={pt.name}>
+                                    {pt.name}
+                                  </p>
+                                </div>
+                                {pt.pcode && (
+                                  <p className="text-[11px] text-slate-400 mt-0.5">หมวดสิทธิ (pcode): {pt.pcode}</p>
+                                )}
+                              </div>
+                              <div>
+                                {isAlreadyExempt ? (
+                                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">
+                                    ยกเว้นแล้ว
+                                  </span>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleAddNoAuthenPttype(pt)}
+                                    disabled={savingNoAuthen}
+                                    className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-2.5 whitespace-nowrap"
+                                  >
+                                    <Plus className="w-3.5 h-3.5 mr-1" />
+                                    เพิ่ม
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  )}
+
+                  <div className="text-xs text-slate-400 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed">
+                    💡 คำแนะนำ: พิมพ์รหัส เช่น <code>78</code> หรือพิมพ์ชื่อสิทธิการรักษา เช่น <code>ข้าราชการ</code>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Manual Add Card */}
+              <Card className="border-slate-200 shadow-xs">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-800">
+                    <Plus className="w-4 h-4 text-slate-600" />
+                    หรือระบุรหัสสิทธิโดยตรง
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">รหัสสิทธิ (pttype)</label>
+                    <Input
+                      placeholder="เช่น 78, 88..."
+                      value={manualNoAuthenPttype}
+                      onChange={(e) => setManualNoAuthenPttype(e.target.value)}
+                      className="rounded-xl border-slate-200 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">ชื่อสิทธิการรักษา (ระบุหรือไม่ก็ได้)</label>
+                    <Input
+                      placeholder="ชื่อสิทธิ..."
+                      value={manualNoAuthenName}
+                      onChange={(e) => setManualNoAuthenName(e.target.value)}
+                      className="rounded-xl border-slate-200 text-xs"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!manualNoAuthenPttype.trim()) return
+                      handleAddNoAuthenPttype({
+                        pttype: manualNoAuthenPttype.trim(),
+                        name: manualNoAuthenName.trim() || undefined
+                      })
+                    }}
+                    disabled={savingNoAuthen || !manualNoAuthenPttype.trim()}
+                    className="w-full text-xs rounded-xl border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    + เพิ่มรหัสสิทธิที่ระบุ
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* List Table Card */}
+            <Card className="border-slate-200 shadow-xs lg:col-span-2">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <CheckSquare className="w-5 h-5 text-emerald-600" />
+                    รายการสิทธิที่ได้รับการยกเว้น Authen Code ({noAuthenPttypes.length} รายการ)
+                  </CardTitle>
+                  <CardDescription>
+                    ผู้ป่วยที่มีสิทธิ์การรักษาตรงกับรายการนี้ จะถือว่าเอกสารสิทธิ์ครบถ้วนเสมอ
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchNoAuthenSettings}
+                  disabled={loadingNoAuthen}
+                  className="rounded-xl border-slate-200 text-xs text-slate-600"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loadingNoAuthen ? 'animate-spin' : ''}`} />
+                  รีเฟรช
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-600 text-xs font-semibold uppercase border-y border-slate-200">
+                      <tr>
+                        <th className="px-5 py-3.5 w-28">รหัส (pttype)</th>
+                        <th className="px-4 py-3.5">ชื่อสิทธิการรักษา</th>
+                        <th className="px-4 py-3.5">หมายเหตุ</th>
+                        <th className="px-4 py-3.5">เพิ่มเมื่อ</th>
+                        <th className="px-4 py-3.5 text-right w-20">จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {loadingNoAuthen ? (
+                        <tr>
+                          <td colSpan="5" className="text-center py-10 text-slate-400">
+                            <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-500" />
+                            กำลังโหลดรายการสิทธิ...
+                          </td>
+                        </tr>
+                      ) : noAuthenPttypes.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="text-center py-10 text-slate-400">
+                            ยังไม่มีรายการสิทธิที่ได้รับการยกเว้น
+                          </td>
+                        </tr>
+                      ) : (
+                        noAuthenPttypes.map((item) => (
+                          <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <span className="font-mono font-bold text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded">
+                                {item.pttype}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className="font-medium text-slate-800">{item.name || '-'}</span>
+                            </td>
+                            <td className="px-4 py-3.5 text-xs text-slate-500">
+                              {item.note || 'ยกเว้นการบังคับมี Authen Code'}
+                            </td>
+                            <td className="px-4 py-3.5 text-xs text-slate-500">
+                              {item.created_at ? new Date(item.created_at).toLocaleDateString('th-TH', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              }) : '-'}
+                            </td>
+                            <td className="px-4 py-3.5 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteNoAuthenPttype(item.id, item.pttype, item.name)}
+                                disabled={savingNoAuthen}
+                                className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                title="ลบออกจากรายการยกเว้น"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
             </Card>
           </div>
         </div>

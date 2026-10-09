@@ -796,10 +796,40 @@ router.get('/:an/audit', authMiddleware, async (req, res) => {
         }
 
         // 4. Document completeness
-        const docRows = await localConn.query(`
-            SELECT doc_type_id FROM documents WHERE an = ?
-        `, [an]);
+        const [docRows, exemptAuthenRows, apiAuthenRows] = await Promise.all([
+            localConn.query('SELECT doc_type_id FROM documents WHERE an = ? AND is_deleted = 0', [an]),
+            localConn.query('SELECT UPPER(pttype) as code FROM nhso_no_authen_exempt_pttypes WHERE is_active = 1'),
+            localConn.query('SELECT claim_code FROM vn_nhso_authen vna INNER JOIN ipt i ON vna.vn = i.vn WHERE i.an = ? AND vna.claim_code IS NOT NULL AND vna.claim_code != "" LIMIT 1', [an])
+        ]);
+
         const uploadedTypes = new Set(docRows.map(r => r.doc_type_id));
+        const exemptCodes = new Set((exemptAuthenRows || []).map(r => String(r.code).trim().toUpperCase()));
+
+        // Check if patient's pttype is exempt from Authen Code
+        const patientPttypeRows = await conn.query(`
+            SELECT i.pttype as ipt_pttype, o.pttype as ovst_pttype,
+                   (SELECT GROUP_CONCAT(ip.pttype) FROM ipt_pttype ip WHERE ip.an = i.an) as all_ipt_pttypes
+            FROM ipt i
+            LEFT JOIN ovst o ON i.vn = o.vn
+            WHERE i.an = ?
+            LIMIT 1
+        `, [an]);
+
+        const pRecord = patientPttypeRows?.[0] || {};
+        const pttypeCandidates = [
+            pRecord.ipt_pttype,
+            pRecord.ovst_pttype,
+            ...(pRecord.all_ipt_pttypes ? String(pRecord.all_ipt_pttypes).split(',') : [])
+        ].filter(Boolean).map(c => String(c).trim().toUpperCase());
+
+        const isExemptAuthen = pttypeCandidates.some(c => exemptCodes.has(c));
+        const hasApiAuthen = Boolean(apiAuthenRows?.[0]?.claim_code);
+
+        // If exempt or has API authen code, consider Authen Code (id = 3) present
+        if (isExemptAuthen || hasApiAuthen) {
+            uploadedTypes.add(3);
+        }
+
         const requiredDocTypes = [1, 2, 3]; // บัตรประชาชน, ใบตรวจสอบสิทธิ์, Authen Code
         const missingDocs = requiredDocTypes.filter(id => !uploadedTypes.has(id));
 
