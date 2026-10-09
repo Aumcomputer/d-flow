@@ -886,9 +886,9 @@ router.post('/sync-ipt-pttype', async (req, res) => {
 });
 
 // ============================================================
-// 5. GET /rights-summary/:an: Rights comparison table (5 sources) & Authen code details
+// 5. GET /rights-summary/:an & /details/:an: Rights comparison table (5 sources) & Authen code details
 // ============================================================
-router.get('/rights-summary/:an', async (req, res) => {
+router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
     let hisConn, dflowConn;
     try {
         const { an } = req.params;

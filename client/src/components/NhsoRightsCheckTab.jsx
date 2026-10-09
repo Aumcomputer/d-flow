@@ -332,7 +332,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
     setDetailLoading(true);
 
     try {
-      const res = await api.get(`/nhso-authen/details/${p.an}`);
+      const res = await api.get(`/nhso-authen/rights-summary/${p.an}`);
       if (res.data) {
         setDetailData(res.data);
       }
@@ -359,7 +359,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
         vstdate: detailPatient.admit_date,
         force: true
       });
-      const res = await api.get(`/nhso-authen/details/${detailPatient.an}`);
+      const res = await api.get(`/nhso-authen/rights-summary/${detailPatient.an}`);
       if (res.data) {
         setDetailData(res.data);
       }
@@ -404,7 +404,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
 
       if (res.data?.success) {
         setDetailActionSuccess(res.data.message || 'บันทึกข้อมูลเข้าตาราง ipt_pttype เรียบร้อยแล้ว!');
-        const reloadRes = await api.get(`/nhso-authen/details/${detailData.an}`);
+        const reloadRes = await api.get(`/nhso-authen/rights-summary/${detailData.an}`);
         if (reloadRes.data) {
           setDetailData(reloadRes.data);
         }
