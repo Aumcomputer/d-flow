@@ -32,6 +32,7 @@ export default function LabTab({ an, isFilterActive }) {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-medium">
               <tr>
+                <th className="px-4 py-3 text-left">Lab Order No.</th>
                 <th className="px-4 py-3 text-left">วันที่สั่ง</th>
                 <th className="px-4 py-3 text-left">ชื่อ Lab / Form</th>
                 <th className="px-4 py-3 text-left">แพทย์</th>
@@ -43,15 +44,16 @@ export default function LabTab({ an, isFilterActive }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" className="text-center py-8 text-muted-foreground">กำลังโหลด...</td></tr>
+                <tr><td colSpan="8" className="text-center py-8 text-muted-foreground">กำลังโหลด...</td></tr>
               ) : filteredLabs.length === 0 ? (
-                <tr><td colSpan="7" className="text-center py-8 text-muted-foreground">ไม่พบข้อมูล Lab</td></tr>
+                <tr><td colSpan="8" className="text-center py-8 text-muted-foreground">ไม่พบข้อมูล Lab</td></tr>
               ) : filteredLabs.map((l, idx) => {
                 const isNoSpecimen = !l.receive_date
                 const isUnconfirmed = l.confirm_report === 'N'
                 return (
                   <tr key={idx} className={`border-t border-border transition-colors ${isNoSpecimen ? 'bg-red-50 text-red-800' : 'hover:bg-muted/30'}`}>
-                    <td className="px-4 py-3">{formatDate(l.order_date)} {formatTime(l.order_time)}</td>
+                    <td className="px-4 py-3 font-mono font-medium text-slate-700 whitespace-nowrap">{l.lab_order_number || '-'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{formatDate(l.order_date)} {formatTime(l.order_time)}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{l.form_name || '-'}</div>
                       <div className="text-xs text-muted-foreground line-clamp-1" title={l.lab_names}>{l.lab_names}</div>
