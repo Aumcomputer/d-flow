@@ -802,12 +802,15 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                                       <span className="text-slate-700 text-[11px]">{ip.pttype_name}</span>
                                     </div>
                                   </div>
-                                  <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
-                                    <span>
-                                      รพ.หลัก/รอง: <strong className="font-mono text-slate-700">{ip.hospmain || '-'}/{ip.hospsub || '-'}</strong>
-                                    </span>
-                                    {mainMatches && <span className="text-emerald-600 font-bold text-xs" title="รหัส รพ.หลัก ตรงกับ สปสช.">✓</span>}
-                                    {subMatches && <span className="text-emerald-600 font-bold text-xs" title="รหัส รพ.รอง ตรงกับ สปสช.">✓</span>}
+                                  <div className="text-[10px] text-slate-500 space-y-0.5">
+                                    <div className="flex items-center gap-1">
+                                      <span>รพ.หลัก: <strong className="font-mono text-slate-700">{ip.hospmain || '-'}</strong></span>
+                                      {mainMatches && <span className="text-emerald-600 font-bold text-xs" title="รหัส รพ.หลัก ตรงกับ สปสช.">✓</span>}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span>รพ.รอง: <strong className="font-mono text-slate-700">{ip.hospsub || '-'}</strong></span>
+                                      {subMatches && <span className="text-emerald-600 font-bold text-xs" title="รหัส รพ.รอง ตรงกับ สปสช.">✓</span>}
+                                    </div>
                                   </div>
                                   <div className="text-[10px] flex items-center gap-1 font-mono">
                                     <span className="text-muted-foreground">Auth:</span>
@@ -1119,8 +1122,9 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                                     </td>
                                     <td className="p-2.5 min-w-[150px]">{row.pttype_name}</td>
                                     <td className="p-2.5 whitespace-nowrap font-mono">{row.pttypeno}</td>
-                                    <td className="p-2.5 whitespace-nowrap font-mono">
-                                      {row.hospmain || '-'}/{row.hospsub || '-'}
+                                    <td className="p-2.5 whitespace-nowrap text-[11px] space-y-0.5">
+                                      <div><span className="text-muted-foreground text-[10px]">หลัก:</span> <span className="font-mono font-semibold">{row.hospmain || '-'}</span> {row.hospmain_name && row.hospmain_name !== '-' ? <span className="text-muted-foreground text-[10px]">({row.hospmain_name})</span> : null}</div>
+                                      <div><span className="text-muted-foreground text-[10px]">รอง:</span> <span className="font-mono">{row.hospsub || '-'}</span> {row.hospsub_name && row.hospsub_name !== '-' ? <span className="text-muted-foreground text-[10px]">({row.hospsub_name})</span> : null}</div>
                                     </td>
                                     <td className="p-2.5 whitespace-nowrap font-mono text-[11px]">
                                       {row.begin_date !== '-' || row.expire_date !== '-' 
