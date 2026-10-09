@@ -1315,6 +1315,7 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
         const apiHospsub = hasApiData ? (hospsubTarget || '-') : '-';
         const apiHospsubName = hasApiData ? (fund?.hospSub?.hname || dflowData?.hospsub_name || hospMap.get(String(hospsubTarget).trim()) || '-') : '-';
         const apiBeginDate = hasApiData ? (formatDateOnly(fund?.startDateTime || dflowData?.right_start_date) || '-') : '-';
+        const apiExpireDate = hasApiData ? (formatDateOnly(fund?.expireDateTime) || '-') : '-';
         const isAuthenChannelValid = (ch) => String(ch || '').trim().toUpperCase() === 'AUTHENCODE';
         const rawClaimCode = dflowData?.claim_code || authenJson?.claimCode || null;
         const rawChannel = dflowData?.source_channel || authenJson?.sourceChannel || authenJson?.source_channel || null;
