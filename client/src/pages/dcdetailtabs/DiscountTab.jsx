@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Tag, Calculator, User } from 'lucide-react';
 import api from '../../services/api';
+import BenefitCertificateBox from '../../components/BenefitCertificateBox';
 
 export default function DiscountTab({ an, patient, details, fetchDetails }) {
   const [discountMoney, setDiscountMoney] = useState('');
@@ -46,9 +47,13 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
   const netPayable = paidMoney - rcptMoney - depositMoney - discountAmount;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4 w-full">
-      {/* Left: Discount Form */}
-      <div>
+    <div className="space-y-6 py-4 w-full">
+      {/* กล่อง หนังสือรับรองสวัสดิการค่าห้องพิเศษ */}
+      <BenefitCertificateBox an={an || patient?.an} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Discount Form */}
+        <div>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
           <div className="h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500" />
           <div className="px-5 py-4 border-b border-border bg-muted/30">
@@ -157,5 +162,6 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }
