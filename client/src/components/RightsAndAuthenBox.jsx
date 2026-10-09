@@ -170,11 +170,11 @@ export default function RightsAndAuthenBox({ an, patient }) {
           ) : (
             <div className="space-y-3">
               <div className="overflow-x-auto rounded-xl border border-border/80 shadow-inner bg-slate-50/50">
-                <table className="w-full text-xs text-left border-collapse">
+                <table className="w-full text-sm text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-100/90 text-slate-700 font-semibold border-b border-border select-none">
                       {/* Left Header Column */}
-                      <th className="py-3 px-3.5 whitespace-nowrap min-w-[130px] bg-slate-100 sticky left-0 z-20 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <th className="py-3 px-4 whitespace-nowrap min-w-[140px] bg-slate-100 sticky left-0 z-20 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] text-xs sm:text-sm">
                         หัวข้อ / รายการ
                       </th>
                       {/* Source Columns */}
@@ -185,7 +185,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <th
                             key={col.source_key || idx}
-                            className={`py-3 px-3.5 whitespace-nowrap min-w-[155px] text-center ${
+                            className={`py-3 px-4 whitespace-nowrap min-w-[170px] text-center ${
                               isApi
                                 ? 'bg-purple-100/70 border-b border-purple-200'
                                 : isIpt
@@ -194,7 +194,7 @@ export default function RightsAndAuthenBox({ an, patient }) {
                             }`}
                           >
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold border shadow-xs ${
+                              className={`inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs sm:text-sm font-bold border shadow-xs ${
                                 col.source_name === 'ovst'
                                   ? 'bg-blue-50 text-blue-700 border-blue-200'
                                   : col.source_name === 'visit_pttype'
@@ -216,10 +216,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
                   <tbody className="divide-y divide-border/60 bg-white">
                     {/* 1. pttype */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">pttype</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">รหัส/ชื่อสิทธิ์</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">pttype</span>
+                          <span className="text-xs text-muted-foreground font-normal">รหัส/ชื่อสิทธิ์</span>
                         </div>
                       </td>
                       {filteredRows.map((col, idx) => {
@@ -228,16 +228,16 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
+                            className={`py-3 px-4 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
                             <div className="flex flex-col items-center text-center">
-                              <span className="font-mono font-bold text-slate-800 text-sm">
+                              <span className="font-mono font-bold text-slate-800 text-sm sm:text-base">
                                 {col.pttype !== '-' ? col.pttype : '-'}
                               </span>
                               {col.pttype_name && col.pttype_name !== '-' && (
-                                <span className="text-[11px] text-slate-600 mt-0.5 leading-tight max-w-[210px]">
+                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug max-w-[220px]">
                                   {col.pttype_name}
                                 </span>
                               )}
@@ -249,10 +249,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 2. pttypeno */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">pttypeno</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">เลขที่สิทธิ์</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">pttypeno</span>
+                          <span className="text-xs text-muted-foreground font-normal">เลขที่สิทธิ์</span>
                         </div>
                       </td>
                       {filteredRows.map((col, idx) => {
@@ -261,11 +261,11 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
+                            className={`py-3 px-4 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
-                            <span className="font-mono text-slate-700 text-center block select-all">
+                            <span className="font-mono text-slate-700 text-center block select-all text-xs sm:text-sm">
                               {col.pttypeno || '-'}
                             </span>
                           </td>
@@ -275,10 +275,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 3. hospmain */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">hospmain</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">สถานพยาบาลหลัก</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">hospmain</span>
+                          <span className="text-xs text-muted-foreground font-normal">สถานพยาบาลหลัก</span>
                         </div>
                       </td>
                       {filteredRows.map((col, idx) => {
@@ -287,16 +287,16 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
+                            className={`py-3 px-4 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
                             <div className="flex flex-col items-center text-center">
-                              <span className="font-mono font-semibold text-slate-700">
+                              <span className="font-mono font-bold text-slate-700 text-xs sm:text-sm">
                                 {col.hospmain || '-'}
                               </span>
                               {col.hospmain_name && col.hospmain_name !== '-' && (
-                                <span className="text-[11px] text-slate-500 mt-0.5 leading-tight max-w-[210px]" title={col.hospmain_name}>
+                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug max-w-[220px]" title={col.hospmain_name}>
                                   {col.hospmain_name}
                                 </span>
                               )}
@@ -308,10 +308,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 4. hospsub */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">hospsub</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">สถานพยาบาลรอง</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">hospsub</span>
+                          <span className="text-xs text-muted-foreground font-normal">สถานพยาบาลรอง</span>
                         </div>
                       </td>
                       {filteredRows.map((col, idx) => {
@@ -320,16 +320,16 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
+                            className={`py-3 px-4 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
                             <div className="flex flex-col items-center text-center">
-                              <span className="font-mono font-semibold text-slate-700">
+                              <span className="font-mono font-bold text-slate-700 text-xs sm:text-sm">
                                 {col.hospsub || '-'}
                               </span>
                               {col.hospsub_name && col.hospsub_name !== '-' && (
-                                <span className="text-[11px] text-slate-500 mt-0.5 leading-tight max-w-[210px]" title={col.hospsub_name}>
+                                <span className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-snug max-w-[220px]" title={col.hospsub_name}>
                                   {col.hospsub_name}
                                 </span>
                               )}
@@ -341,10 +341,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 5. begin_date */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">begin_date</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">วันเริ่มใช้สิทธิ์</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">begin_date</span>
+                          <span className="text-xs text-muted-foreground font-normal">วันเริ่มใช้สิทธิ์</span>
                         </div>
                       </td>
                       {filteredRows.map((col, idx) => {
@@ -353,11 +353,11 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
+                            className={`py-3 px-4 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
-                            <span className="font-mono text-slate-600 text-center block whitespace-nowrap">
+                            <span className="font-mono text-slate-700 text-center block whitespace-nowrap text-xs sm:text-sm font-medium">
                               {formatThDate(col.begin_date)}
                             </span>
                           </td>
@@ -367,10 +367,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 6. expire_date */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">expire_date</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">วันหมดอายุสิทธิ์</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">expire_date</span>
+                          <span className="text-xs text-muted-foreground font-normal">วันหมดอายุสิทธิ์</span>
                         </div>
                       </td>
                       {filteredRows.map((col, idx) => {
@@ -379,11 +379,11 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
+                            className={`py-3 px-4 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
-                            <span className="font-mono text-slate-600 text-center block whitespace-nowrap">
+                            <span className="font-mono text-slate-700 text-center block whitespace-nowrap text-xs sm:text-sm font-medium">
                               {formatThDate(col.expire_date)}
                             </span>
                           </td>
@@ -393,10 +393,10 @@ export default function RightsAndAuthenBox({ an, patient }) {
 
                     {/* 7. auth_code */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">auth_code</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">รหัสอนุมัติ (Auth / Claim Code)</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">auth_code</span>
+                          <span className="text-xs text-muted-foreground font-normal">รหัสอนุมัติ (Auth / Claim Code)</span>
                         </div>
                       </td>
                       {filteredRows.map((col, idx) => {
@@ -406,12 +406,12 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
+                            className={`py-3 px-4 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
-                            <span className={`font-mono text-center block ${
-                              hasCode ? (isApi ? 'font-semibold text-purple-700 select-all' : 'font-semibold text-emerald-700 select-all') : 'text-slate-600'
+                            <span className={`font-mono text-center block text-xs sm:text-sm ${
+                              hasCode ? (isApi ? 'font-bold text-purple-700 select-all' : 'font-bold text-emerald-700 select-all') : 'text-slate-600'
                             }`}>
                               {col.auth_code || '-'}
                             </span>
@@ -420,13 +420,12 @@ export default function RightsAndAuthenBox({ an, patient }) {
                       })}
                     </tr>
 
-
                     {/* 9. staff */}
                     <tr className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-2.5 px-3.5 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                      <td className="py-3 px-4 whitespace-nowrap bg-slate-50/95 sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
                         <div className="flex flex-col">
-                          <span className="font-mono font-bold text-slate-800 text-xs">staff</span>
-                          <span className="text-[11px] text-muted-foreground font-normal">ผู้บันทึก</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">staff</span>
+                          <span className="text-xs text-muted-foreground font-normal">ผู้บันทึก</span>
                         </div>
                       </td>
                       {filteredRows.map((col, idx) => {
@@ -435,16 +434,16 @@ export default function RightsAndAuthenBox({ an, patient }) {
                         return (
                           <td
                             key={col.source_key || idx}
-                            className={`py-2.5 px-3.5 ${
+                            className={`py-3 px-4 ${
                               isApi ? 'bg-purple-50/20' : isIpt ? 'bg-emerald-50/15' : ''
                             }`}
                           >
                             <div className="flex flex-col items-center text-center">
-                              <span className="font-mono text-slate-700">
+                              <span className="font-mono text-slate-800 font-semibold text-xs sm:text-sm">
                                 {col.staff || '-'}
                               </span>
                               {col.staff_name && col.staff_name !== '-' && (
-                                <span className="text-[11px] text-slate-500 mt-0.5 leading-tight max-w-[190px]">
+                                <span className="text-xs text-slate-500 mt-0.5 leading-snug max-w-[200px]">
                                   {col.staff_name}
                                 </span>
                               )}
