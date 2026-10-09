@@ -38,7 +38,10 @@ function formatDateOnly(val) {
   if (!val) return null;
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return null;
-    return val.toISOString().slice(0, 10);
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
   const str = String(val).trim();
   if (str.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(str)) {
@@ -46,7 +49,10 @@ function formatDateOnly(val) {
   }
   const d = new Date(str);
   if (!isNaN(d.getTime())) {
-    return d.toISOString().slice(0, 10);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
   return null;
 }
