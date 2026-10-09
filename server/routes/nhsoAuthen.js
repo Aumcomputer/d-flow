@@ -353,6 +353,20 @@ router.post('/check', async (req, res) => {
             targetAdmitDate = new Date().toISOString().slice(0, 10);
         }
 
+        // Calculate 1 day before admit (ย้อนไปก่อน admit 1 วัน)
+        const getPrevDateStr = (dateStr) => {
+            const parts = String(dateStr).slice(0, 10).split('-');
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            const d = new Date(year, month, day - 1);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${dd}`;
+        };
+        const prevAdmitDate = getPrevDateStr(targetAdmitDate);
+
         const nhsoUrl = getNhsoBaseUrl();
 
         // 2. Call check-and-save on nhso-authen microservice with admit date
@@ -376,19 +390,54 @@ router.post('/check', async (req, res) => {
         }
 
         let savedData = result.data;
+        let authenDateNote = `วันที่ admit: ${targetAdmitDate}`;
 
-        // 3. Fallback: If claim_code is still missing, search authen-history API for the admit date
+        // 2.5 ถ้าไม่เจอ authen code ในวัน admit ให้ลองเช็คย้อนไปก่อน admit 1 วัน
+        if (!savedData?.claim_code) {
+            try {
+                console.log(`[NhsoAuthen] No authen code found for admit date (${targetAdmitDate}), retrying 1 day before admit (${prevAdmitDate})...`);
+                const retryResponse = await fetch(`${nhsoUrl}/api/vn-authen/check-and-save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        vn,
+                        cid,
+                        vstdate: prevAdmitDate, // ลองเช็ควันที่ก่อน admit 1 วัน
+                        force: true
+                    })
+                });
+
+                if (retryResponse.ok) {
+                    const retryResult = await retryResponse.json();
+                    if (retryResult.success && retryResult.data?.claim_code) {
+                        savedData = retryResult.data;
+                        authenDateNote = `พบ Authen Code จากวันที่ก่อน admit 1 วัน (${prevAdmitDate})`;
+                        console.log(`[NhsoAuthen] Found authen code from 1 day before admit (${prevAdmitDate}): ${savedData.claim_code}`);
+                    }
+                }
+            } catch (retryErr) {
+                console.warn('[NhsoAuthen] Retry 1 day before admit error:', retryErr.message);
+            }
+        }
+
+        // 3. Fallback: If claim_code is still missing, search authen-history API from prevAdmitDate (1 day before admit) to today
         if (!savedData?.claim_code) {
             try {
                 const todayStr = new Date().toISOString().slice(0, 10);
-                const authRes = await fetch(`${nhsoUrl}/api/authen-history/${cid}?claimDateFrom=${targetAdmitDate}&claimDateTo=${todayStr}`);
+                const authRes = await fetch(`${nhsoUrl}/api/authen-history/${cid}?claimDateFrom=${prevAdmitDate}&claimDateTo=${todayStr}`);
                 if (authRes.ok) {
                     const authJson = await authRes.json();
                     if (authJson.success && Array.isArray(authJson.data) && authJson.data.length > 0) {
-                        // Pick latest matching authen code
-                        const latestAuth = authJson.data[0];
-                        if (latestAuth.claimCode) {
-                            dflowConn = await dflowPool.getConnection();
+                        // Sort by date descending
+                        const sortedAuth = [...authJson.data].sort((a, b) => {
+                            const da = new Date(a.createDate || a.claimDate || a.receivedDateTime || 0);
+                            const db = new Date(b.createDate || b.claimDate || b.receivedDateTime || 0);
+                            return db - da;
+                        });
+
+                        const validAuth = sortedAuth.find(item => item.claimCode) || sortedAuth[0];
+                        if (validAuth?.claimCode) {
+                            if (!dflowConn) dflowConn = await dflowPool.getConnection();
                             await dflowConn.query(`
                                 UPDATE vn_nhso_authen
                                 SET 
@@ -400,17 +449,20 @@ router.post('/check', async (req, res) => {
                                     authen_json = ?
                                 WHERE vn = ?
                             `, [
-                                latestAuth.claimCode,
-                                latestAuth.claimType || null,
-                                latestAuth.claimTypeName || null,
-                                latestAuth.sourceChannel || null,
-                                latestAuth.createDate || null,
-                                JSON.stringify(latestAuth),
+                                validAuth.claimCode,
+                                validAuth.claimType || null,
+                                validAuth.claimTypeName || null,
+                                validAuth.sourceChannel || null,
+                                validAuth.createDate || null,
+                                JSON.stringify(validAuth),
                                 vn
                             ]);
-                            savedData.claim_code = latestAuth.claimCode;
-                            savedData.claim_type_name = latestAuth.claimTypeName;
-                            savedData.source_channel = latestAuth.sourceChannel;
+                            savedData.claim_code = validAuth.claimCode;
+                            savedData.claim_type_name = validAuth.claimTypeName;
+                            savedData.source_channel = validAuth.sourceChannel;
+                            const authDate = (validAuth.claimDate || validAuth.createDate || '').slice(0, 10);
+                            authenDateNote = `พบ Authen Code จากประวัติ สปสช. (${authDate || prevAdmitDate})`;
+                            console.log(`[NhsoAuthen] Found authen code from authen-history (${authDate}): ${validAuth.claimCode}`);
                         }
                     }
                 }
@@ -421,8 +473,9 @@ router.post('/check', async (req, res) => {
 
         res.json({
             success: true,
-            message: `ตรวจสอบสิทธิ์และ Authen Code สปสช. สำเร็จ (วันที่ admit: ${targetAdmitDate})`,
+            message: `ตรวจสอบสิทธิ์และ Authen Code สปสช. สำเร็จ (${authenDateNote})`,
             admit_date: targetAdmitDate,
+            prev_admit_date: prevAdmitDate,
             data: savedData
         });
 
