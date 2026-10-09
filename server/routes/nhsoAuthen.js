@@ -1239,22 +1239,22 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
         // 4.5 api (from vn_nhso_authen)
         const hasApiData = Boolean(dflowData);
         const rawCardId = (fund?.cardId && String(fund.cardId).trim()) || (dflowData?.card_id && String(dflowData.card_id).trim()) || null;
-        const apiPttypeno = (rawCardId && rawCardId !== '-') ? rawCardId : (patient.cid ? formatCid(patient.cid) : '-');
-        const apiHospmain = hospmainTarget || '-';
-        const apiHospmainName = fund?.hospMainOp?.hname || fund?.hospMain?.hname || dflowData?.hospmain_op_name || dflowData?.hospmain_name || hospMap.get(String(hospmainTarget).trim()) || '-';
-        const apiHospsub = hospsubTarget || '-';
-        const apiHospsubName = fund?.hospSub?.hname || dflowData?.hospsub_name || hospMap.get(String(hospsubTarget).trim()) || '-';
-        const apiBeginDate = formatDateOnly(fund?.startDateTime || dflowData?.right_start_date) || '-';
-        const apiExpireDate = formatDateOnly(fund?.expireDateTime) || '-';
-        const apiClaimCode = dflowData?.claim_code || authenJson?.claimCode || '-';
+        const apiPttypeno = hasApiData ? ((rawCardId && rawCardId !== '-') ? rawCardId : (patient.cid ? formatCid(patient.cid) : '-')) : '-';
+        const apiHospmain = hasApiData ? (hospmainTarget || '-') : '-';
+        const apiHospmainName = hasApiData ? (fund?.hospMainOp?.hname || fund?.hospMain?.hname || dflowData?.hospmain_op_name || dflowData?.hospmain_name || hospMap.get(String(hospmainTarget).trim()) || '-') : '-';
+        const apiHospsub = hasApiData ? (hospsubTarget || '-') : '-';
+        const apiHospsubName = hasApiData ? (fund?.hospSub?.hname || dflowData?.hospsub_name || hospMap.get(String(hospsubTarget).trim()) || '-') : '-';
+        const apiBeginDate = hasApiData ? (formatDateOnly(fund?.startDateTime || dflowData?.right_start_date) || '-') : '-';
+        const apiExpireDate = hasApiData ? (formatDateOnly(fund?.expireDateTime) || '-') : '-';
+        const apiClaimCode = hasApiData ? (dflowData?.claim_code || authenJson?.claimCode || '-') : '-';
 
         rows.push({
             source_key: 'api',
             source_name: 'api',
             source_label: 'สปสช. (API)',
             has_data: hasApiData,
-            pttype: hasApiData ? mappedPttype : '-',
-            pttype_name: hasApiData ? targetPttypeName : '(ยังไม่มีข้อมูล API)',
+            pttype: hasApiData ? (mappedPttype || '-') : '-',
+            pttype_name: hasApiData ? (targetPttypeName || '-') : '-',
             pttypeno: apiPttypeno,
             hospmain: apiHospmain,
             hospmain_name: apiHospmainName,
