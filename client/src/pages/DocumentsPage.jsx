@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import socket from '../services/socket'
 import { Button } from '../components/ui/button'
@@ -31,10 +31,12 @@ import {
   ArrowLeft,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ExternalLink
 } from 'lucide-react'
 
 export default function DocumentsPage() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialAn = searchParams.get('an') || ''
   
@@ -642,6 +644,15 @@ export default function DocumentsPage() {
                     <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold border border-blue-100">
                       HN: {patient.hn}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/dcdetail/${patient.an}?tab=documents`)}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 font-semibold border border-sky-200 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                      title="เปิดหน้า Discharge Detail เต็ม"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>เปิด Discharge Detail</span>
+                    </button>
                     {patient.dchdate && (
                       <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 font-bold border border-amber-300 flex items-center gap-1">
                         <LogOut className="w-3.5 h-3.5 text-amber-600" />
@@ -740,8 +751,7 @@ export default function DocumentsPage() {
       ) : !loading && activeTab === 'check_rights' ? (
         <NhsoRightsCheckTab 
           onSelectPatient={(an) => {
-            setSearchAN(an);
-            fetchPatient(an);
+            handleSelectPatient(an);
           }}
         />
       ) : !loading && (

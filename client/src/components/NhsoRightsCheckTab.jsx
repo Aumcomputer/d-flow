@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -24,7 +24,8 @@ import {
   Layers,
   Sparkles,
   Info,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 
 export default function NhsoRightsCheckTab({ onSelectPatient }) {
@@ -47,6 +48,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
   const [selectedAnList, setSelectedAnList] = useState(new Set());
   const [isBatchChecking, setIsBatchChecking] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const stopBatchCheckRef = useRef(false);
 
   // Sync Modal State
   const [syncModalOpen, setSyncModalOpen] = useState(false);
@@ -219,19 +221,19 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
     });
   };
 
-  // Batch Check Selected Patients
-  const handleBatchCheck = async () => {
-    const targetPatients = patients.filter(p => selectedAnList.has(p.an));
-    if (targetPatients.length === 0) return;
-
-    if (!confirm(`คุณต้องการตรวจสอบสิทธิ์ สปสช. สำหรับผู้ป่วยที่เลือกจำนวน ${targetPatients.length} ราย หรือไม่?`)) {
-      return;
-    }
+  // Helper for batch checking array of patients with cancellation support
+  const executeBatchCheck = async (targetPatients) => {
+    if (!targetPatients || targetPatients.length === 0) return;
 
     setIsBatchChecking(true);
+    stopBatchCheckRef.current = false;
     setBatchProgress({ current: 0, total: targetPatients.length });
 
     for (let i = 0; i < targetPatients.length; i++) {
+      if (stopBatchCheckRef.current) {
+        console.log('Batch check stopped by user');
+        break;
+      }
       const p = targetPatients[i];
       setBatchProgress({ current: i + 1, total: targetPatients.length });
       setCheckingVns(prev => new Set(prev).add(p.vn));
@@ -289,6 +291,32 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
     setIsBatchChecking(false);
     setSelectedAnList(new Set());
     fetchInpatients(true);
+  };
+
+  // Batch Check Selected Patients (Checkbox)
+  const handleBatchCheck = async () => {
+    const targetPatients = patients.filter(p => selectedAnList.has(p.an));
+    if (targetPatients.length === 0) return;
+
+    if (!confirm(`คุณต้องการตรวจสอบสิทธิ์ สปสช. สำหรับผู้ป่วยที่เลือกจำนวน ${targetPatients.length} ราย หรือไม่?`)) {
+      return;
+    }
+    await executeBatchCheck(targetPatients);
+  };
+
+  // Check ALL Patients (or All in current filter)
+  const handleCheckAll = async () => {
+    const targetPatients = filteredPatients.length > 0 ? filteredPatients : patients;
+    if (targetPatients.length === 0) return;
+
+    const confirmMsg = filteredPatients.length !== patients.length
+      ? `คุณต้องการตรวจสอบสิทธิ์ สปสช. สำหรับผู้ป่วยตามตัวกรองปัจจุบันจำนวน ${targetPatients.length} ราย (จากทั้งหมด ${stats.total} ราย) หรือไม่?`
+      : `คุณต้องการตรวจสอบสิทธิ์ สปสช. สำหรับผู้ป่วยทั้งหมดจำนวน ${targetPatients.length} ราย หรือไม่?`;
+
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+    await executeBatchCheck(targetPatients);
   };
 
   // Open Preview Modal for Syncing to HOSxP
@@ -360,31 +388,55 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              แสดงรายชื่อคนไข้ที่นอนพักรักษาตัวในโรงพยาบาล พร้อมเปรียบเทียบ 4 ตาราง (ovst, visit_pttype, ipt, ipt_pttype) และเชื่อมโยง NHSO API
+              แสดงรายชื่อคนไข้ที่นอนพักรักษาตัวในโรงพยาบาล พร้อมเปรียบเทียบสิทธิการรักษาและเชื่อมโยง NHSO API
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {selectedAnList.size > 0 && (
+            {isBatchChecking ? (
               <Button
                 size="sm"
-                variant="default"
-                onClick={handleBatchCheck}
-                disabled={isBatchChecking}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs"
+                variant="destructive"
+                onClick={() => { stopBatchCheckRef.current = true; }}
+                className="text-xs font-medium shadow-xs"
+                title="หยุดการตรวจสอบที่กำลังทำงาน"
               >
-                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                {isBatchChecking 
-                  ? `กำลังตรวจสอบ ${batchProgress.current}/${batchProgress.total}...` 
-                  : `เช็ค สปสช. ที่เลือก (${selectedAnList.size})`}
+                <X className="w-3.5 h-3.5 mr-1.5" />
+                หยุดการตรวจ ({batchProgress.current}/{batchProgress.total})
               </Button>
+            ) : (
+              <>
+                {selectedAnList.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={handleBatchCheck}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                    เช็ค สปสช. ที่เลือก ({selectedAnList.size})
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={handleCheckAll}
+                  disabled={loading || refreshing || filteredPatients.length === 0}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs shadow-xs"
+                  title="ตรวจสอบสิทธิ์ สปสช. ผู้ป่วยทั้งหมดในรายการ"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                  เช็ค สปสช. ทั้งหมด ({filteredPatients.length})
+                </Button>
+              </>
             )}
 
             <Button
               variant="outline"
               size="sm"
               onClick={() => fetchInpatients(true)}
-              disabled={loading || refreshing}
+              disabled={loading || refreshing || isBatchChecking}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
@@ -531,9 +583,6 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                 <th className="p-3 whitespace-nowrap min-w-[140px]">ชื่อ - สกุล</th>
                 <th className="p-3 whitespace-nowrap min-w-[130px]">หอผู้ป่วย</th>
                 <th className="p-3 whitespace-nowrap min-w-[120px] bg-slate-100/60">ovst</th>
-                <th className="p-3 whitespace-nowrap min-w-[180px] bg-slate-50/70">visit_pttype</th>
-                <th className="p-3 whitespace-nowrap min-w-[100px] bg-blue-50/40">ipt</th>
-                <th className="p-3 whitespace-nowrap min-w-[180px] bg-blue-50/60">ipt_pttype</th>
                 <th className="p-3 whitespace-nowrap min-w-[170px] bg-emerald-50/50">สิทธิ สปสช. (API)</th>
                 <th className="p-3 whitespace-nowrap min-w-[130px] bg-emerald-50/70">Authen Code (API)</th>
                 <th className="p-3 whitespace-nowrap min-w-[110px]">ผู้บันทึก (Staff)</th>
@@ -552,9 +601,6 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                     <td className="p-3"><Skeleton className="h-4 w-28" /></td>
                     <td className="p-3"><Skeleton className="h-4 w-24" /></td>
                     <td className="p-3"><Skeleton className="h-4 w-20" /></td>
-                    <td className="p-3"><Skeleton className="h-4 w-28" /></td>
-                    <td className="p-3"><Skeleton className="h-4 w-16" /></td>
-                    <td className="p-3"><Skeleton className="h-4 w-28" /></td>
                     <td className="p-3"><Skeleton className="h-4 w-24" /></td>
                     <td className="p-3"><Skeleton className="h-4 w-20" /></td>
                     <td className="p-3"><Skeleton className="h-4 w-16" /></td>
@@ -563,7 +609,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                 ))
               ) : paginatedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={10} className="text-center py-12 text-muted-foreground">
                     <AlertCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/60" />
                     <p className="text-sm font-medium">ไม่พบข้อมูลผู้ป่วยตามเงื่อนไขที่เลือก</p>
                     <p className="text-xs text-muted-foreground/70 mt-1">ลองเปลี่ยนคำค้นหา หรือเลือกตัวกรองหอผู้ป่วยอื่น</p>
@@ -578,17 +624,19 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                   return (
                     <tr 
                       key={p.an} 
-                      className={`hover:bg-muted/30 transition-colors ${
+                      onClick={() => onSelectPatient?.(p.an)}
+                      className={`hover:bg-blue-50/60 cursor-pointer transition-colors ${
                         isSelected ? 'bg-blue-50/40' : ''
                       }`}
+                      title="คลิกเพื่อดูรายละเอียดและเอกสารสิทธิ์"
                     >
                       {/* Checkbox */}
-                      <td className="p-3 text-center">
+                      <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleSelect(p.an)}
-                          className="rounded border-border text-blue-600 focus:ring-blue-500"
+                          className="rounded border-border text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                       </td>
 
@@ -600,8 +648,18 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                         <div className="text-[11px] text-muted-foreground font-mono">
                           VN: {p.vn}
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
-                          AN: {p.an}
+                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
+                          <span>AN: {p.an}</span>
+                          <a
+                            href={`/dcdetail/${p.an}?tab=documents`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-0.5 text-muted-foreground hover:text-blue-600 transition-colors inline-flex items-center"
+                            title="เปิดในแท็บใหม่ (Discharge Detail)"
+                          >
+                            <ExternalLink className="w-2.5 h-2.5 opacity-60 hover:opacity-100" />
+                          </a>
                         </div>
                       </td>
 
@@ -631,12 +689,9 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                       {/* ชื่อ - สกุล */}
                       <td className="p-3">
                         <div 
-                          className="font-medium text-foreground hover:text-blue-600 cursor-pointer flex items-center gap-1"
-                          onClick={() => onSelectPatient?.(p.an)}
-                          title="คลิกเพื่อดูรายละเอียดและเอกสาร"
+                          className="font-medium text-foreground hover:text-blue-600 flex items-center gap-1"
                         >
                           <span>{p.ptname}</span>
-                          <ExternalLink className="w-3 h-3 opacity-60" />
                         </div>
                         <div className="text-[11px] text-muted-foreground">
                           {p.age_y ? `${p.age_y} ปี` : '-'}
@@ -667,80 +722,6 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                           <div className="text-[10px] text-muted-foreground">
                             รพ: {p.ovst.hospmain || '-'}/{p.ovst.hospsub || '-'}
                           </div>
-                        )}
-                      </td>
-
-                      {/* visit_pttype (Multiple rights support) */}
-                      <td className="p-3 bg-slate-50/30">
-                        {p.visit_pttype_list?.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {p.visit_pttype_list.map((vp, vIdx) => (
-                              <div key={vIdx} className="text-[11px] border-b border-border/40 pb-1 last:border-none last:pb-0">
-                                <div className="font-medium text-slate-800">
-                                  <span className="bg-blue-100 text-blue-800 px-1 py-0.2 rounded text-[10px] mr-1">
-                                    สิทธิ {vp.pttype_number}
-                                  </span>
-                                  <span className="font-mono font-bold mr-1">{vp.pttype}</span>
-                                  <span>{vp.pttype_name}</span>
-                                </div>
-                                {vp.auth_code && (
-                                  <div className="text-[10px] text-emerald-700 font-mono font-semibold">
-                                    Auth: {vp.auth_code}
-                                  </div>
-                                )}
-                                {(vp.begin_date || vp.expire_date) && (
-                                  <div className="text-[10px] text-muted-foreground">
-                                    {vp.begin_date || ''} ~ {vp.expire_date || ''}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground italic">-</span>
-                        )}
-                      </td>
-
-                      {/* ipt */}
-                      <td className="p-3 whitespace-nowrap bg-blue-50/20">
-                        <div className="font-semibold text-blue-900">
-                          <span className="bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-mono mr-1">
-                            {p.ipt?.pttype || '-'}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground truncate max-w-[120px]">
-                          {p.ipt?.pttype_name || ''}
-                        </div>
-                      </td>
-
-                      {/* ipt_pttype (Multiple rights support) */}
-                      <td className="p-3 bg-blue-50/30">
-                        {p.ipt_pttype_list?.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {p.ipt_pttype_list.map((ip, iIdx) => (
-                              <div key={iIdx} className="text-[11px] border-b border-blue-100/60 pb-1 last:border-none last:pb-0">
-                                <div className="font-medium text-blue-950">
-                                  <span className="bg-blue-200/70 text-blue-900 px-1 py-0.2 rounded text-[10px] mr-1">
-                                    สิทธิ {ip.pttype_number}
-                                  </span>
-                                  <span className="font-mono font-bold mr-1">{ip.pttype}</span>
-                                  <span>{ip.pttype_name}</span>
-                                </div>
-                                {ip.auth_code && (
-                                  <div className="text-[10px] text-emerald-700 font-mono font-semibold">
-                                    Auth: {ip.auth_code}
-                                  </div>
-                                )}
-                                {(ip.begin_date || ip.expire_date) && (
-                                  <div className="text-[10px] text-muted-foreground">
-                                    {ip.begin_date || ''} ~ {ip.expire_date || ''}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground italic">-</span>
                         )}
                       </td>
 
@@ -823,8 +804,19 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                       </td>
 
                       {/* การจัดการ (Actions) */}
-                      <td className="p-3 whitespace-nowrap text-center sticky right-0 bg-background/95 backdrop-blur-xs border-l border-border/40 shadow-xs">
+                      <td className="p-3 whitespace-nowrap text-center sticky right-0 bg-background/95 backdrop-blur-xs border-l border-border/40 shadow-xs" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1.5">
+                          {/* View details button */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onSelectPatient?.(p.an)}
+                            className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                            title="เปิดดูรายละเอียดและเอกสารสิทธิ์"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                          </Button>
+
                           {/* Check NHSO button */}
                           <Button
                             size="sm"
