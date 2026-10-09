@@ -7,6 +7,8 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
   const [discountMoney, setDiscountMoney] = useState('');
   const [discountDetail, setDiscountDetail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [benefitCert, setBenefitCert] = useState(null);
+  const [loadingCert, setLoadingCert] = useState(true);
 
   useEffect(() => {
     if (details) {
@@ -14,6 +16,36 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
       setDiscountDetail(details.discount_detail || '');
     }
   }, [details]);
+
+  useEffect(() => {
+    const targetAn = an || patient?.an;
+    if (!targetAn) {
+      setBenefitCert(null);
+      setLoadingCert(false);
+      return;
+    }
+    let isMounted = true;
+    api.get(`/documents/${targetAn}/benefit-certificate`)
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.data?.hasCertificate && res.data?.certificate) {
+          setBenefitCert(res.data.certificate);
+        } else {
+          setBenefitCert(null);
+        }
+      })
+      .catch((err) => {
+        console.error('Fetch benefit certificate error:', err);
+        if (isMounted) setBenefitCert(null);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingCert(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [an, patient?.an]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -47,13 +79,16 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
   const netPayable = paidMoney - rcptMoney - depositMoney - discountAmount;
 
   return (
-    <div className="space-y-6 py-4 w-full">
-      {/* กล่อง หนังสือรับรองสวัสดิการค่าห้องพิเศษ */}
-      <BenefitCertificateBox an={an || patient?.an} />
+    <div className={`grid grid-cols-1 ${benefitCert ? 'xl:grid-cols-3 md:grid-cols-2' : 'lg:grid-cols-2'} gap-6 py-4 w-full items-start`}>
+      {/* 1. หนังสือรับรองสวัสดิการค่าห้องพิเศษ */}
+      {benefitCert && (
+        <div className="h-full">
+          <BenefitCertificateBox certificate={benefitCert} an={an || patient?.an} />
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Discount Form */}
-        <div>
+      {/* 2. บันทึกส่วนลดพิเศษ */}
+      <div>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
           <div className="h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500" />
           <div className="px-5 py-4 border-b border-border bg-muted/30">
@@ -100,7 +135,7 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 {loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
@@ -110,7 +145,7 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
         </div>
       </div>
 
-      {/* Right: Calculation Box */}
+      {/* 3. สรุปการคิดค่าใช้จ่าย */}
       <div>
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden sticky top-6">
           <div className="h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500" />
@@ -162,6 +197,5 @@ export default function DiscountTab({ an, patient, details, fetchDetails }) {
         </div>
       </div>
     </div>
-  </div>
-);
+  );
 }
