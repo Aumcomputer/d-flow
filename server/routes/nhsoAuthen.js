@@ -75,7 +75,8 @@ router.get('/inpatients', async (req, res) => {
                 ? dflowConn.query(`
                     SELECT vn, pid, right_check_date, maininscl_id, maininscl_name,
                            subinscl_id, subinscl_name, hospmain_code, hospmain_name,
-                           hospsub_code, hospsub_name, card_id, right_start_date,
+                           hospsub_code, hospsub_name, hospmain_op_code, hospmain_op_name,
+                           card_id, right_start_date,
                            claim_code, claim_type_name, create_date, received_datetime,
                            authen_status, source_channel, updated_at
                     FROM vn_nhso_authen
@@ -181,13 +182,18 @@ router.get('/inpatients', async (req, res) => {
             if (hasChecked && nhso) {
                 const currentPttype = p.ipt_pttype || p.ovst_pttype || '';
                 const isExempt = currentPttype && exemptCodes.includes(String(currentPttype).trim().toUpperCase());
+                
+                // สำหรับสิทธิ์ UCS/WEL หรือทั่วไป รพ.หลักที่ส่งตรวจ/ใช้บริการจริง (hospMainOp) คือสถานพยาบาลหลักประจำตัวผู้ป่วย
+                const targetHospmainCode = nhso.hospmain_op_code || nhso.hospmain_code || '';
+                const targetHospmainName = nhso.hospmain_op_name || nhso.hospmain_name || '';
+
                 if (isExempt) {
                     mappedPttype = currentPttype;
                 } else {
                     mappedPttype = mapNhsoToHosPttype(
                         nhso.maininscl_id,
                         nhso.subinscl_id,
-                        nhso.hospmain_code,
+                        targetHospmainCode,
                         nhso.hospsub_code,
                         currentPttype,
                         dynamicSubCenters
@@ -198,7 +204,7 @@ router.get('/inpatients', async (req, res) => {
                     isRightsMatch = iptList.some(ip => String(ip.pttype || '').trim().toLowerCase() === String(mappedPttype).trim().toLowerCase());
                 }
 
-                const nhsoMainCode = nhso.hospmain_code ? String(nhso.hospmain_code).trim() : '';
+                const nhsoMainCode = targetHospmainCode ? String(targetHospmainCode).trim() : '';
                 const nhsoSubCode = nhso.hospsub_code ? String(nhso.hospsub_code).trim() : '';
 
                 if (nhsoMainCode) {
@@ -267,8 +273,8 @@ router.get('/inpatients', async (req, res) => {
                     maininscl_name: nhso.maininscl_name || '',
                     subinscl_id: nhso.subinscl_id || '',
                     subinscl_name: nhso.subinscl_name || '',
-                    hospmain_code: nhso.hospmain_code || '',
-                    hospmain_name: nhso.hospmain_name || '',
+                    hospmain_code: nhso.hospmain_op_code || nhso.hospmain_code || '',
+                    hospmain_name: nhso.hospmain_op_name || nhso.hospmain_name || '',
                     hospsub_code: nhso.hospsub_code || '',
                     hospsub_name: nhso.hospsub_name || '',
                     card_id: (nhso.card_id && String(nhso.card_id).trim()) || (p.cid ? formatCid(p.cid) : ''),
