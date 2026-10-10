@@ -170,11 +170,12 @@ export default function RightsAndAuthenBox({ an, patient, isMedicalRecords }) {
   const formatThDateTime = (dateStr) => {
     if (!dateStr || dateStr === '-') return '-';
     try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
+      const normalizedStr = typeof dateStr === 'string' ? dateStr.replace(' ', 'T') : dateStr;
+      const d = new Date(normalizedStr);
+      if (isNaN(d.getTime())) return String(dateStr);
       return `${d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })} ${d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`;
     } catch {
-      return dateStr;
+      return String(dateStr);
     }
   };
 
@@ -995,7 +996,9 @@ export default function RightsAndAuthenBox({ an, patient, isMedicalRecords }) {
                   </div>
                   <div className="mt-2">
                     <div className="text-xs sm:text-sm font-bold text-slate-800 font-mono">
-                      {formatThDate(data.admit_date)} {data.admit_time ? `${data.admit_time} น.` : ''}
+                      {(data.authen.claim_date || data.authen.received_datetime)
+                        ? formatThDateTime(data.authen.claim_date || data.authen.received_datetime)
+                        : (data.admit_date ? `${formatThDate(data.admit_date)} ${data.admit_time ? `${data.admit_time} น.` : ''}` : '-')}
                     </div>
                   </div>
                 </div>

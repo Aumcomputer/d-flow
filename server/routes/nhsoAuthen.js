@@ -483,6 +483,7 @@ router.post('/check', async (req, res) => {
                                     claim_type_name = COALESCE(?, claim_type_name),
                                     source_channel = COALESCE(?, source_channel),
                                     create_date = COALESCE(?, create_date),
+                                    received_datetime = COALESCE(?, received_datetime),
                                     authen_json = ?
                                 WHERE vn = ?
                             `, [
@@ -491,12 +492,14 @@ router.post('/check', async (req, res) => {
                                 validAuth.claimTypeName || null,
                                 validAuth.sourceChannel || null,
                                 validAuth.createDate || null,
+                                validAuth.claimDate || validAuth.receivedDateTime || null,
                                 JSON.stringify(validAuth),
                                 vn
                             ]);
                             savedData.claim_code = validAuth.claimCode;
                             savedData.claim_type_name = validAuth.claimTypeName;
                             savedData.source_channel = validAuth.sourceChannel;
+                            savedData.received_datetime = validAuth.claimDate || validAuth.receivedDateTime || savedData.received_datetime;
                             const authDate = (validAuth.claimDate || validAuth.createDate || '').slice(0, 10);
                             authenDateNote = `พบ Authen Code จากประวัติ สปสช. (${authDate || prevAdmitDate})`;
                             console.log(`[NhsoAuthen] Found authen code from authen-history (${authDate}): ${validAuth.claimCode}`);
@@ -1411,7 +1414,8 @@ router.get(['/rights-summary/:an', '/details/:an'], async (req, res) => {
             claim_status: hasValidAuthen ? (dflowData?.claim_status || null) : null,
             authen_status: hasValidAuthen ? (dflowData?.authen_status || 'ยืนยันแล้ว') : 'ยังไม่มี Authen Code',
             create_date: hasValidAuthen ? (dflowData?.create_date || null) : null,
-            received_datetime: hasValidAuthen ? (dflowData?.received_datetime || null) : null,
+            received_datetime: hasValidAuthen ? (dflowData?.received_datetime || authenJson?.claimDate || null) : null,
+            claim_date: hasValidAuthen ? (authenJson?.claimDate || dflowData?.received_datetime || null) : null,
             authen_hcode: hasValidAuthen ? (dflowData?.authen_hcode || null) : null,
             authen_hname: hasValidAuthen ? (dflowData?.authen_hname || null) : null,
             tel: dflowData?.tel || null,
