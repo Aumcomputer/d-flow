@@ -598,13 +598,13 @@ export default function ChecklistTab({ an, details, setDetails, fetchData, patie
               <>
                 <div className="flex items-center gap-3 w-full shrink-0">
                   <label className="text-sm font-medium text-slate-700 whitespace-nowrap">
-                    เบอร์โทรศัพท์ <span className="text-red-500">*</span>
+                    หมายเลขโทรศัพท์หอผู้ป่วย<span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
                     value={wardPhone}
                     onChange={(e) => setWardPhone(e.target.value.replace(/\D/g, ''))}
-                    placeholder="ระบุเบอร์โทรศัพท์..."
+                    placeholder="ระบุหมายเลขโทรศัพท์หอผู้ป่วยที่ดูแลคนไข้..."
                     disabled={isWardActionsDisabled}
                     className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
                   />

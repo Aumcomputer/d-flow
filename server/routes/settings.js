@@ -643,4 +643,69 @@ router.delete('/no-authen-pttypes/:id', authMiddleware, requireAdmin, async (req
     }
 });
 
+// 20. GET /settings/slow-query/config - Get slow query logger configuration
+router.get('/slow-query/config', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { getSlowQueryConfig } = require('../services/slowQueryService');
+        const config = await getSlowQueryConfig(true);
+        res.json(config);
+    } catch (err) {
+        console.error('Error in GET /slow-query/config:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 21. PUT /settings/slow-query/config - Update slow query logger configuration
+router.put('/slow-query/config', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { updateSlowQueryConfig } = require('../services/slowQueryService');
+        const { enabled, threshold_ms } = req.body;
+        const updated = await updateSlowQueryConfig({
+            enabled: enabled !== false,
+            threshold_ms: Number(threshold_ms) || 1000
+        });
+
+        try {
+            getIO().emit('settings:slow_query_config_updated', updated);
+        } catch (e) {}
+
+        res.json({
+            success: true,
+            message: `บันทึกการตั้งค่า Slow Query Logger เรียบร้อยแล้ว (สถานะ: ${updated.enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}, เกณฑ์: ${updated.threshold_ms}ms)`,
+            config: updated
+        });
+    } catch (err) {
+        console.error('Error in PUT /slow-query/config:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 22. GET /settings/slow-query/logs - Get paginated slow query logs from Redis
+router.get('/slow-query/logs', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { getSlowQueryLogs } = require('../services/slowQueryService');
+        const { page = 1, limit = 50, pool, search } = req.query;
+        const result = await getSlowQueryLogs({ page, limit, pool, search });
+        res.json(result);
+    } catch (err) {
+        console.error('Error in GET /slow-query/logs:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 23. DELETE /settings/slow-query/logs - Clear slow query logs in Redis
+router.delete('/slow-query/logs', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { clearSlowQueryLogs } = require('../services/slowQueryService');
+        await clearSlowQueryLogs();
+        try {
+            getIO().emit('settings:slow_query_logs_cleared');
+        } catch (e) {}
+        res.json({ success: true, message: 'ล้างประวัติ Slow Query Logs ใน Redis เรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('Error in DELETE /slow-query/logs:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 module.exports = router;

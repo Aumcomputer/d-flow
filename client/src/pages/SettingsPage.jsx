@@ -37,8 +37,10 @@ import {
   CheckSquare,
   HeartHandshake,
   Radiation,
-  KeyRound
+  KeyRound,
+  Activity
 } from 'lucide-react'
+import SlowQueryTab from '../components/SlowQueryTab'
 
 const MODULE_META = {
   documents: {
@@ -757,6 +759,18 @@ export default function SettingsPage() {
         >
           <KeyRound className="w-4 h-4 text-emerald-600" />
           <span>5. No Authen Code</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('slow_query')}
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-t-xl font-medium text-sm transition-all border-b-2 ${
+            activeTab === 'slow_query'
+              ? 'border-blue-600 text-blue-600 bg-blue-50/50 shadow-xs'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <Activity className="w-4 h-4 text-rose-500" />
+          <span>6. Slow Query Log</span>
         </button>
       </div>
 
@@ -2493,6 +2507,13 @@ export default function SettingsPage() {
             </Card>
           </div>
         </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB 6: SLOW QUERY LOG */}
+      {/* ========================================================= */}
+      {activeTab === 'slow_query' && (
+        <SlowQueryTab />
       )}
     </div>
   )
