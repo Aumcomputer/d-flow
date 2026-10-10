@@ -68,6 +68,21 @@ async function getNextRunning(conn, an) {
     return (Number(rows[0].cnt) || 0) + 1;
 }
 
+// Multer/busboy decodes multipart headers as Latin1. Decode to UTF-8 if needed.
+function decodeOriginalName(raw) {
+    if (!raw) return '';
+    if (/[^\u0000-\u00FF]/.test(raw)) {
+        return raw;
+    }
+    try {
+        const decoded = Buffer.from(raw, 'latin1').toString('utf8');
+        if (!decoded.includes('\uFFFD')) {
+            return decoded;
+        }
+    } catch (e) {}
+    return raw;
+}
+
 // ============================================================
 // Auth-protected routes
 // ============================================================
@@ -349,7 +364,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'File, an, and hn are required' });
         }
 
-        const ext = path.extname(file.originalname).toLowerCase();
+        const originalName = decodeOriginalName(file.originalname);
+        const ext = path.extname(originalName || file.originalname).toLowerCase();
         const isPdf = ext === '.pdf';
         const isImage = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
 
@@ -400,7 +416,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 an, hn, finalDocTypeId,
-                file.originalname, newFilename, filePathRelative,
+                originalName, newFilename, filePathRelative,
                 fileStats.size, file.mimetype,
                 finalDocTypeId && !doc_type_id ? 1 : 0,
                 extractedText, extractedCid,
