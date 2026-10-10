@@ -238,10 +238,16 @@ router.get(['/all-discharged', '/pharmacy/all-discharged'], authMiddleware, asyn
         // Find ANs discharged on specific date strictly in D-Flow, along with return_drug_count
         const anDetailRows = await dflowConn.query(
             `SELECT a.*,
-                    (SELECT COUNT(*) FROM return_drugs rd WHERE rd.an COLLATE utf8mb4_unicode_ci = a.an COLLATE utf8mb4_unicode_ci AND rd.qty > 0) AS return_drug_count
+                    COALESCE(rd.return_drug_count, 0) AS return_drug_count
              FROM an_detail a
-             WHERE a.discharge_date IS NOT NULL AND DATE(a.discharge_date) = ?`,
-            [dateStr]
+             LEFT JOIN (
+                 SELECT an, COUNT(*) AS return_drug_count
+                 FROM return_drugs
+                 WHERE qty > 0
+                 GROUP BY an
+             ) rd ON rd.an = a.an
+             WHERE a.discharge_date >= ? AND a.discharge_date < DATE_ADD(?, INTERVAL 1 DAY)`,
+            [dateStr, dateStr]
         );
 
         if (anDetailRows.length === 0) return res.json([]);
@@ -367,7 +373,7 @@ router.get('/pharmacy/return-meds', authMiddleware, async (req, res) => {
 
         const anRows = await dflowConn.query(`
             SELECT 
-                COALESCE(a.an, rd_ans.an) AS an,
+                rd_agg.an,
                 a.chk_returnmed,
                 a.phar_chk_returnmed,
                 a.phar_chk_returnmed_date,
@@ -378,18 +384,19 @@ router.get('/pharmacy/return-meds', authMiddleware, async (req, res) => {
                 a.ward_phone,
                 a.created_at,
                 a.updated_at,
-                (SELECT COUNT(*) FROM return_drugs rd WHERE rd.an = COALESCE(a.an, rd_ans.an) AND rd.qty > 0) AS return_drug_count,
-                (SELECT MAX(created_at) FROM return_drugs rd WHERE rd.an = COALESCE(a.an, rd_ans.an)) AS return_drug_created_at
+                rd_agg.return_drug_count,
+                rd_agg.return_drug_created_at
             FROM (
-                SELECT DISTINCT CAST(an AS CHAR) COLLATE utf8mb4_unicode_ci AS an 
+                SELECT an, COUNT(*) AS return_drug_count, MAX(created_at) AS return_drug_created_at
                 FROM return_drugs 
                 WHERE qty > 0
-            ) rd_ans
-            LEFT JOIN an_detail a ON a.an COLLATE utf8mb4_unicode_ci = rd_ans.an
+                GROUP BY an
+            ) rd_agg
+            LEFT JOIN an_detail a ON a.an = rd_agg.an
             WHERE COALESCE(a.chk_returnmed, 1) = 1
             ORDER BY 
               CASE WHEN a.phar_chk_returnmed IS NULL THEN 0 ELSE 1 END ASC,
-              COALESCE(a.sent_dc_date, a.sent_pharmacy_date, a.discharge_date, (SELECT MAX(created_at) FROM return_drugs rd WHERE rd.an = COALESCE(a.an, rd_ans.an)), a.updated_at, a.created_at) DESC
+              COALESCE(a.sent_dc_date, a.sent_pharmacy_date, a.discharge_date, rd_agg.return_drug_created_at, a.updated_at, a.created_at) DESC
         `);
 
         if (anRows.length === 0) {
