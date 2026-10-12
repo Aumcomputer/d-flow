@@ -8,12 +8,12 @@ const Dialog = ({ open, onOpenChange, children }) => {
   return (
     <>
       {createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div
             className="fixed inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"
             onClick={() => onOpenChange(false)}
           />
-          <div className="relative z-50 w-full max-w-lg animate-scale-in">
+          <div className="relative z-50 w-full flex justify-center items-center my-auto animate-scale-in">
             {children}
           </div>
         </div>,
@@ -27,7 +27,7 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
   <div
     ref={ref}
     className={cn(
-      "bg-white rounded-2xl border border-slate-200 p-6 shadow-2xl",
+      "w-full max-w-lg bg-white rounded-2xl border border-slate-200 p-6 shadow-2xl mx-auto",
       className
     )}
     {...props}
