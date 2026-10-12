@@ -2341,21 +2341,6 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                         <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
                           <div className="flex items-center gap-1.5 font-semibold text-slate-800">
                             <span>{log.created_by_name || log.created_by}</span>
-                            {isLatest && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-medium">
-                                เวอร์ชันปัจจุบัน
-                              </span>
-                            )}
-                            {log.action === 'create' && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-200 text-slate-700 font-medium">
-                                บันทึกครั้งแรก
-                              </span>
-                            )}
-                            {log.action === 'update' && !isLatest && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-medium">
-                                แก้ไข
-                              </span>
-                            )}
                           </div>
                           <span className="text-slate-500 text-[11px] font-mono">
                             {formatDateTime(log.created_at)}
