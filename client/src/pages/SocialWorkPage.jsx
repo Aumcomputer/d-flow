@@ -545,7 +545,7 @@ export default function SocialWorkPage() {
 
       {/* Modal: กรอก/แก้ไขความคิดเห็นของนักสังคมสงเคราะห์ */}
       <Dialog open={isAnswerModalOpen} onOpenChange={setIsAnswerModalOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl md:max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
               <HeartHandshake className="w-6 h-6 text-rose-600" />
@@ -683,7 +683,7 @@ export default function SocialWorkPage() {
 
       {/* Modal: ดูรายละเอียดประวัติ (History Detail Modal) */}
       <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl md:max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
               <HeartHandshake className="w-6 h-6 text-rose-600" />
@@ -695,14 +695,19 @@ export default function SocialWorkPage() {
             <div className="space-y-4 py-2">
               {/* Patient Banner */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs sm:text-sm text-slate-700">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>AN: <strong className="text-slate-900 font-mono text-sm">{viewingRequest.an}</strong></div>
                   <div>HN: <strong className="text-slate-900 font-mono text-sm">{viewingRequest.hn || '-'}</strong></div>
                   <div>อายุ: <strong className="text-slate-900">{viewingRequest.age_y ? `${viewingRequest.age_y} ปี` : '-'}</strong></div>
-                </div>
-                <div className="flex justify-between items-center pt-1 border-t border-slate-200/60">
-                  <div>ชื่อ-สกุล: <strong className="text-slate-900 font-medium">{viewingRequest.patient_name || '-'}</strong></div>
                   <div>หอผู้ป่วย: <strong className="text-teal-700">{viewingRequest.ward_name || '-'}</strong></div>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200/60">
+                  <div>ชื่อ-สกุล: <strong className="text-slate-900 font-medium text-sm sm:text-base">{viewingRequest.patient_name || '-'}</strong></div>
+                  {viewingRequest.pttype_name && (
+                    <div className="text-xs text-slate-500">
+                      สิทธิการรักษา: <span className="text-slate-700 font-medium">{viewingRequest.pttype_name}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -811,7 +816,7 @@ export default function SocialWorkPage() {
 
       {/* Modal: ประวัติการแก้ไขความคิดเห็น (Revision History Modal) */}
       <Dialog open={isHistoryLogsModalOpen} onOpenChange={setIsHistoryLogsModalOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl md:max-w-3xl w-[95vw] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-lg font-bold text-slate-900">
               <History className="w-5 h-5 text-amber-600" />
