@@ -10,7 +10,8 @@ const {
     updateSocialWorkRequest,
     cancelSocialWorkRequest,
     answerSocialWorkRequest,
-    getSocialWorkRequestsList
+    getSocialWorkRequestsList,
+    getSocialWorkCommentLogs
 } = require('../services/socialWorkService');
 
 const router = express.Router();
@@ -207,16 +208,37 @@ router.post('/requests/:id/answer', authMiddleware, async (req, res) => {
         });
 
         try {
-            getIO().emit('social_work:updated', { an: request?.an, id, status: 'answered' });
+            getIO().emit('social_work:updated', { 
+                an: request?.an, 
+                id, 
+                status: 'answered',
+                edit_count: request?.edit_count || 0
+            });
         } catch (e) {}
+
+        const successMsg = (request?.edit_count && request.edit_count > 0)
+            ? 'แก้ไขความคิดเห็นของนักสังคมสงเคราะห์เรียบร้อยแล้ว'
+            : 'บันทึกความคิดเห็นของนักสังคมสงเคราะห์เรียบร้อยแล้ว';
 
         res.json({
             success: true,
-            message: 'บันทึกความคิดเห็นของนักสังคมสงเคราะห์เรียบร้อยแล้ว',
+            message: successMsg,
             request
         });
     } catch (err) {
         console.error('Error in POST /requests/:id/answer:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 9. Get comment revision history / logs
+router.get('/requests/:id/comment-logs', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const logs = await getSocialWorkCommentLogs(id);
+        res.json({ logs });
+    } catch (err) {
+        console.error('Error in GET /requests/:id/comment-logs:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });

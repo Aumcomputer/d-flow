@@ -63,15 +63,62 @@ async function initSocialWorkTables() {
                 cancelled_at DATETIME DEFAULT NULL,
                 cancel_reason VARCHAR(255) DEFAULT NULL,
                 
+                edit_count INT NOT NULL DEFAULT 0,
+                last_edited_at DATETIME DEFAULT NULL,
+                last_edited_by VARCHAR(50) DEFAULT NULL,
+                last_edited_by_name VARCHAR(150) DEFAULT NULL,
+                
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_an (an),
                 INDEX idx_status (status),
                 INDEX idx_sent_at (sent_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         `);
 
-        console.log('Social work tables initialized successfully');
+        // Check and add columns to social_work_requests if table already existed
+        const reqCols = await conn.query('DESCRIBE social_work_requests');
+        const existingColNames = new Set(reqCols.map(c => c.Field));
+        if (!existingColNames.has('edit_count')) {
+            await conn.query("ALTER TABLE social_work_requests ADD COLUMN edit_count INT NOT NULL DEFAULT 0 COMMENT 'จำนวนครั้งที่แก้ไขความคิดเห็น'");
+        }
+        if (!existingColNames.has('last_edited_at')) {
+            await conn.query("ALTER TABLE social_work_requests ADD COLUMN last_edited_at DATETIME DEFAULT NULL COMMENT 'เวลาที่แก้ไขล่าสุด'");
+        }
+        if (!existingColNames.has('last_edited_by')) {
+            await conn.query("ALTER TABLE social_work_requests ADD COLUMN last_edited_by VARCHAR(50) DEFAULT NULL COMMENT 'ผู้แก้ไขล่าสุด'");
+        }
+        if (!existingColNames.has('last_edited_by_name')) {
+            await conn.query("ALTER TABLE social_work_requests ADD COLUMN last_edited_by_name VARCHAR(150) DEFAULT NULL");
+        }
+
+        // 3. social_work_comment_logs table for audit/edit history
+        await conn.query(`
+            CREATE TABLE IF NOT EXISTS social_work_comment_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                request_id INT NOT NULL COMMENT 'FK social_work_requests.id',
+                an VARCHAR(15) NOT NULL,
+                action ENUM('create', 'update') NOT NULL DEFAULT 'update',
+                comment TEXT NOT NULL,
+                created_by VARCHAR(50) NOT NULL,
+                created_by_name VARCHAR(150) DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_request_id (request_id),
+                INDEX idx_an (an),
+                INDEX idx_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+
+        // Backfill baseline history for existing answered requests that have no logs yet
+        await conn.query(`
+            INSERT INTO social_work_comment_logs (request_id, an, action, comment, created_by, created_by_name, created_at)
+            SELECT id, an, 'create', social_worker_comment, COALESCE(social_worker_by, 'unknown'), social_worker_by_name, COALESCE(social_worker_at, created_at)
+            FROM social_work_requests
+            WHERE social_worker_comment IS NOT NULL AND TRIM(social_worker_comment) != ''
+              AND id NOT IN (SELECT DISTINCT request_id FROM social_work_comment_logs)
+        `);
+
+        console.log('Social work tables and comment logs initialized successfully');
     } catch (err) {
         console.error('Failed to init social work tables:', err);
     } finally {
@@ -165,14 +212,67 @@ async function answerSocialWorkRequest(id, { social_worker_comment, social_worke
     let conn;
     try {
         conn = await getDflowConnection();
+        const existingRows = await conn.query('SELECT * FROM social_work_requests WHERE id = ?', [id]);
+        if (!existingRows || existingRows.length === 0) {
+            throw new Error('ไม่พบข้อมูลคำขอส่งปรึกษา');
+        }
+        const existing = existingRows[0];
+        const isEditing = existing.status === 'answered' || Boolean(existing.social_worker_comment);
+        const action = isEditing ? 'update' : 'create';
+        const newEditCount = isEditing ? (Number(existing.edit_count || 0) + 1) : 0;
+
+        if (isEditing) {
+            await conn.query(
+                `UPDATE social_work_requests 
+                 SET social_worker_comment = ?, 
+                     edit_count = ?, 
+                     last_edited_by = ?, 
+                     last_edited_by_name = ?, 
+                     last_edited_at = NOW(), 
+                     status = 'answered'
+                 WHERE id = ?`,
+                [social_worker_comment, newEditCount, social_worker_by, social_worker_by_name, id]
+            );
+        } else {
+            await conn.query(
+                `UPDATE social_work_requests 
+                 SET social_worker_comment = ?, 
+                     social_worker_by = ?, 
+                     social_worker_by_name = ?, 
+                     social_worker_at = NOW(), 
+                     status = 'answered'
+                 WHERE id = ?`,
+                [social_worker_comment, social_worker_by, social_worker_by_name, id]
+            );
+        }
+
+        // Insert log record
         await conn.query(
-            `UPDATE social_work_requests 
-             SET social_worker_comment = ?, social_worker_by = ?, social_worker_by_name = ?, social_worker_at = NOW(), status = 'answered'
-             WHERE id = ?`,
-            [social_worker_comment, social_worker_by, social_worker_by_name, id]
+            `INSERT INTO social_work_comment_logs (request_id, an, action, comment, created_by, created_by_name, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+            [id, existing.an, action, social_worker_comment, social_worker_by, social_worker_by_name]
         );
+
         const rows = await conn.query('SELECT * FROM social_work_requests WHERE id = ?', [id]);
         return rows[0];
+    } finally {
+        if (conn) conn.release();
+    }
+}
+
+async function getSocialWorkCommentLogs(requestId) {
+    if (!requestId) return [];
+    let conn;
+    try {
+        conn = await getDflowConnection();
+        const rows = await conn.query(
+            `SELECT id, request_id, an, action, comment, created_by, created_by_name, created_at
+             FROM social_work_comment_logs
+             WHERE request_id = ?
+             ORDER BY created_at DESC, id DESC`,
+            [requestId]
+        );
+        return rows;
     } finally {
         if (conn) conn.release();
     }
@@ -252,5 +352,6 @@ module.exports = {
     updateSocialWorkRequest,
     cancelSocialWorkRequest,
     answerSocialWorkRequest,
-    getSocialWorkRequestsList
+    getSocialWorkRequestsList,
+    getSocialWorkCommentLogs
 };

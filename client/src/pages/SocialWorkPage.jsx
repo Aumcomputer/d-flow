@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Eye,
   FileText,
-  RotateCcw
+  RotateCcw,
+  History,
+  Pencil
 } from 'lucide-react'
 import api from '../services/api'
 import socket from '../services/socket'
@@ -49,6 +51,12 @@ export default function SocialWorkPage() {
   // Detail Modal States (for viewing history)
   const [viewingRequest, setViewingRequest] = useState(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+
+  // Comment Revision History Modal States
+  const [historyLogsTarget, setHistoryLogsTarget] = useState(null)
+  const [historyLogs, setHistoryLogs] = useState([])
+  const [loadingHistoryLogs, setLoadingHistoryLogs] = useState(false)
+  const [isHistoryLogsModalOpen, setIsHistoryLogsModalOpen] = useState(false)
 
   const fetchRequests = useCallback(async () => {
     setLoading(true)
@@ -127,6 +135,23 @@ export default function SocialWorkPage() {
     if (e) e.stopPropagation()
     setViewingRequest(req)
     setIsDetailModalOpen(true)
+  }
+
+  // Open modal to view comment revision history
+  const handleOpenHistoryLogs = async (req, e) => {
+    if (e) e.stopPropagation()
+    setHistoryLogsTarget(req)
+    setIsHistoryLogsModalOpen(true)
+    setLoadingHistoryLogs(true)
+    setHistoryLogs([])
+    try {
+      const res = await api.get(`/social-work/requests/${req.id}/comment-logs`)
+      setHistoryLogs(res.data?.logs || [])
+    } catch (err) {
+      console.error('Failed to fetch social work comment logs:', err)
+    } finally {
+      setLoadingHistoryLogs(false)
+    }
   }
 
   // Submit Social Worker Comment
@@ -462,24 +487,52 @@ export default function SocialWorkPage() {
                         <div className="text-xs text-slate-700 bg-emerald-50/50 p-2 rounded-xl border border-emerald-100 line-clamp-3 leading-relaxed">
                           {req.social_worker_comment}
                         </div>
+                        {req.edit_count > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenHistoryLogs(req, e)}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-md mt-1 transition-colors cursor-pointer"
+                            title="คลิกเพื่อดูประวัติการแก้ไข"
+                          >
+                            <History className="w-3 h-3 text-amber-600" />
+                            <span>แก้ไขแล้ว ({req.edit_count} ครั้ง)</span>
+                          </button>
+                        )}
                       </td>
 
                       <td className="py-4 px-4 whitespace-nowrap text-xs">
                         <span className="font-semibold text-slate-800 block">
                           {req.social_worker_by_name || req.social_worker_by || '-'}
                         </span>
+                        {req.last_edited_at && (
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            แก้ล่าสุด: {formatDateTime(req.last_edited_at)}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-4 px-4 text-center whitespace-nowrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => handleOpenDetailModal(req, e)}
-                          className="rounded-xl border-slate-200 text-slate-600 hover:text-slate-900 gap-1 text-xs"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>ดูรายละเอียด</span>
-                        </Button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => handleOpenAnswerModal(req, e)}
+                            className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50 gap-1 text-xs"
+                            title="แก้ไขความคิดเห็น"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-amber-600" />
+                            <span>แก้ไข</span>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => handleOpenDetailModal(req, e)}
+                            className="rounded-xl border-slate-200 text-slate-600 hover:text-slate-900 gap-1 text-xs"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>ดูรายละเอียด</span>
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -490,13 +543,17 @@ export default function SocialWorkPage() {
         </div>
       )}
 
-      {/* Modal: กรอกความคิดเห็นของนักสังคมสงเคราะห์ */}
+      {/* Modal: กรอก/แก้ไขความคิดเห็นของนักสังคมสงเคราะห์ */}
       <Dialog open={isAnswerModalOpen} onOpenChange={setIsAnswerModalOpen}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
               <HeartHandshake className="w-6 h-6 text-rose-600" />
-              <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
+              <span>
+                {selectedRequest?.status === 'answered' || selectedRequest?.social_worker_comment
+                  ? 'แก้ไขความคิดเห็นของนักสังคมสงเคราะห์'
+                  : 'ความคิดเห็นของนักสังคมสงเคราะห์'}
+              </span>
             </DialogTitle>
           </DialogHeader>
 
@@ -520,8 +577,8 @@ export default function SocialWorkPage() {
                 )}
               </div>
 
-              {/* Consult Request Detail Box */}
-              <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100 space-y-2.5 text-sm">
+              {/* Consult Request Detail */}
+              <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100 space-y-2 text-sm">
                 <div>
                   <span className="text-xs text-muted-foreground font-semibold block mb-0.5">สาเหตุที่ส่งปรึกษา</span>
                   <div className="font-semibold text-rose-950 text-base">
@@ -549,11 +606,35 @@ export default function SocialWorkPage() {
                 </div>
               </div>
 
+              {/* Edit Notice & Revision Hint */}
+              {selectedRequest?.edit_count > 0 && (
+                <div className="flex items-center justify-between text-xs text-amber-800 bg-amber-50/90 px-3 py-2 rounded-xl border border-amber-200">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <History className="w-4 h-4 text-amber-600 shrink-0" />
+                    เคยแก้ไขแล้ว {selectedRequest.edit_count} ครั้ง (ระบบเก็บประวัติเดิมไว้ทั้งหมด)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleOpenHistoryLogs(selectedRequest, e)}
+                    className="text-amber-700 hover:text-amber-900 font-semibold underline underline-offset-2 ml-2 cursor-pointer"
+                  >
+                    ดูประวัติเดิม
+                  </button>
+                </div>
+              )}
+
               {/* Form Input: ความคิดเห็นของนักสังคมสงเคราะห์ */}
               <div className="space-y-1.5 pt-1">
-                <label className="block text-sm font-semibold text-slate-800">
-                  ความคิดเห็นของนักสังคมสงเคราะห์ <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-semibold text-slate-800">
+                    ความคิดเห็นของนักสังคมสงเคราะห์ <span className="text-red-500">*</span>
+                  </label>
+                  {(selectedRequest?.status === 'answered' || selectedRequest?.social_worker_comment) && (
+                    <span className="text-[11px] text-slate-500">
+                      * สามารถแก้ไขข้อความได้ ระบบจะบันทึกประวัติเก่าเก็บไว้
+                    </span>
+                  )}
+                </div>
                 <textarea
                   rows={4}
                   value={socialWorkerComment}
@@ -586,7 +667,13 @@ export default function SocialWorkPage() {
                   className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white gap-1.5"
                 >
                   <Check className="w-4 h-4" />
-                  <span>{submittingAnswer ? 'กำลังบันทึก...' : 'บันทึกความคิดเห็น'}</span>
+                  <span>
+                    {submittingAnswer
+                      ? 'กำลังบันทึก...'
+                      : (selectedRequest?.status === 'answered' || selectedRequest?.social_worker_comment)
+                        ? 'บันทึกการแก้ไข'
+                        : 'บันทึกความคิดเห็น'}
+                  </span>
                 </Button>
               </DialogFooter>
             </form>
@@ -650,10 +737,37 @@ export default function SocialWorkPage() {
 
               {/* Social Worker Answer Box */}
               <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2 text-sm">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => handleOpenHistoryLogs(viewingRequest, e)}
+                      className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer"
+                      title="ดูประวัติการแก้ไขทั้งหมด"
+                    >
+                      <History className="w-3.5 h-3.5 text-amber-600" />
+                      <span>ประวัติ {viewingRequest.edit_count > 0 ? `(${viewingRequest.edit_count} ครั้ง)` : ''}</span>
+                    </button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        setIsDetailModalOpen(false)
+                        handleOpenAnswerModal(viewingRequest, e)
+                      }}
+                      className="rounded-lg h-7 px-2.5 text-xs border-amber-200 text-amber-700 hover:bg-amber-50 gap-1"
+                    >
+                      <Pencil className="w-3 h-3 text-amber-600" />
+                      <span>แก้ไข</span>
+                    </Button>
+                  </div>
                 </div>
+
                 <div className="text-xs sm:text-sm text-slate-800 bg-white p-3.5 rounded-xl border border-emerald-100 whitespace-pre-wrap leading-relaxed shadow-2xs font-normal">
                   {viewingRequest.social_worker_comment}
                 </div>
@@ -661,6 +775,12 @@ export default function SocialWorkPage() {
                   <span>ผู้ตอบ: <strong className="text-slate-800">{viewingRequest.social_worker_by_name || viewingRequest.social_worker_by}</strong></span>
                   <span>{formatDateTime(viewingRequest.social_worker_at)}</span>
                 </div>
+                {viewingRequest.last_edited_at && (
+                  <div className="text-[11px] text-amber-700 flex justify-between items-center pt-0.5 border-t border-emerald-100/60">
+                    <span>แก้ไขล่าสุดโดย: <strong>{viewingRequest.last_edited_by_name || viewingRequest.last_edited_by}</strong></span>
+                    <span>{formatDateTime(viewingRequest.last_edited_at)}</span>
+                  </div>
+                )}
               </div>
 
               <DialogFooter className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2 gap-2">
@@ -686,6 +806,89 @@ export default function SocialWorkPage() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: ประวัติการแก้ไขความคิดเห็น (Revision History Modal) */}
+      <Dialog open={isHistoryLogsModalOpen} onOpenChange={setIsHistoryLogsModalOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-bold text-slate-900">
+              <History className="w-5 h-5 text-amber-600" />
+              <span>ประวัติการแก้ไขความคิดเห็น (AN: {historyLogsTarget?.an})</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-2 space-y-4">
+            {loadingHistoryLogs ? (
+              <div className="py-10 text-center text-slate-400 text-sm flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-slate-500" />
+                <span>กำลังโหลดประวัติการแก้ไข...</span>
+              </div>
+            ) : historyLogs.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-sm">
+                ยังไม่มีประวัติการแก้ไข
+              </div>
+            ) : (
+              <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                {historyLogs.map((log, idx) => {
+                  const isLatest = idx === 0
+                  return (
+                    <div key={log.id} className="relative space-y-1.5">
+                      <div className={`absolute -left-6 top-1 w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
+                        isLatest 
+                          ? 'bg-amber-500 border-amber-200 text-white shadow-xs' 
+                          : 'bg-slate-100 border-slate-300 text-slate-500'
+                      }`}>
+                        {historyLogs.length - idx}
+                      </div>
+                      <div className={`p-3.5 rounded-xl border space-y-2 ${
+                        isLatest ? 'bg-amber-50/40 border-amber-200/80' : 'bg-slate-50/80 border-slate-200'
+                      }`}>
+                        <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                            <span>{log.created_by_name || log.created_by}</span>
+                            {isLatest && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-medium">
+                                เวอร์ชันปัจจุบัน
+                              </span>
+                            )}
+                            {log.action === 'create' && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-200 text-slate-700 font-medium">
+                                บันทึกครั้งแรก
+                              </span>
+                            )}
+                            {log.action === 'update' && !isLatest && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-medium">
+                                แก้ไข
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-slate-500 text-[11px] font-mono">
+                            {formatDateTime(log.created_at)}
+                          </span>
+                        </div>
+                        <div className="text-xs sm:text-sm text-slate-700 bg-white p-3 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed shadow-2xs">
+                          {log.comment}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsHistoryLogsModalOpen(false)}
+              className="rounded-xl text-xs"
+            >
+              ปิด
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

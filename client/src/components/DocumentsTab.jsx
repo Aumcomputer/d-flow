@@ -27,7 +27,9 @@ import {
   MessageSquare,
   Hotel,
   Clock,
-  HeartHandshake
+  HeartHandshake,
+  History,
+  RefreshCw
 } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import api from '../services/api'
@@ -152,6 +154,26 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
   const [isCancelSocialWorkModalOpen, setIsCancelSocialWorkModalOpen] = useState(false)
   const [cancelSocialWorkReason, setCancelSocialWorkReason] = useState('')
   const [submittingCancelSocialWork, setSubmittingCancelSocialWork] = useState(false)
+
+  // Social work comment revision history modal state
+  const [isSocialWorkLogsModalOpen, setIsSocialWorkLogsModalOpen] = useState(false)
+  const [socialWorkLogs, setSocialWorkLogs] = useState([])
+  const [loadingSocialWorkLogs, setLoadingSocialWorkLogs] = useState(false)
+
+  const handleOpenSocialWorkLogs = async (reqId) => {
+    if (!reqId) return
+    setIsSocialWorkLogsModalOpen(true)
+    setLoadingSocialWorkLogs(true)
+    setSocialWorkLogs([])
+    try {
+      const res = await api.get(`/social-work/requests/${reqId}/comment-logs`)
+      setSocialWorkLogs(res.data?.logs || [])
+    } catch (err) {
+      console.error('Failed to load social work logs:', err)
+    } finally {
+      setLoadingSocialWorkLogs(false)
+    }
+  }
 
   const fetchDocuments = useCallback(async () => {
     if (!patient?.an) return
@@ -1572,11 +1594,26 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
 
                     {socialWorkRequest.status === 'answered' && (
                       <div className="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSocialWorkLogs(socialWorkRequest.id)}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                            title="คลิกเพื่อดูประวัติการแก้ไขความคิดเห็น"
+                          >
+                            <History className="w-3 h-3 text-amber-600" />
+                            <span>
+                              {socialWorkRequest.edit_count > 0 
+                                ? `แก้ไขแล้ว (${socialWorkRequest.edit_count} ครั้ง)` 
+                                : 'ดูประวัติ'}
+                            </span>
+                          </button>
                         </div>
-                        <div className="text-slate-800 text-sm bg-white p-2 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed">
+                        <div className="text-slate-800 text-sm bg-white p-2.5 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed shadow-2xs">
                           {socialWorkRequest.social_worker_comment}
                         </div>
                         <div className="border-t border-emerald-100 pt-1.5 space-y-1 text-xs text-slate-600">
@@ -1592,6 +1629,12 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                               {formatDateTime(socialWorkRequest.social_worker_at)}
                             </span>
                           </div>
+                          {socialWorkRequest.last_edited_at && (
+                            <div className="flex justify-between items-center gap-2 text-[11px] text-amber-700 pt-0.5 border-t border-emerald-100/50">
+                              <span className="shrink-0">แก้ไขล่าสุด:</span>
+                              <span className="truncate">{socialWorkRequest.last_edited_by_name || socialWorkRequest.last_edited_by} ({formatDateTime(socialWorkRequest.last_edited_at)})</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -2254,6 +2297,89 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
               className="rounded-xl bg-rose-600 hover:bg-rose-700"
             >
               {submittingCancelSocialWork ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Social Work Comment History Modal */}
+      <Dialog open={isSocialWorkLogsModalOpen} onOpenChange={setIsSocialWorkLogsModalOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-bold text-slate-900">
+              <History className="w-5 h-5 text-amber-600" />
+              <span>ประวัติการแก้ไขความคิดเห็นของนักสังคมสงเคราะห์</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-2 space-y-4">
+            {loadingSocialWorkLogs ? (
+              <div className="py-10 text-center text-slate-400 text-sm flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-slate-500" />
+                <span>กำลังโหลดประวัติการแก้ไข...</span>
+              </div>
+            ) : socialWorkLogs.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-sm">
+                ยังไม่มีประวัติการแก้ไข
+              </div>
+            ) : (
+              <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                {socialWorkLogs.map((log, idx) => {
+                  const isLatest = idx === 0;
+                  return (
+                    <div key={log.id} className="relative space-y-1.5">
+                      <div className={`absolute -left-6 top-1 w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
+                        isLatest 
+                          ? 'bg-amber-500 border-amber-200 text-white shadow-xs' 
+                          : 'bg-slate-100 border-slate-300 text-slate-500'
+                      }`}>
+                        {socialWorkLogs.length - idx}
+                      </div>
+                      <div className={`p-3.5 rounded-xl border space-y-2 ${
+                        isLatest ? 'bg-amber-50/40 border-amber-200/80' : 'bg-slate-50/80 border-slate-200'
+                      }`}>
+                        <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                            <span>{log.created_by_name || log.created_by}</span>
+                            {isLatest && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-medium">
+                                เวอร์ชันปัจจุบัน
+                              </span>
+                            )}
+                            {log.action === 'create' && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-200 text-slate-700 font-medium">
+                                บันทึกครั้งแรก
+                              </span>
+                            )}
+                            {log.action === 'update' && !isLatest && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-medium">
+                                แก้ไข
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-slate-500 text-[11px] font-mono">
+                            {formatDateTime(log.created_at)}
+                          </span>
+                        </div>
+                        <div className="text-xs sm:text-sm text-slate-700 bg-white p-3 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed shadow-2xs">
+                          {log.comment}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsSocialWorkLogsModalOpen(false)}
+              className="rounded-xl text-xs"
+            >
+              ปิด
             </Button>
           </DialogFooter>
         </DialogContent>
