@@ -8,13 +8,11 @@ import {
   Clock, 
   AlertCircle, 
   User, 
-  Building2, 
   ShieldCheck, 
   Calendar, 
   MessageSquare, 
   Check, 
   ChevronRight,
-  Eye,
   FileText,
   RotateCcw,
   History,
@@ -356,8 +354,7 @@ export default function SocialWorkPage() {
                       </td>
 
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 text-xs font-semibold border border-teal-200">
-                          <Building2 className="w-3 h-3 shrink-0" />
+                        <span className="text-sm text-slate-800">
                           {req.ward_name || '-'}
                         </span>
                       </td>
@@ -367,12 +364,14 @@ export default function SocialWorkPage() {
                       </td>
 
                       <td className="py-4 px-4">
-                        <div className="font-medium text-slate-900 text-sm">
-                          {req.reason_name}
+                        <div className="text-sm text-slate-800 leading-relaxed">
+                          {req.reason_name === 'อื่นๆระบุ' || req.reason_name?.startsWith('อื่นๆ')
+                            ? (req.reason_other || req.reason_name)
+                            : req.reason_name}
                         </div>
-                        {req.reason_other && (
-                          <div className="text-xs text-slate-500 mt-0.5 bg-rose-50/60 p-1 rounded border border-rose-100">
-                            ระบุ: {req.reason_other}
+                        {req.reason_other && !(req.reason_name === 'อื่นๆระบุ' || req.reason_name?.startsWith('อื่นๆ')) && (
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {req.reason_other}
                           </div>
                         )}
                       </td>
@@ -417,13 +416,12 @@ export default function SocialWorkPage() {
                   <th className="py-4 px-4">สาเหตุที่ส่งปรึกษา</th>
                   <th className="py-4 px-4">ความคิดเห็นของนักสังคมสงเคราะห์</th>
                   <th className="py-4 px-4 whitespace-nowrap">ผู้ตอบ</th>
-                  <th className="py-4 px-4 text-center whitespace-nowrap">การจัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading && historyRequests.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="py-12 text-center text-slate-400">
+                    <td colSpan="8" className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <RefreshCw className="w-6 h-6 animate-spin text-rose-500" />
                         <span>กำลังโหลดข้อมูล...</span>
@@ -432,7 +430,7 @@ export default function SocialWorkPage() {
                   </tr>
                 ) : filteredHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="py-12 text-center text-slate-400">
+                    <td colSpan="8" className="py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <FileText className="w-8 h-8 text-slate-300" />
                         <span className="font-semibold text-slate-600">ยังไม่มีประวัติรายการที่ตอบแล้ว</span>
@@ -467,24 +465,26 @@ export default function SocialWorkPage() {
                       </td>
 
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 text-xs font-semibold border border-teal-200">
+                        <span className="text-sm text-slate-800">
                           {req.ward_name || '-'}
                         </span>
                       </td>
 
                       <td className="py-4 px-4">
-                        <div className="font-medium text-slate-900 text-sm">
-                          {req.reason_name}
+                        <div className="text-sm text-slate-800 leading-relaxed">
+                          {req.reason_name === 'อื่นๆระบุ' || req.reason_name?.startsWith('อื่นๆ')
+                            ? (req.reason_other || req.reason_name)
+                            : req.reason_name}
                         </div>
-                        {req.reason_other && (
+                        {req.reason_other && !(req.reason_name === 'อื่นๆระบุ' || req.reason_name?.startsWith('อื่นๆ')) && (
                           <div className="text-xs text-slate-500 mt-0.5">
-                            ระบุ: {req.reason_other}
+                            {req.reason_other}
                           </div>
                         )}
                       </td>
 
-                      <td className="py-4 px-4 max-w-sm">
-                        <div className="text-xs text-slate-700 bg-emerald-50/50 p-2 rounded-xl border border-emerald-100 line-clamp-3 leading-relaxed">
+                      <td className="py-4 px-4">
+                        <div className="text-sm text-slate-700 line-clamp-3 leading-relaxed">
                           {req.social_worker_comment}
                         </div>
                         {req.edit_count > 0 && (
@@ -509,30 +509,6 @@ export default function SocialWorkPage() {
                             แก้ล่าสุด: {formatDateTime(req.last_edited_at)}
                           </span>
                         )}
-                      </td>
-
-                      <td className="py-4 px-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => handleOpenAnswerModal(req, e)}
-                            className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50 gap-1 text-xs"
-                            title="แก้ไขความคิดเห็น"
-                          >
-                            <Pencil className="w-3.5 h-3.5 text-amber-600" />
-                            <span>แก้ไข</span>
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => handleOpenDetailModal(req, e)}
-                            className="rounded-xl border-slate-200 text-slate-600 hover:text-slate-900 gap-1 text-xs"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>ดูรายละเอียด</span>
-                          </Button>
-                        </div>
                       </td>
                     </tr>
                   ))
@@ -582,9 +558,11 @@ export default function SocialWorkPage() {
                 <div>
                   <span className="text-xs text-muted-foreground font-semibold block mb-0.5">สาเหตุที่ส่งปรึกษา</span>
                   <div className="font-semibold text-rose-950 text-base">
-                    {selectedRequest.reason_name}
+                    {selectedRequest.reason_name === 'อื่นๆระบุ' || selectedRequest.reason_name?.startsWith('อื่นๆ')
+                      ? (selectedRequest.reason_other || selectedRequest.reason_name)
+                      : selectedRequest.reason_name}
                   </div>
-                  {selectedRequest.reason_other && (
+                  {selectedRequest.reason_other && !(selectedRequest.reason_name === 'อื่นๆระบุ' || selectedRequest.reason_name?.startsWith('อื่นๆ')) && (
                     <div className="text-xs text-slate-700 bg-white p-2 rounded-lg border border-rose-100 mt-1">
                       ระบุเพิ่มเติม: {selectedRequest.reason_other}
                     </div>
@@ -716,9 +694,11 @@ export default function SocialWorkPage() {
                 <div>
                   <span className="text-xs text-muted-foreground font-semibold block mb-0.5">สาเหตุที่ส่งปรึกษา</span>
                   <div className="font-semibold text-rose-950 text-base">
-                    {viewingRequest.reason_name}
+                    {viewingRequest.reason_name === 'อื่นๆระบุ' || viewingRequest.reason_name?.startsWith('อื่นๆ')
+                      ? (viewingRequest.reason_other || viewingRequest.reason_name)
+                      : viewingRequest.reason_name}
                   </div>
-                  {viewingRequest.reason_other && (
+                  {viewingRequest.reason_other && !(viewingRequest.reason_name === 'อื่นๆระบุ' || viewingRequest.reason_name?.startsWith('อื่นๆ')) && (
                     <div className="text-xs text-slate-700 bg-white p-2 rounded-lg border border-rose-100 mt-1">
                       ระบุเพิ่มเติม: {viewingRequest.reason_other}
                     </div>

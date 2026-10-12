@@ -1558,12 +1558,18 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                       <div>
                         <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
                         <div className="text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm leading-relaxed font-normal">
-                          {socialWorkRequest.reason_name}
-                          {socialWorkRequest.reason_other ? (
-                            <span className="block text-slate-600 text-sm mt-1 bg-white p-1.5 rounded border border-slate-200 font-normal">
-                              ระบุ: {socialWorkRequest.reason_other}
-                            </span>
-                          ) : null}
+                          {socialWorkRequest.reason_name === 'อื่นๆระบุ' || socialWorkRequest.reason_name?.startsWith('อื่นๆ')
+                            ? (socialWorkRequest.reason_other || socialWorkRequest.reason_name)
+                            : (
+                              <>
+                                {socialWorkRequest.reason_name}
+                                {socialWorkRequest.reason_other ? (
+                                  <span className="block text-slate-600 text-sm mt-1 bg-white p-1.5 rounded border border-slate-200 font-normal">
+                                    {socialWorkRequest.reason_other}
+                                  </span>
+                                ) : null}
+                              </>
+                            )}
                         </div>
                       </div>
 
