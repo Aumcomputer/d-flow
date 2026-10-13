@@ -256,6 +256,30 @@ router.get('/all-patients', authMiddleware, async (req, res) => {
         const vns = hisPatients.map(p => p.vn).filter(Boolean);
         const placeholders = ans.map(() => '?').join(',');
 
+        const { mapNhsoToHosPttype } = require('../services/nhsoMapping');
+
+        // Fetch pttype master for mapping code to name
+        let pttypeRows = [];
+        const pttypeCacheKey = 'cache:master:pttypes';
+        if (redis) {
+            try {
+                const cached = await redis.get(pttypeCacheKey);
+                if (cached) pttypeRows = JSON.parse(cached);
+            } catch (e) {}
+        }
+        if (pttypeRows.length === 0) {
+            const tempHisConn = hisConn || await getHisConnection();
+            try {
+                pttypeRows = await tempHisConn.query("SELECT pttype, name FROM pttype WHERE isuse = 'Y' ORDER BY name ASC");
+                if (redis && pttypeRows.length > 0) {
+                    try { await redis.setEx(pttypeCacheKey, 86400, JSON.stringify(pttypeRows)); } catch (e) {}
+                }
+            } finally {
+                if (!hisConn && tempHisConn) tempHisConn.release();
+            }
+        }
+        const pttypeMap = new Map((pttypeRows || []).map(r => [r.pttype, r.name]));
+
         const [dflowRows, nhsoRows] = await Promise.all([
             dflowConn.query(
                 `SELECT an, chk_right, discharge_date FROM an_detail WHERE an IN (${placeholders})`,
@@ -263,7 +287,9 @@ router.get('/all-patients', authMiddleware, async (req, res) => {
             ),
             vns.length > 0
                 ? dflowConn.query(
-                    `SELECT vn, subinscl_name, maininscl_name, claim_code, source_channel, right_check_date
+                    `SELECT vn, subinscl_name, maininscl_name, maininscl_id, subinscl_id,
+                            hospmain_code, hospmain_name, hospmain_op_code, hospmain_op_name,
+                            hospsub_code, hospsub_name, claim_code, source_channel, right_check_date
                      FROM vn_nhso_authen
                      WHERE vn IN (${vns.map(() => '?').join(',')})`,
                     vns
@@ -286,11 +312,32 @@ router.get('/all-patients', authMiddleware, async (req, res) => {
             const nhso = p.vn ? nhsoMap.get(p.vn) : null;
             const is_checked = Boolean(detail && ((detail.chk_right && detail.chk_right.trim() !== '') || detail.discharge_date !== null));
 
+            let mapped_pttype_code = null;
+            let mapped_pttype_name = null;
+            let is_rights_match = null;
+
+            if (nhso && nhso.right_check_date) {
+                const targetHospmain = nhso.hospmain_op_code || nhso.hospmain_code || '';
+                const targetHospsub = nhso.hospsub_code || '';
+                mapped_pttype_code = mapNhsoToHosPttype(
+                    nhso.maininscl_id,
+                    nhso.subinscl_id,
+                    targetHospmain,
+                    targetHospsub,
+                    p.pttype_code
+                );
+                mapped_pttype_name = pttypeMap.get(mapped_pttype_code) || nhso.subinscl_name || nhso.maininscl_name || null;
+                is_rights_match = p.pttype_code ? (String(p.pttype_code).trim() === String(mapped_pttype_code).trim()) : null;
+            }
+
             const item = {
                 ...p,
                 chk_right: detail?.chk_right || null,
                 is_checked_right: is_checked,
                 api_pttype_name: nhso?.subinscl_name || nhso?.maininscl_name || null,
+                mapped_pttype_code,
+                mapped_pttype_name,
+                is_rights_match,
                 authen_code: nhso?.claim_code || p.his_authen_code || null,
                 right_check_date: nhso?.right_check_date || null
             };

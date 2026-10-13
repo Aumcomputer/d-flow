@@ -233,6 +233,7 @@ export default function PttypePage() {
         (p.hn && p.hn.toLowerCase().includes(q)) ||
         (p.fname && p.fname.toLowerCase().includes(q)) ||
         (p.lname && p.lname.toLowerCase().includes(q)) ||
+        (p.pttype_code && String(p.pttype_code).toLowerCase().includes(q)) ||
         (p.pttype_name && p.pttype_name.toLowerCase().includes(q)) ||
         (p.doctor_name && p.doctor_name.toLowerCase().includes(q)) ||
         (p.bedno && String(p.bedno).toLowerCase().includes(q))
@@ -344,7 +345,10 @@ export default function PttypePage() {
         (p.hn && p.hn.toLowerCase().includes(q)) ||
         (p.fname && p.fname.toLowerCase().includes(q)) ||
         (p.lname && p.lname.toLowerCase().includes(q)) ||
+        (p.pttype_code && String(p.pttype_code).toLowerCase().includes(q)) ||
         (p.pttype_name && p.pttype_name.toLowerCase().includes(q)) ||
+        (p.mapped_pttype_code && String(p.mapped_pttype_code).toLowerCase().includes(q)) ||
+        (p.mapped_pttype_name && p.mapped_pttype_name.toLowerCase().includes(q)) ||
         (p.api_pttype_name && p.api_pttype_name.toLowerCase().includes(q)) ||
         (p.authen_code && p.authen_code.toLowerCase().includes(q)) ||
         (p.ward_name && p.ward_name.toLowerCase().includes(q))
@@ -381,6 +385,24 @@ export default function PttypePage() {
           return sortConfigAll.direction === 'asc'
             ? aStr.localeCompare(bStr, undefined, { numeric: true })
             : bStr.localeCompare(aStr, undefined, { numeric: true })
+        }
+
+        // pttype_name sorting (include code)
+        if (sortConfigAll.key === 'pttype_name') {
+          const aValPt = `${a.pttype_code || ''} ${a.pttype_name || ''}`.trim()
+          const bValPt = `${b.pttype_code || ''} ${b.pttype_name || ''}`.trim()
+          return sortConfigAll.direction === 'asc'
+            ? aValPt.localeCompare(bValPt, 'th')
+            : bValPt.localeCompare(aValPt, 'th')
+        }
+
+        // api_pttype_name / mapped rights sorting
+        if (sortConfigAll.key === 'api_pttype_name' || sortConfigAll.key === 'mapped_pttype_name') {
+          const aValMapped = `${a.mapped_pttype_code || ''} ${a.mapped_pttype_name || a.api_pttype_name || ''}`.trim()
+          const bValMapped = `${b.mapped_pttype_code || ''} ${b.mapped_pttype_name || b.api_pttype_name || ''}`.trim()
+          return sortConfigAll.direction === 'asc'
+            ? aValMapped.localeCompare(bValMapped, 'th')
+            : bValMapped.localeCompare(aValMapped, 'th')
         }
 
         // is_checked_right boolean sorting
@@ -706,9 +728,16 @@ export default function PttypePage() {
 
                       {/* สิทธิ์การรักษา */}
                       <td className="px-4 py-3.5">
-                        <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60 line-clamp-1" title={p.pttype_name}>
-                          {p.pttype_name || '-'}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {p.pttype_code && (
+                            <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+                              {p.pttype_code}
+                            </span>
+                          )}
+                          <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60 line-clamp-1" title={p.pttype_name}>
+                            {p.pttype_name || '-'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* วันที่ Admit */}
@@ -902,14 +931,51 @@ export default function PttypePage() {
 
                       {/* สิทธิ์การรักษา */}
                       <td className="px-4 py-3.5">
-                        <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60 line-clamp-1" title={p.pttype_name}>
-                          {p.pttype_name || '-'}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {p.pttype_code && (
+                            <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+                              {p.pttype_code}
+                            </span>
+                          )}
+                          <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60 line-clamp-1" title={p.pttype_name}>
+                            {p.pttype_name || '-'}
+                          </span>
+                        </div>
                       </td>
 
                       {/* สิทธิ์ (API Check) */}
                       <td className="px-4 py-3.5">
-                        {p.api_pttype_name ? (
+                        {p.mapped_pttype_code ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`font-mono font-bold text-xs px-2 py-0.5 rounded border shrink-0 ${
+                                  p.is_rights_match
+                                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                    : 'bg-rose-100 text-rose-900 border-rose-300'
+                                }`}
+                                title={p.is_rights_match ? 'สิทธิ์ตรงกับ HIS' : `สิทธิ์ไม่ตรงกับ HIS (${p.pttype_code || '-'} ≠ ${p.mapped_pttype_code})`}
+                              >
+                                {p.mapped_pttype_code}
+                              </span>
+                              <span
+                                className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium border line-clamp-1 ${
+                                  p.is_rights_match
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200/60'
+                                    : 'bg-rose-50 text-rose-800 border-rose-200/60'
+                                }`}
+                                title={p.mapped_pttype_name}
+                              >
+                                {p.mapped_pttype_name}
+                              </span>
+                            </div>
+                            {p.api_pttype_name && p.api_pttype_name !== p.mapped_pttype_name && (
+                              <div className="text-[11px] text-muted-foreground truncate max-w-[220px]" title={p.api_pttype_name}>
+                                สปสช: {p.api_pttype_name}
+                              </div>
+                            )}
+                          </div>
+                        ) : p.api_pttype_name ? (
                           <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-50 text-sky-800 border border-sky-200/60 line-clamp-1" title={p.api_pttype_name}>
                             {p.api_pttype_name}
                           </span>
