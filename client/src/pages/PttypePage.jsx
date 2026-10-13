@@ -734,7 +734,7 @@ export default function PttypePage() {
                               {p.pttype_code}
                             </span>
                           )}
-                          <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60 line-clamp-1" title={p.pttype_name}>
+                          <span className="text-xs font-medium text-slate-800 line-clamp-1" title={p.pttype_name}>
                             {p.pttype_name || '-'}
                           </span>
                         </div>
@@ -937,7 +937,7 @@ export default function PttypePage() {
                               {p.pttype_code}
                             </span>
                           )}
-                          <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60 line-clamp-1" title={p.pttype_name}>
+                          <span className="text-xs font-medium text-slate-800 line-clamp-1" title={p.pttype_name}>
                             {p.pttype_name || '-'}
                           </span>
                         </div>
@@ -946,37 +946,26 @@ export default function PttypePage() {
                       {/* สิทธิ์ (API Check) */}
                       <td className="px-4 py-3.5">
                         {p.mapped_pttype_code ? (
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span
-                                className={`font-mono font-bold text-xs px-2 py-0.5 rounded border shrink-0 ${
-                                  p.is_rights_match
-                                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                                    : 'bg-rose-100 text-rose-900 border-rose-300'
-                                }`}
-                                title={p.is_rights_match ? 'สิทธิ์ตรงกับ HIS' : `สิทธิ์ไม่ตรงกับ HIS (${p.pttype_code || '-'} ≠ ${p.mapped_pttype_code})`}
-                              >
-                                {p.mapped_pttype_code}
-                              </span>
-                              <span
-                                className={`inline-block px-2.5 py-1 rounded-lg text-xs font-medium border line-clamp-1 ${
-                                  p.is_rights_match
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200/60'
-                                    : 'bg-rose-50 text-rose-800 border-rose-200/60'
-                                }`}
-                                title={p.mapped_pttype_name}
-                              >
-                                {p.mapped_pttype_name}
-                              </span>
-                            </div>
-                            {p.api_pttype_name && p.api_pttype_name !== p.mapped_pttype_name && (
-                              <div className="text-[11px] text-muted-foreground truncate max-w-[220px]" title={p.api_pttype_name}>
-                                สปสช: {p.api_pttype_name}
-                              </div>
-                            )}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`font-mono font-bold text-xs px-2 py-0.5 rounded border shrink-0 ${
+                                p.is_rights_match
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                  : 'bg-rose-100 text-rose-900 border-rose-300'
+                              }`}
+                              title={p.is_rights_match ? 'สิทธิ์ตรงกับ HIS' : `สิทธิ์ไม่ตรงกับ HIS (${p.pttype_code || '-'} ≠ ${p.mapped_pttype_code})`}
+                            >
+                              {p.mapped_pttype_code}
+                            </span>
+                            <span
+                              className="text-xs font-medium text-slate-800 line-clamp-1"
+                              title={p.mapped_pttype_name}
+                            >
+                              {p.mapped_pttype_name}
+                            </span>
                           </div>
                         ) : p.api_pttype_name ? (
-                          <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-50 text-sky-800 border border-sky-200/60 line-clamp-1" title={p.api_pttype_name}>
+                          <span className="text-xs font-medium text-slate-800 line-clamp-1" title={p.api_pttype_name}>
                             {p.api_pttype_name}
                           </span>
                         ) : (
