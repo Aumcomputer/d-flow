@@ -124,10 +124,11 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
       }
 
       // 3. Status Filter
+      const isChecked = Boolean(p.nhso?.has_checked && p.nhso?.right_check_date);
       if (statusFilter === 'unchecked') {
-        if (p.nhso?.has_checked) return false;
+        if (isChecked) return false;
       } else if (statusFilter === 'checked') {
-        if (!p.nhso?.has_checked) return false;
+        if (!isChecked) return false;
       } else if (statusFilter === 'has_authen') {
         if (!p.nhso?.claim_code) return false;
       } else if (statusFilter === 'no_authen') {
@@ -140,7 +141,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
 
   // Unchecked patients in filtered list (เฉพาะรายที่ยังไม่เคยกดเช็ค สปสช.)
   const uncheckedPatientsInFilter = useMemo(() => {
-    return filteredPatients.filter(p => !p.nhso?.has_checked && !p.nhso?.right_check_date);
+    return filteredPatients.filter(p => !p.nhso?.has_checked || !p.nhso?.right_check_date);
   }, [filteredPatients]);
 
   // Paginated items
@@ -678,7 +679,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
                 </tr>
               ) : (
                 paginatedPatients.map((p) => {
-                  const isCheckedWithNhso = Boolean(p.nhso?.has_checked || p.nhso?.right_check_date);
+                  const isCheckedWithNhso = Boolean(p.nhso?.has_checked && p.nhso?.right_check_date);
                   const isCheckingThis = checkingVns.has(p.vn);
                   const isSelected = selectedAnList.has(p.an);
 

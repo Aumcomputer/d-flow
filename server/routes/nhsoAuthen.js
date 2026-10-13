@@ -280,7 +280,7 @@ router.get('/inpatients', async (req, res) => {
 
                 // NHSO API result
                 nhso: nhso ? {
-                    has_checked: true,
+                    has_checked: hasChecked,
                     right_check_date: nhso.right_check_date,
                     maininscl_id: nhso.maininscl_id || '',
                     maininscl_name: nhso.maininscl_name || '',
