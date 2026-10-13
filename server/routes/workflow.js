@@ -659,6 +659,8 @@ router.post(['/pharmacy/dispense-by-barcode', '/pharmacy/dispense-by-hn'], authM
 
         const cleanInput = String(rawInput).replace(/^(hn|an):?\s*/i, '').trim();
         const strippedInput = cleanInput.replace(/^0+/, '');
+        const hnCandidates = [...new Set([cleanInput, strippedInput, strippedInput.padStart(7, '0'), strippedInput.padStart(9, '0')])].filter(Boolean);
+        const anCandidates = [...new Set([cleanInput, strippedInput, strippedInput.padStart(9, '0')])].filter(Boolean);
 
         dflowConn = await getDflowConnection();
         hisConn = await getHisConnection();
@@ -682,20 +684,16 @@ router.post(['/pharmacy/dispense-by-barcode', '/pharmacy/dispense-by-hn'], authM
                 LEFT JOIN ward w ON i.ward = w.ward
                 WHERE i.an IN (${placeholders})
                   AND (
-                    i.hn = ? 
-                    OR TRIM(LEADING '0' FROM i.hn) = ?
-                    OR i.an = ?
-                    OR TRIM(LEADING '0' FROM i.an) = ?
+                    i.hn IN (${hnCandidates.map(() => '?').join(',')})
+                    OR i.an IN (${anCandidates.map(() => '?').join(',')})
                   )
                 LIMIT 1
             `;
 
             const matched = await hisConn.query(matchQuery, [
                 ...ans,
-                cleanInput,
-                strippedInput,
-                cleanInput,
-                strippedInput
+                ...hnCandidates,
+                ...anCandidates
             ]);
 
             if (matched.length > 0) {
@@ -746,10 +744,13 @@ router.post(['/pharmacy/dispense-by-barcode', '/pharmacy/dispense-by-hn'], authM
              FROM ipt i
              JOIN patient p ON i.hn = p.hn
              LEFT JOIN ward w ON i.ward = w.ward
-             WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ? OR i.an = ? OR TRIM(LEADING '0' FROM i.an) = ?)
+             WHERE (
+                i.hn IN (${hnCandidates.map(() => '?').join(',')})
+                OR i.an IN (${anCandidates.map(() => '?').join(',')})
+             )
              ORDER BY i.an DESC
              LIMIT 1`,
-            [cleanInput, strippedInput, cleanInput, strippedInput]
+            [...hnCandidates, ...anCandidates]
         );
 
         if (hisCheck.length > 0) {
@@ -900,6 +901,9 @@ router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) =
             return res.status(400).json({ error: 'รหัสต้องเป็นตัวเลข 7 หรือ 9 หลักเท่านั้น (HN 7 หลัก หรือ AN 9 หลัก)' });
         }
 
+        const anCandidates = [...new Set([clean, stripped, stripped.padStart(9, '0')])].filter(Boolean);
+        const hnCandidates = [...new Set([clean, stripped, stripped.padStart(7, '0'), stripped.padStart(9, '0')])].filter(Boolean);
+
         hisConn = await getHisConnection();
         let patient = null;
 
@@ -937,13 +941,13 @@ router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) =
             // ค้นหาด้วย HN (7 หลัก) -> แสดงเฉพาะเคสที่ยัง Admit อยู่เท่านั้น
             const hnQuery = `
                 ${baseSelect}
-                WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?)
+                WHERE i.hn IN (${hnCandidates.map(() => '?').join(',')})
                   AND i.dchdate IS NULL
                   AND i.dchstts IS NULL
                 ORDER BY i.regdate DESC, i.regtime DESC
                 LIMIT 1
             `;
-            const hnRows = await hisConn.query(hnQuery, [clean, stripped]);
+            const hnRows = await hisConn.query(hnQuery, hnCandidates);
             if (hnRows.length > 0) {
                 patient = hnRows[0];
             } else {
@@ -952,9 +956,9 @@ router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) =
                     `SELECT i.an, i.hn, i.dchdate, p.pname, p.fname, p.lname 
                      FROM ipt i 
                      JOIN patient p ON i.hn = p.hn 
-                     WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?) 
+                     WHERE i.hn IN (${hnCandidates.map(() => '?').join(',')}) 
                      ORDER BY i.regdate DESC, i.regtime DESC LIMIT 1`,
-                    [clean, stripped]
+                    hnCandidates
                 );
                 if (pastRows.length > 0) {
                     const past = pastRows[0];
@@ -963,8 +967,8 @@ router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) =
                     });
                 }
                 const ptCheck = await hisConn.query(
-                    `SELECT hn, pname, fname, lname FROM patient WHERE (hn = ? OR TRIM(LEADING '0' FROM hn) = ?) LIMIT 1`,
-                    [clean, stripped]
+                    `SELECT hn, pname, fname, lname FROM patient WHERE hn IN (${hnCandidates.map(() => '?').join(',')}) LIMIT 1`,
+                    hnCandidates
                 );
                 if (ptCheck.length > 0) {
                     const pt = ptCheck[0];
@@ -978,24 +982,24 @@ router.get('/pharmacy/patient-for-check/:an', authMiddleware, async (req, res) =
             // clean.length === 9 -> ลองค้นหาด้วย AN ก่อน
             const anQuery = `
                 ${baseSelect}
-                WHERE i.an = ? OR i.an = ?
+                WHERE i.an IN (${anCandidates.map(() => '?').join(',')})
                 ORDER BY i.an DESC
                 LIMIT 1
             `;
-            const anRows = await hisConn.query(anQuery, [clean, stripped]);
+            const anRows = await hisConn.query(anQuery, anCandidates);
             if (anRows.length > 0) {
                 patient = anRows[0];
             } else {
                 // หากไม่พบด้วย AN ให้ลองค้นหาด้วย HN (กรณีเป็น HN 9 หลัก) ที่ยัง Admit อยู่
                 const hn9Query = `
                     ${baseSelect}
-                    WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?)
+                    WHERE i.hn IN (${hnCandidates.map(() => '?').join(',')})
                       AND i.dchdate IS NULL
                       AND i.dchstts IS NULL
                     ORDER BY i.regdate DESC, i.regtime DESC
                     LIMIT 1
                 `;
-                const hn9Rows = await hisConn.query(hn9Query, [clean, stripped]);
+                const hn9Rows = await hisConn.query(hn9Query, hnCandidates);
                 if (hn9Rows.length > 0) {
                     patient = hn9Rows[0];
                 } else {

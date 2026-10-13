@@ -31,14 +31,17 @@ router.get('/admitted/lookup', authMiddleware, async (req, res) => {
 
         conn = await getHisConnection();
 
+        const anCandidates = [...new Set([clean, stripped, stripped.padStart(9, '0')])].filter(Boolean);
+        const hnCandidates = [...new Set([clean, stripped, stripped.padStart(7, '0'), stripped.padStart(9, '0')])].filter(Boolean);
+
         // 1. ตรวจสอบว่าตรงกับหมายเลข AN หรือไม่ (ค้นหาด้วย AN อนุญาตทั้งเคสที่ Admit อยู่ และเคสที่ Discharge แล้ว)
         const anSql = `
             SELECT i.an, i.hn, i.regdate, i.dchdate, i.dchstts
             FROM ipt i
-            WHERE i.an = ? OR TRIM(LEADING '0' FROM i.an) = ?
+            WHERE i.an IN (${anCandidates.map(() => '?').join(',')})
             LIMIT 1
         `;
-        const anRows = await conn.query(anSql, [clean, stripped]);
+        const anRows = await conn.query(anSql, anCandidates);
         if (anRows.length > 0) {
             const row = anRows[0];
             const isAdmitted = !row.dchdate && !row.dchstts;
@@ -55,13 +58,13 @@ router.get('/admitted/lookup', authMiddleware, async (req, res) => {
         const hnAdmittedSql = `
             SELECT i.an, i.hn, i.regdate, i.dchdate, i.dchstts
             FROM ipt i
-            WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?)
+            WHERE i.hn IN (${hnCandidates.map(() => '?').join(',')})
               AND i.dchdate IS NULL
               AND i.dchstts IS NULL
             ORDER BY i.regdate DESC, i.regtime DESC
             LIMIT 1
         `;
-        const hnAdmittedRows = await conn.query(hnAdmittedSql, [clean, stripped]);
+        const hnAdmittedRows = await conn.query(hnAdmittedSql, hnCandidates);
         if (hnAdmittedRows.length > 0) {
             const row = hnAdmittedRows[0];
             return res.json({ 
@@ -79,11 +82,11 @@ router.get('/admitted/lookup', authMiddleware, async (req, res) => {
                    p.pname, p.fname, p.lname
             FROM ipt i
             JOIN patient p ON i.hn = p.hn
-            WHERE (i.hn = ? OR TRIM(LEADING '0' FROM i.hn) = ?)
+            WHERE i.hn IN (${hnCandidates.map(() => '?').join(',')})
             ORDER BY i.regdate DESC, i.regtime DESC
             LIMIT 1
         `;
-        const hnPastRows = await conn.query(hnPastSql, [clean, stripped]);
+        const hnPastRows = await conn.query(hnPastSql, hnCandidates);
         if (hnPastRows.length > 0) {
             const p = hnPastRows[0];
             return res.status(400).json({
@@ -98,10 +101,10 @@ router.get('/admitted/lookup', authMiddleware, async (req, res) => {
         const patientSql = `
             SELECT hn, pname, fname, lname
             FROM patient
-            WHERE hn = ? OR TRIM(LEADING '0' FROM hn) = ?
+            WHERE hn IN (${hnCandidates.map(() => '?').join(',')})
             LIMIT 1
         `;
-        const pRows = await conn.query(patientSql, [clean, stripped]);
+        const pRows = await conn.query(patientSql, hnCandidates);
         if (pRows.length > 0) {
             const p = pRows[0];
             return res.status(400).json({
