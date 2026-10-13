@@ -8,6 +8,7 @@ import {
   Building2, 
   Calendar, 
   User, 
+  Users,
   Stethoscope, 
   FileText, 
   RefreshCw,
@@ -24,7 +25,7 @@ import api from '../services/api'
 import socket from '../services/socket'
 import { useSound } from '../contexts/SoundContext'
 
-const VALID_PTTYPE_TABS = ['approve', 'check']
+const VALID_PTTYPE_TABS = ['approve', 'check', 'all']
 
 export default function PttypePage() {
   const navigate = useNavigate()
@@ -49,6 +50,9 @@ export default function PttypePage() {
     if (active === 'check') {
       return localStorage.getItem('pttype_check_selectedWard') || 'all'
     }
+    if (active === 'all') {
+      return localStorage.getItem('pttype_all_selectedWard') || 'all'
+    }
     return 'all'
   })
 
@@ -56,6 +60,8 @@ export default function PttypePage() {
     setSelectedWard(ward)
     if (activeTab === 'check') {
       localStorage.setItem('pttype_check_selectedWard', ward)
+    } else if (activeTab === 'all') {
+      localStorage.setItem('pttype_all_selectedWard', ward)
     }
   }
 
@@ -69,6 +75,8 @@ export default function PttypePage() {
     }, { replace: true })
     if (tab === 'check') {
       setSelectedWard(localStorage.getItem('pttype_check_selectedWard') || 'all')
+    } else if (tab === 'all') {
+      setSelectedWard(localStorage.getItem('pttype_all_selectedWard') || 'all')
     } else {
       setSelectedWard('all')
     }
@@ -81,6 +89,8 @@ export default function PttypePage() {
       sessionStorage.setItem('pttype_activeTab', tabFromUrl)
       if (tabFromUrl === 'check') {
         setSelectedWard(localStorage.getItem('pttype_check_selectedWard') || 'all')
+      } else if (tabFromUrl === 'all') {
+        setSelectedWard(localStorage.getItem('pttype_all_selectedWard') || 'all')
       } else {
         setSelectedWard('all')
       }
@@ -96,6 +106,10 @@ export default function PttypePage() {
   const [historyConsults, setHistoryConsults] = useState([])
   const [loadingConsults, setLoadingConsults] = useState(false)
   const [approveSubTab, setApproveSubTab] = useState('pending') // 'pending' | 'history'
+
+  // Tab 3: All patients state
+  const [allPatients, setAllPatients] = useState([])
+  const [loadingAll, setLoadingAll] = useState(false)
 
   const fetchPatients = async () => {
     setLoading(true)
@@ -125,17 +139,32 @@ export default function PttypePage() {
     }
   }
 
+  const fetchAllPatients = async () => {
+    setLoadingAll(true)
+    try {
+      const res = await api.get('/pttype/all-patients')
+      setAllPatients(res.data.patients || [])
+    } catch (err) {
+      console.error('Fetch pttype all patients error:', err)
+    } finally {
+      setLoadingAll(false)
+    }
+  }
+
   useEffect(() => {
     fetchPatients()
     fetchConsults()
+    fetchAllPatients()
 
     const onWorkflowUpdate = () => {
       fetchPatients()
+      fetchAllPatients()
     }
 
     const onConsultUpdate = () => {
       fetchConsults()
       fetchPatients()
+      fetchAllPatients()
       playAlert()
     }
 
@@ -150,7 +179,9 @@ export default function PttypePage() {
 
   // Current list for ward calculation
   const currentConsultList = approveSubTab === 'pending' ? consults : historyConsults
-  const currentList = activeTab === 'check' ? patients : currentConsultList
+  const currentList = activeTab === 'check' 
+    ? patients 
+    : (activeTab === 'all' ? allPatients : currentConsultList)
 
   // Unique wards for filter dropdown (from current active list)
   const wards = useMemo(() => {
@@ -277,6 +308,100 @@ export default function PttypePage() {
     })
   }, [currentConsultList, selectedWard, searchQuery])
 
+  // Sorting state for Tab ผู้ป่วยทั้งหมด (default: วันที่ admit desc)
+  const [sortConfigAll, setSortConfigAll] = useState({ key: 'admit_date', direction: 'desc' })
+
+  const handleSortAll = (key) => {
+    let direction = 'asc'
+    if (sortConfigAll.key === key && sortConfigAll.direction === 'asc') {
+      direction = 'desc'
+    }
+    setSortConfigAll({ key, direction })
+  }
+
+  const renderSortIconAll = (key) => {
+    if (sortConfigAll.key !== key) {
+      return <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    }
+    return sortConfigAll.direction === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 text-sky-600 font-bold shrink-0" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 text-sky-600 font-bold shrink-0" />
+    )
+  }
+
+  // Filtered & Sorted patients for Tab ผู้ป่วยทั้งหมด
+  const filteredAllPatients = useMemo(() => {
+    const items = allPatients.filter(p => {
+      const matchesWard = selectedWard === 'all' || p.ward_name === selectedWard
+      if (!matchesWard) return false
+
+      const q = searchQuery.trim().toLowerCase()
+      if (!q) return true
+
+      return (
+        (p.an && p.an.toLowerCase().includes(q)) ||
+        (p.hn && p.hn.toLowerCase().includes(q)) ||
+        (p.fname && p.fname.toLowerCase().includes(q)) ||
+        (p.lname && p.lname.toLowerCase().includes(q)) ||
+        (p.pttype_name && p.pttype_name.toLowerCase().includes(q)) ||
+        (p.api_pttype_name && p.api_pttype_name.toLowerCase().includes(q)) ||
+        (p.authen_code && p.authen_code.toLowerCase().includes(q)) ||
+        (p.ward_name && p.ward_name.toLowerCase().includes(q))
+      )
+    })
+
+    if (sortConfigAll.key) {
+      items.sort((a, b) => {
+        let aVal = a[sortConfigAll.key]
+        let bVal = b[sortConfigAll.key]
+
+        // Date sorting (including admit_time if available)
+        if (sortConfigAll.key === 'admit_date') {
+          const aDateTimeStr = a.admit_date ? `${a.admit_date.substring(0, 10)}T${a.admit_time || '00:00:00'}` : ''
+          const bDateTimeStr = b.admit_date ? `${b.admit_date.substring(0, 10)}T${b.admit_time || '00:00:00'}` : ''
+          const aTime = aDateTimeStr ? new Date(aDateTimeStr).getTime() : 0
+          const bTime = bDateTimeStr ? new Date(bDateTimeStr).getTime() : 0
+          return sortConfigAll.direction === 'asc' ? aTime - bTime : bTime - aTime
+        }
+
+        // Full name sorting
+        if (sortConfigAll.key === 'name') {
+          const aName = `${a.fname || ''} ${a.lname || ''}`.trim()
+          const bName = `${b.fname || ''} ${b.lname || ''}`.trim()
+          return sortConfigAll.direction === 'asc'
+            ? aName.localeCompare(bName, 'th')
+            : bName.localeCompare(aName, 'th')
+        }
+
+        // AN / HN sorting with natural alphanumeric compare
+        if (sortConfigAll.key === 'an' || sortConfigAll.key === 'hn') {
+          const aStr = String(aVal || '')
+          const bStr = String(bVal || '')
+          return sortConfigAll.direction === 'asc'
+            ? aStr.localeCompare(bStr, undefined, { numeric: true })
+            : bStr.localeCompare(aStr, undefined, { numeric: true })
+        }
+
+        // is_checked_right boolean sorting
+        if (sortConfigAll.key === 'is_checked_right') {
+          const aNum = a.is_checked_right ? 1 : 0
+          const bNum = b.is_checked_right ? 1 : 0
+          return sortConfigAll.direction === 'asc' ? aNum - bNum : bNum - aNum
+        }
+
+        // Thai / String compare
+        const aStr = String(aVal || '')
+        const bStr = String(bVal || '')
+        return sortConfigAll.direction === 'asc'
+          ? aStr.localeCompare(bStr, 'th')
+          : bStr.localeCompare(aStr, 'th')
+      })
+    }
+
+    return items
+  }, [allPatients, selectedWard, searchQuery, sortConfigAll])
+
   const formatDate = (dateStr) => {
     if (!dateStr) return '-'
     return new Date(dateStr).toLocaleDateString('th-TH', { 
@@ -303,6 +428,8 @@ export default function PttypePage() {
   const handleRefresh = () => {
     if (activeTab === 'check') {
       fetchPatients()
+    } else if (activeTab === 'all') {
+      fetchAllPatients()
     } else {
       fetchConsults()
     }
@@ -363,11 +490,11 @@ export default function PttypePage() {
           {/* Refresh button */}
           <button
             onClick={handleRefresh}
-            disabled={loading || loadingConsults}
+            disabled={loading || loadingConsults || loadingAll}
             className="p-2.5 border border-input rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             title="รีเฟรชข้อมูล"
           >
-            <RefreshCw className={`w-4 h-4 ${(loading || loadingConsults) ? 'animate-spin text-sky-600' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${(loading || loadingConsults || loadingAll) ? 'animate-spin text-sky-600' : ''}`} />
           </button>
         </div>
       </div>
@@ -413,6 +540,24 @@ export default function PttypePage() {
             activeTab === 'check' ? 'bg-sky-600 text-white' : 'bg-muted text-muted-foreground'
           }`}>
             {patients.length}
+          </span>
+        </button>
+
+        {/* Tab 3: ผู้ป่วยทั้งหมด */}
+        <button
+          onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
+          className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'all'
+              ? 'border-sky-600 text-sky-600 bg-sky-50/50 rounded-t-xl'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>ผู้ป่วยทั้งหมด</span>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+            activeTab === 'all' ? 'bg-sky-600 text-white' : 'bg-muted text-muted-foreground'
+          }`}>
+            {allPatients.length}
           </span>
         </button>
       </div>
@@ -595,6 +740,222 @@ export default function PttypePage() {
             <div className="px-5 py-3 border-t border-border bg-muted/20 flex flex-col sm:flex-row justify-between items-center text-xs text-muted-foreground gap-2">
               <div>
                 แสดง {filteredPatients.length} รายการ (จากทั้งหมด {patients.length} รายการที่รอตรวจสอบ)
+              </div>
+              <div className="text-slate-500 font-medium">
+                💡 คลิกที่แถวผู้ป่วยเพื่อเข้าสู่หน้า <span className="text-sky-700 underline font-semibold">เอกสารสิทธิ์</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: ผู้ป่วยทั้งหมด Content */}
+      {activeTab === 'all' && (
+        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-muted/50 text-muted-foreground border-b border-border uppercase text-xs font-semibold">
+                <tr>
+                  <th 
+                    onClick={() => handleSortAll('admit_date')}
+                    className="px-4 py-3.5 w-32 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>วันที่ Admit</span>
+                      {renderSortIconAll('admit_date')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSortAll('an')}
+                    className="px-4 py-3.5 w-40 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>AN / HN</span>
+                      {renderSortIconAll('an')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSortAll('ward_name')}
+                    className="px-4 py-3.5 min-w-[160px] cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>หอผู้ป่วย</span>
+                      {renderSortIconAll('ward_name')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSortAll('name')}
+                    className="px-4 py-3.5 min-w-[180px] cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>ชื่อ-สกุล</span>
+                      {renderSortIconAll('name')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSortAll('pttype_name')}
+                    className="px-4 py-3.5 min-w-[180px] cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>สิทธิ์การรักษา</span>
+                      {renderSortIconAll('pttype_name')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSortAll('api_pttype_name')}
+                    className="px-4 py-3.5 min-w-[180px] cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>สิทธิ์ (API Check)</span>
+                      {renderSortIconAll('api_pttype_name')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSortAll('authen_code')}
+                    className="px-4 py-3.5 w-36 cursor-pointer hover:bg-muted/80 select-none transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span>Authen Code</span>
+                      {renderSortIconAll('authen_code')}
+                    </div>
+                  </th>
+                  <th 
+                    onClick={() => handleSortAll('is_checked_right')}
+                    className="px-4 py-3.5 w-32 cursor-pointer hover:bg-muted/80 select-none transition-colors group text-center"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>สถานะ</span>
+                      {renderSortIconAll('is_checked_right')}
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {loadingAll ? (
+                  <tr>
+                    <td colSpan="8" className="text-center py-12 text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <RefreshCw className="w-6 h-6 animate-spin text-sky-600" />
+                        <span>กำลังโหลดข้อมูลผู้ป่วยทั้งหมด...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredAllPatients.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="text-center py-16 text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="p-3 bg-slate-100 rounded-full text-slate-500">
+                          <Users className="w-8 h-8" />
+                        </div>
+                        <div className="text-base font-semibold text-slate-700">
+                          {searchQuery || selectedWard !== 'all' 
+                            ? 'ไม่พบข้อมูลที่ตรงกับเงื่อนไขการค้นหา' 
+                            : 'ไม่พบข้อมูลผู้ป่วยในขณะนี้'}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {searchQuery || selectedWard !== 'all'
+                            ? 'ลองเปลี่ยนคำค้นหาหรือตัวกรองหอผู้ป่วย'
+                            : 'ไม่มีผู้ป่วยที่ Admit อยู่ในโรงพยาบาล'}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredAllPatients.map(p => (
+                    <tr
+                      key={p.an}
+                      onClick={() => handleRowClick(p.an)}
+                      className="hover:bg-sky-50/60 cursor-pointer transition-colors group"
+                      title="คลิกเพื่อเปิดหน้าเอกสารสิทธิ์"
+                    >
+                      {/* วันที่ Admit */}
+                      <td className="px-4 py-3.5 text-muted-foreground whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{formatDate(p.admit_date)}</span>
+                        </div>
+                      </td>
+
+                      {/* AN / HN */}
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <div className="font-semibold text-blue-600 group-hover:underline">{p.an}</div>
+                        <div className="text-xs text-muted-foreground">HN: {p.hn}</div>
+                      </td>
+
+                      {/* หอผู้ป่วย */}
+                      <td className="px-4 py-3.5 font-medium text-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          <Building2 className="w-4 h-4 text-sky-600 shrink-0 opacity-70 group-hover:opacity-100" />
+                          <span className="truncate" title={p.ward_name}>{p.ward_name || '-'}</span>
+                        </div>
+                      </td>
+
+                      {/* ชื่อ-สกุล */}
+                      <td className="px-4 py-3.5">
+                        <div className="font-semibold text-slate-800">
+                          {p.pname}{p.fname} {p.lname}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          อายุ {p.age_y !== null && p.age_y !== undefined ? `${p.age_y} ปี` : '-'}
+                        </div>
+                      </td>
+
+                      {/* สิทธิ์การรักษา */}
+                      <td className="px-4 py-3.5">
+                        <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60 line-clamp-1" title={p.pttype_name}>
+                          {p.pttype_name || '-'}
+                        </span>
+                      </td>
+
+                      {/* สิทธิ์ (API Check) */}
+                      <td className="px-4 py-3.5">
+                        {p.api_pttype_name ? (
+                          <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-50 text-sky-800 border border-sky-200/60 line-clamp-1" title={p.api_pttype_name}>
+                            {p.api_pttype_name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/60">-</span>
+                        )}
+                      </td>
+
+                      {/* Authen Code */}
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        {p.authen_code ? (
+                          <span className="inline-flex items-center gap-1 font-mono font-semibold text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{p.authen_code}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/60">-</span>
+                        )}
+                      </td>
+
+                      {/* สถานะตรวจสอบสิทธิ์ */}
+                      <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                        {p.is_checked_right ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100/70 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>ตรวจสอบแล้ว</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100/70 text-amber-700 border border-amber-200">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                            <span>รอตรวจสอบ</span>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer stats */}
+          {!loadingAll && filteredAllPatients.length > 0 && (
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex flex-col sm:flex-row justify-between items-center text-xs text-muted-foreground gap-2">
+              <div>
+                แสดง {filteredAllPatients.length} รายการ (จากผู้ป่วยในทั้งหมด {allPatients.length} รายการ)
               </div>
               <div className="text-slate-500 font-medium">
                 💡 คลิกที่แถวผู้ป่วยเพื่อเข้าสู่หน้า <span className="text-sky-700 underline font-semibold">เอกสารสิทธิ์</span>

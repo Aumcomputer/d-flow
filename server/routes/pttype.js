@@ -71,21 +71,27 @@ router.get('/pttypes', authMiddleware, async (req, res) => {
 router.get('/unverified', authMiddleware, async (req, res) => {
     let hisConn, dflowConn;
     try {
-        const { getRedisClient } = require('../lib/redis');
-        const redis = getRedisClient();
+        let redis;
+        try {
+            const { getRedisClient } = require('../lib/redis');
+            redis = getRedisClient();
+        } catch (e) {}
+
         const cacheKey = 'cache:hospital:inpatients_his';
         let hisPatients = [];
 
-        try {
-            const cached = await redis.get(cacheKey);
-            if (cached) hisPatients = JSON.parse(cached);
-        } catch (e) { console.error('Redis Get Error:', e); }
+        if (redis) {
+            try {
+                const cached = await redis.get(cacheKey);
+                if (cached) hisPatients = JSON.parse(cached);
+            } catch (e) { console.error('Redis Get Error:', e); }
+        }
 
         if (hisPatients.length === 0) {
             hisConn = await getHisConnection();
             const hisQuery = `
                 SELECT 
-                    i.an, i.hn, i.regdate as admit_date, i.regtime as admit_time,
+                    i.an, i.hn, i.vn, i.regdate as admit_date, i.regtime as admit_time,
                     p.pname, p.fname, p.lname, p.birthday,
                     (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
                     w.name AS ward_name,
@@ -98,6 +104,10 @@ router.get('/unverified', authMiddleware, async (req, res) => {
                         pt.name
                     ) AS pttype_name,
                     pt.pttype AS pttype_code,
+                    (SELECT COALESCE(ip.auth_code, ip.claim_code)
+                     FROM ipt_pttype ip
+                     WHERE ip.an = i.an AND ((ip.auth_code IS NOT NULL AND ip.auth_code != '') OR (ip.claim_code IS NOT NULL AND ip.claim_code != ''))
+                     ORDER BY ip.pttype_number ASC LIMIT 1) AS his_authen_code,
                     COALESCE(d.name, d2.name) AS doctor_name,
                     iptb.bedno,
                     COALESCE(aa.income, 0) AS total_income
@@ -114,7 +124,7 @@ router.get('/unverified', authMiddleware, async (req, res) => {
                 ORDER BY w.name ASC, iptb.bedno ASC, i.regdate DESC
             `;
             hisPatients = await hisConn.query(hisQuery);
-            if (hisPatients.length > 0) {
+            if (hisPatients.length > 0 && redis) {
                 try {
                     await redis.setEx(cacheKey, 60, JSON.stringify(hisPatients)); // 60s
                 } catch (e) { console.error('Redis Set Error:', e); }
@@ -164,6 +174,141 @@ router.get('/unverified', authMiddleware, async (req, res) => {
         });
     } catch (error) {
         console.error('Fetch pttype unverified patients error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (hisConn) hisConn.release();
+        if (dflowConn) dflowConn.release();
+    }
+});
+
+// GET /api/pttype/all-patients
+// Get all current inpatients with right check status, API check right, and authen code
+router.get('/all-patients', authMiddleware, async (req, res) => {
+    let hisConn, dflowConn;
+    try {
+        let redis;
+        try {
+            const { getRedisClient } = require('../lib/redis');
+            redis = getRedisClient();
+        } catch (e) {}
+
+        const cacheKey = 'cache:hospital:inpatients_his';
+        let hisPatients = [];
+
+        if (redis) {
+            try {
+                const cached = await redis.get(cacheKey);
+                if (cached) hisPatients = JSON.parse(cached);
+            } catch (e) { console.error('Redis Get Error:', e); }
+        }
+
+        if (hisPatients.length === 0) {
+            hisConn = await getHisConnection();
+            const hisQuery = `
+                SELECT 
+                    i.an, i.hn, i.vn, i.regdate as admit_date, i.regtime as admit_time,
+                    p.pname, p.fname, p.lname, p.birthday,
+                    (YEAR(CURDATE()) - YEAR(p.birthday)) - (RIGHT(CURDATE(),5) < RIGHT(p.birthday,5)) AS age_y,
+                    w.name AS ward_name,
+                    w.ward AS ward_code,
+                    COALESCE(
+                        (SELECT GROUP_CONCAT(pt_sub.name ORDER BY ip.pttype_number SEPARATOR ', ')
+                         FROM ipt_pttype ip
+                         JOIN pttype pt_sub ON ip.pttype = pt_sub.pttype
+                         WHERE ip.an = i.an),
+                        pt.name
+                    ) AS pttype_name,
+                    pt.pttype AS pttype_code,
+                    (SELECT COALESCE(ip.auth_code, ip.claim_code)
+                     FROM ipt_pttype ip
+                     WHERE ip.an = i.an AND ((ip.auth_code IS NOT NULL AND ip.auth_code != '') OR (ip.claim_code IS NOT NULL AND ip.claim_code != ''))
+                     ORDER BY ip.pttype_number ASC LIMIT 1) AS his_authen_code,
+                    COALESCE(d.name, d2.name) AS doctor_name,
+                    iptb.bedno,
+                    COALESCE(aa.income, 0) AS total_income
+                FROM ipt i
+                LEFT JOIN patient p ON i.hn = p.hn
+                LEFT JOIN ward w ON i.ward = w.ward
+                LEFT JOIN doctor d ON i.incharge_doctor = d.code
+                LEFT JOIN doctor d2 ON i.admdoctor = d2.code
+                LEFT JOIN pttype pt ON i.pttype = pt.pttype
+                LEFT JOIN iptadm iptb ON i.an = iptb.an
+                LEFT JOIN an_stat aa ON aa.an = i.an
+                WHERE i.dchstts IS NULL
+                GROUP BY i.an
+                ORDER BY w.name ASC, iptb.bedno ASC, i.regdate DESC
+            `;
+            hisPatients = await hisConn.query(hisQuery);
+            if (hisPatients.length > 0 && redis) {
+                try {
+                    await redis.setEx(cacheKey, 60, JSON.stringify(hisPatients)); // 60s
+                } catch (e) { console.error('Redis Set Error:', e); }
+            }
+        }
+
+        if (!hisPatients || hisPatients.length === 0) {
+            return res.json({ patients: [], count: 0 });
+        }
+
+        dflowConn = await getDflowConnection();
+
+        const ans = hisPatients.map(p => p.an);
+        const vns = hisPatients.map(p => p.vn).filter(Boolean);
+        const placeholders = ans.map(() => '?').join(',');
+
+        const [dflowRows, nhsoRows] = await Promise.all([
+            dflowConn.query(
+                `SELECT an, chk_right, discharge_date FROM an_detail WHERE an IN (${placeholders})`,
+                ans
+            ),
+            vns.length > 0
+                ? dflowConn.query(
+                    `SELECT vn, subinscl_name, maininscl_name, claim_code, source_channel, right_check_date
+                     FROM vn_nhso_authen
+                     WHERE vn IN (${vns.map(() => '?').join(',')})`,
+                    vns
+                  )
+                : []
+        ]);
+
+        const detailMap = new Map();
+        for (const row of dflowRows) {
+            detailMap.set(row.an, row);
+        }
+
+        const nhsoMap = new Map();
+        for (const row of nhsoRows) {
+            nhsoMap.set(row.vn, row);
+        }
+
+        const allPatients = hisPatients.map(p => {
+            const detail = detailMap.get(p.an);
+            const nhso = p.vn ? nhsoMap.get(p.vn) : null;
+            const is_checked = Boolean(detail && ((detail.chk_right && detail.chk_right.trim() !== '') || detail.discharge_date !== null));
+
+            const item = {
+                ...p,
+                chk_right: detail?.chk_right || null,
+                is_checked_right: is_checked,
+                api_pttype_name: nhso?.subinscl_name || nhso?.maininscl_name || null,
+                authen_code: nhso?.claim_code || p.his_authen_code || null,
+                right_check_date: nhso?.right_check_date || null
+            };
+
+            for (const key in item) {
+                if (typeof item[key] === 'bigint') {
+                    item[key] = Number(item[key]);
+                }
+            }
+            return item;
+        });
+
+        res.json({
+            patients: allPatients,
+            count: allPatients.length
+        });
+    } catch (error) {
+        console.error('Fetch pttype all patients error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     } finally {
         if (hisConn) hisConn.release();
