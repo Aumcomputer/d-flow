@@ -42,13 +42,39 @@ const formatCid = (cid) => {
 export default function NhsoRightsCheckTab({ onSelectPatient }) {
   const [patients, setPatients] = useState([]);
   const [wards, setWards] = useState([]);
-  const [stats, setStats] = useState({ total: 0, checked: 0, unchecked: 0, has_authen: 0, no_authen: 0 });
+  const [backendStats, setBackendStats] = useState({ total: 0, checked: 0, unchecked: 0, has_authen: 0, no_authen: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWard, setSelectedWard] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all'); // all, unchecked, checked, has_authen, no_authen
   const [copiedCid, setCopiedCid] = useState(null);
+
+  // Derived stats from current patients state
+  const stats = useMemo(() => {
+    if (!patients || patients.length === 0) return backendStats;
+    let checked = 0;
+    let has_authen = 0;
+    let no_authen = 0;
+    for (const p of patients) {
+      const isChecked = Boolean(p.nhso?.has_checked && p.nhso?.right_check_date);
+      if (isChecked) {
+        checked++;
+        if (p.nhso?.claim_code) {
+          has_authen++;
+        } else {
+          no_authen++;
+        }
+      }
+    }
+    return {
+      total: patients.length,
+      checked,
+      unchecked: patients.length - checked,
+      has_authen,
+      no_authen
+    };
+  }, [patients, backendStats]);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,7 +105,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
       if (res.data) {
         setPatients(res.data.patients || []);
         setWards(res.data.wards || []);
-        setStats(res.data.stats || { total: 0, checked: 0, unchecked: 0, has_authen: 0, no_authen: 0 });
+        setBackendStats(res.data.stats || { total: 0, checked: 0, unchecked: 0, has_authen: 0, no_authen: 0 });
       }
     } catch (err) {
       console.error('Failed to fetch admitted inpatients for NHSO check:', err);
@@ -132,7 +158,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
       } else if (statusFilter === 'has_authen') {
         if (!p.nhso?.claim_code) return false;
       } else if (statusFilter === 'no_authen') {
-        if (p.nhso?.claim_code) return false;
+        if (!isChecked || p.nhso?.claim_code) return false;
       }
 
       return true;

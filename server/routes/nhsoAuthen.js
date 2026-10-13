@@ -167,6 +167,7 @@ router.get('/inpatients', async (req, res) => {
         // Stats counters
         let checkedCount = 0;
         let hasAuthenCount = 0;
+        let checkedNoAuthenCount = 0;
 
         // Merge patient records
         const resultPatients = patients.map(p => {
@@ -174,8 +175,14 @@ router.get('/inpatients', async (req, res) => {
             const hasChecked = Boolean(nhso && nhso.right_check_date);
             const hasClaimCode = Boolean(nhso && nhso.claim_code && String(nhso.source_channel || '').trim().toUpperCase() === 'AUTHENCODE');
 
-            if (hasChecked) checkedCount++;
-            if (hasClaimCode) hasAuthenCount++;
+            if (hasChecked) {
+                checkedCount++;
+                if (hasClaimCode) {
+                    hasAuthenCount++;
+                } else {
+                    checkedNoAuthenCount++;
+                }
+            }
 
             const iptList = iptPttypeMap.get(p.an) || [];
             const visitList = visitPttypeMap.get(p.vn) || [];
@@ -315,7 +322,7 @@ router.get('/inpatients', async (req, res) => {
             checked: checkedCount,
             unchecked: resultPatients.length - checkedCount,
             has_authen: hasAuthenCount,
-            no_authen: resultPatients.length - hasAuthenCount
+            no_authen: checkedNoAuthenCount
         };
 
         res.json({
