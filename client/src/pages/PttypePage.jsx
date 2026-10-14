@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   ShieldCheck, 
@@ -110,21 +110,29 @@ export default function PttypePage() {
   // Tab 3: All patients state
   const [allPatients, setAllPatients] = useState([])
   const [loadingAll, setLoadingAll] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const fetchPatients = async () => {
-    setLoading(true)
+  const activeTabRef = useRef(activeTab)
+  useEffect(() => {
+    activeTabRef.current = activeTab
+  }, [activeTab])
+
+  const refreshTimerRef = useRef(null)
+
+  const fetchPatients = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const res = await api.get('/pttype/unverified')
       setPatients(res.data.patients || [])
     } catch (err) {
       console.error('Fetch pttype unverified error:', err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
-  }
+  }, [])
 
-  const fetchConsults = async () => {
-    setLoadingConsults(true)
+  const fetchConsults = useCallback(async (silent = false) => {
+    if (!silent) setLoadingConsults(true)
     try {
       const [pendingRes, historyRes] = await Promise.all([
         api.get('/pttype/consults'),
@@ -135,47 +143,99 @@ export default function PttypePage() {
     } catch (err) {
       console.error('Fetch pttype consults error:', err)
     } finally {
-      setLoadingConsults(false)
+      if (!silent) setLoadingConsults(false)
     }
-  }
+  }, [])
 
-  const fetchAllPatients = async () => {
-    setLoadingAll(true)
+  const fetchAllPatients = useCallback(async (silent = false) => {
+    if (!silent) setLoadingAll(true)
     try {
       const res = await api.get('/pttype/all-patients')
       setAllPatients(res.data.patients || [])
     } catch (err) {
       console.error('Fetch pttype all patients error:', err)
     } finally {
-      setLoadingAll(false)
+      if (!silent) setLoadingAll(false)
     }
-  }
+  }, [])
 
+  // Lazy-load data when switching tabs if not already loaded
   useEffect(() => {
-    fetchPatients()
-    fetchConsults()
-    fetchAllPatients()
-
-    const onWorkflowUpdate = () => {
+    if (activeTab === 'check' && patients.length === 0) {
       fetchPatients()
+    } else if (activeTab === 'all' && allPatients.length === 0) {
       fetchAllPatients()
+    } else if (activeTab === 'approve' && consults.length === 0 && historyConsults.length === 0) {
+      fetchConsults()
+    }
+  }, [activeTab, patients.length, allPatients.length, consults.length, historyConsults.length, fetchPatients, fetchConsults, fetchAllPatients])
+
+  // Initial load and WebSocket event subscription
+  useEffect(() => {
+    // Initial fetch for the active tab
+    if (activeTab === 'check') {
+      fetchPatients()
+    } else if (activeTab === 'all') {
+      fetchAllPatients()
+    } else {
+      fetchConsults()
+    }
+
+    // Also fetch consults silently if on another tab so header count badges are populated
+    if (activeTab !== 'approve') {
+      fetchConsults(true)
+    }
+
+    const IGNORED_WORKFLOW_TYPES = new Set([
+      'pharmacy_pack_done', 'pharmacy_prepare', 'pharmacy_check',
+      'pharmacy_return_med_audit', 'pharmacy_admit_return',
+      'update_return_drugs', 'return_med_status',
+      'social_work_cancelled',
+      'document_uploaded', 'document_classified', 'document_deleted'
+    ])
+
+    const scheduleRefresh = (isConsult = false) => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        const curTab = activeTabRef.current
+        if (isConsult) {
+          fetchConsults(true)
+          if (curTab === 'check') fetchPatients(true)
+          return
+        }
+
+        // Only silently refresh the tab that is currently active to avoid unwanted re-renders & scroll jumping
+        if (curTab === 'check') {
+          fetchPatients(true)
+        } else if (curTab === 'all') {
+          fetchAllPatients(true)
+        } else if (curTab === 'approve') {
+          fetchConsults(true)
+        }
+      }, 2000)
+    }
+
+    const onWorkflowUpdate = (data) => {
+      if (data?.type && IGNORED_WORKFLOW_TYPES.has(data.type)) {
+        return
+      }
+      scheduleRefresh(false)
     }
 
     const onConsultUpdate = () => {
-      fetchConsults()
-      fetchPatients()
-      fetchAllPatients()
       playAlert()
+      scheduleRefresh(true)
     }
 
     socket.on('workflow:updated', onWorkflowUpdate)
     socket.on('pttype:consult_updated', onConsultUpdate)
 
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       socket.off('workflow:updated', onWorkflowUpdate)
       socket.off('pttype:consult_updated', onConsultUpdate)
     }
-  }, [playAlert])
+  }, [playAlert, fetchPatients, fetchConsults, fetchAllPatients])
 
   // Current list for ward calculation
   const currentConsultList = approveSubTab === 'pending' ? consults : historyConsults
@@ -447,13 +507,18 @@ export default function PttypePage() {
     navigate(`/dcdetail/${an}?tab=documents`)
   }
 
-  const handleRefresh = () => {
-    if (activeTab === 'check') {
-      fetchPatients()
-    } else if (activeTab === 'all') {
-      fetchAllPatients()
-    } else {
-      fetchConsults()
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      if (activeTab === 'check') {
+        await fetchPatients(true)
+      } else if (activeTab === 'all') {
+        await fetchAllPatients(true)
+      } else {
+        await fetchConsults(true)
+      }
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -512,11 +577,11 @@ export default function PttypePage() {
           {/* Refresh button */}
           <button
             onClick={handleRefresh}
-            disabled={loading || loadingConsults || loadingAll}
+            disabled={loading || loadingConsults || loadingAll || refreshing}
             className="p-2.5 border border-input rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             title="รีเฟรชข้อมูล"
           >
-            <RefreshCw className={`w-4 h-4 ${(loading || loadingConsults || loadingAll) ? 'animate-spin text-sky-600' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${(loading || loadingConsults || loadingAll || refreshing) ? 'animate-spin text-sky-600' : ''}`} />
           </button>
         </div>
       </div>
@@ -657,7 +722,7 @@ export default function PttypePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loading ? (
+                {loading && patients.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="text-center py-12 text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-2">
@@ -860,7 +925,7 @@ export default function PttypePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loadingAll ? (
+                {loadingAll && allPatients.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="text-center py-12 text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-2">
@@ -1092,7 +1157,7 @@ export default function PttypePage() {
                 )}
               </thead>
               <tbody className="divide-y divide-border">
-                {loadingConsults ? (
+                {loadingConsults && currentConsultList.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="text-center py-12 text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-2">
