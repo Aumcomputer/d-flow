@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import socket from '../services/socket'
@@ -130,9 +130,11 @@ export default function DocumentsPage() {
     }, { replace: true })
   }
 
+  const refreshTimerRef = useRef(null)
+
   // Fetch list of inpatients categorized by document completeness
-  const fetchInpatients = useCallback(async () => {
-    setLoadingInpatients(true)
+  const fetchInpatients = useCallback(async (silent = false) => {
+    if (!silent) setLoadingInpatients(true)
     try {
       const res = await api.get('/documents/inpatients')
       setNoDocsPatients(res.data.no_docs || [])
@@ -140,7 +142,7 @@ export default function DocumentsPage() {
     } catch (err) {
       console.error('Fetch inpatients error:', err)
     } finally {
-      setLoadingInpatients(false)
+      if (!silent) setLoadingInpatients(false)
     }
   }, [])
 
@@ -148,13 +150,17 @@ export default function DocumentsPage() {
     fetchInpatients()
 
     const onDocUpdate = () => {
-      fetchInpatients()
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        fetchInpatients(true)
+      }, 1500)
     }
 
     socket.on('documents:updated', onDocUpdate)
     socket.on('workflow:updated', onDocUpdate)
 
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       socket.off('documents:updated', onDocUpdate)
       socket.off('workflow:updated', onDocUpdate)
     }
@@ -839,7 +845,7 @@ export default function DocumentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {loadingInpatients ? (
+                {loadingInpatients && (noDocsPatients.length === 0 && incompletePatients.length === 0) ? (
                   <tr>
                     <td colSpan={activeTab === 'incomplete' ? 8 : 7} className="text-center py-12 text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   User, CheckCircle2, Pill, Search, Plus, Minus, Check, 
@@ -172,14 +172,21 @@ export default function PharmacyPage() {
     }
   })
 
-  const fetchPatients = async () => {
-    setLoading(true)
+  const refreshTimerRef = useRef(null)
+  const historyDateRef = useRef(historyDate)
+  const allDischargeDateRef = useRef(allDischargeDate)
+
+  useEffect(() => { historyDateRef.current = historyDate }, [historyDate])
+  useEffect(() => { allDischargeDateRef.current = allDischargeDate }, [allDischargeDate])
+
+  const fetchPatients = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const [pendingRes, historyRes, returnMedRes, allDischargedRes] = await Promise.all([
         api.get('/workflow/pharmacy'),
-        api.get(`/workflow/pharmacy/history?date=${historyDate}`),
+        api.get(`/workflow/pharmacy/history?date=${historyDateRef.current}`),
         api.get('/workflow/pharmacy/return-meds'),
-        api.get(`/workflow/all-discharged?date=${allDischargeDate}`)
+        api.get(`/workflow/all-discharged?date=${allDischargeDateRef.current}`)
       ])
       setPatients(pendingRes.data || [])
       setHistoryPatients(historyRes.data || [])
@@ -188,9 +195,9 @@ export default function PharmacyPage() {
     } catch (err) {
       console.error('Fetch pharmacy patients error:', err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
-  }
+  }, [])
 
   const getWaitTime = (start, end) => {
     if (!start || !end) return '-'
@@ -205,21 +212,25 @@ export default function PharmacyPage() {
 
   useEffect(() => {
     fetchPatients()
-  }, [historyDate, allDischargeDate])
+  }, [historyDate, allDischargeDate, fetchPatients])
 
   useEffect(() => {
     const onUpdate = (data) => {
-      fetchPatients()
       if (data && (data.status === 'pharmacy' || data.status === 'pharmacy_prepare' || data.status === 'discharge_center')) {
         playAlert()
       }
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        fetchPatients(true)
+      }, 1500)
     }
     socket.on('workflow:updated', onUpdate)
 
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       socket.off('workflow:updated', onUpdate)
     }
-  }, [historyDate, allDischargeDate, playAlert])
+  }, [playAlert, fetchPatients])
 
   const handlePackDone = async (an) => {
     if (!confirm('ยืนยันเช็คยาเสร็จแล้วสำหรับ AN นี้? (ส่งต่อไปยังศูนย์จำหน่าย)')) return
@@ -807,7 +818,7 @@ export default function PharmacyPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && patients.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
@@ -876,7 +887,7 @@ export default function PharmacyPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && patients.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
@@ -945,7 +956,7 @@ export default function PharmacyPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && returnMedPatients.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
@@ -1042,7 +1053,7 @@ export default function PharmacyPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && allDischargedPatients.length === 0 ? (
                   <tr>
                     <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
@@ -1208,7 +1219,7 @@ export default function PharmacyPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && historyPatients.length === 0 ? (
                   <tr>
                     <td colSpan="11" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
@@ -1288,7 +1299,7 @@ export default function PharmacyPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && returnMedPatients.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...

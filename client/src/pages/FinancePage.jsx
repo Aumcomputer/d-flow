@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { User, CheckCircle2, Wallet } from 'lucide-react'
 import api from '../services/api'
@@ -45,6 +45,10 @@ export default function FinancePage() {
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0])
   const [searchTerm, setSearchTerm] = useState('')
 
+  const refreshTimerRef = useRef(null)
+  const historyDateRef = useRef(historyDate)
+  useEffect(() => { historyDateRef.current = historyDate }, [historyDate])
+
   const filterPatients = (list) => {
     const term = searchTerm.trim()
     if (!term) return list
@@ -54,21 +58,21 @@ export default function FinancePage() {
   const displayedPending = filterPatients(patients)
   const displayedHistory = filterPatients(historyPatients)
 
-  const fetchPatients = async () => {
-    setLoading(true)
+  const fetchPatients = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const [pendingRes, historyRes] = await Promise.all([
         api.get('/workflow/finance'),
-        api.get(`/workflow/finance/history?date=${historyDate}`)
+        api.get(`/workflow/finance/history?date=${historyDateRef.current}`)
       ])
-      setPatients(pendingRes.data)
-      setHistoryPatients(historyRes.data)
+      setPatients(pendingRes.data || [])
+      setHistoryPatients(historyRes.data || [])
     } catch (err) {
       console.error('Fetch finance patients error:', err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
-  }
+  }, [])
 
   const getWaitTime = (start, end) => {
     if (!start || !end) return '-'
@@ -83,21 +87,25 @@ export default function FinancePage() {
 
   useEffect(() => {
     fetchPatients()
-  }, [historyDate])
+  }, [historyDate, fetchPatients])
 
   useEffect(() => {
     const onUpdate = (data) => {
-      fetchPatients()
       if (data && data.status === 'finance') {
         playAlert()
       }
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        fetchPatients(true)
+      }, 1500)
     }
     socket.on('workflow:updated', onUpdate)
 
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       socket.off('workflow:updated', onUpdate)
     }
-  }, [historyDate, playAlert])
+  }, [playAlert, fetchPatients])
 
   const handleDone = async (an) => {
     if (!confirm('ยืนยันเสร็จสิ้นการเงิน?')) return
@@ -199,7 +207,7 @@ export default function FinancePage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && patients.length === 0 ? (
                   <tr>
                     <td colSpan="14" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
@@ -290,7 +298,7 @@ export default function FinancePage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && historyPatients.length === 0 ? (
                   <tr>
                     <td colSpan="14" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...

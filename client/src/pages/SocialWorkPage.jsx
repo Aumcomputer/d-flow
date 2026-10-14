@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   HeartHandshake, 
@@ -56,8 +56,10 @@ export default function SocialWorkPage() {
   const [loadingHistoryLogs, setLoadingHistoryLogs] = useState(false)
   const [isHistoryLogsModalOpen, setIsHistoryLogsModalOpen] = useState(false)
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true)
+  const refreshTimerRef = useRef(null)
+
+  const fetchRequests = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const [pendingRes, historyRes] = await Promise.all([
         api.get('/social-work/requests/pending'),
@@ -68,7 +70,7 @@ export default function SocialWorkPage() {
     } catch (err) {
       console.error('Error fetching social work requests:', err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
@@ -79,14 +81,18 @@ export default function SocialWorkPage() {
   // Socket listener for real-time updates
   useEffect(() => {
     const handleUpdated = (data) => {
-      fetchRequests()
       if (data?.status === 'pending') {
         playAlert()
       }
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        fetchRequests(true)
+      }, 1500)
     }
 
     socket.on('social_work:updated', handleUpdated)
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       socket.off('social_work:updated', handleUpdated)
     }
   }, [fetchRequests, playAlert])

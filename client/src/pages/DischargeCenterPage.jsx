@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   User, CheckCircle2, ClipboardList, Send, AlertTriangle, 
@@ -59,13 +59,20 @@ export default function DischargeCenterPage() {
   const { playAlert } = useSound()
   const [lockedCases, setLockedCases] = useState({})
 
-  const fetchPatients = async () => {
-    setLoading(true)
+  const refreshTimerRef = useRef(null)
+  const historyDateRef = useRef(historyDate)
+  const allDischargeDateRef = useRef(allDischargeDate)
+
+  useEffect(() => { historyDateRef.current = historyDate }, [historyDate])
+  useEffect(() => { allDischargeDateRef.current = allDischargeDate }, [allDischargeDate])
+
+  const fetchPatients = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const [pendingRes, historyRes, allDischargedRes] = await Promise.all([
         api.get('/workflow/discharge-center'),
-        api.get(`/workflow/discharge-center/history?date=${historyDate}`),
-        api.get(`/workflow/all-discharged?date=${allDischargeDate}`)
+        api.get(`/workflow/discharge-center/history?date=${historyDateRef.current}`),
+        api.get(`/workflow/all-discharged?date=${allDischargeDateRef.current}`)
       ])
       setPatients(pendingRes.data || [])
       setHistoryPatients(historyRes.data || [])
@@ -73,9 +80,9 @@ export default function DischargeCenterPage() {
     } catch (err) {
       console.error('Fetch discharge center patients error:', err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
-  }
+  }, [])
 
   const filterPatients = (list) => {
     const term = searchTerm.trim().toLowerCase()
@@ -139,7 +146,7 @@ export default function DischargeCenterPage() {
 
   useEffect(() => {
     fetchPatients()
-  }, [historyDate, allDischargeDate])
+  }, [historyDate, allDischargeDate, fetchPatients])
 
   useEffect(() => {
     socket.emit('get:locks', (locks) => {
@@ -154,10 +161,13 @@ export default function DischargeCenterPage() {
     })
 
     const onUpdate = (data) => {
-      fetchPatients()
       if (data && data.status === 'discharge_center') {
         playAlert()
       }
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        fetchPatients(true)
+      }, 1500)
     }
 
     socket.on('workflow:updated', onUpdate)
@@ -165,11 +175,12 @@ export default function DischargeCenterPage() {
     socket.on('case:unlocked', onUnlocked)
 
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       socket.off('workflow:updated', onUpdate)
       socket.off('case:locked', onLocked)
       socket.off('case:unlocked', onUnlocked)
     }
-  }, [historyDate, allDischargeDate, playAlert])
+  }, [playAlert, fetchPatients])
 
   const handleRowClick = (an) => {
     if (lockedCases[an] && lockedCases[an] !== user?.name) {
@@ -342,7 +353,7 @@ export default function DischargeCenterPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && patients.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
@@ -431,7 +442,7 @@ export default function DischargeCenterPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && allDischargedPatients.length === 0 ? (
                   <tr>
                     <td colSpan="13" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...
@@ -575,7 +586,7 @@ export default function DischargeCenterPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && historyPatients.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-8 text-center text-muted-foreground">
                       กำลังโหลดข้อมูล...

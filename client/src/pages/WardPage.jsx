@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Bed, User, FileCheck, CheckCircle2, XCircle, Building2, RotateCcw, X, AlertCircle } from 'lucide-react'
 import api from '../services/api'
@@ -55,38 +55,14 @@ export default function WardPage() {
   // Sorting state
   const [sortConfig, setSortConfig] = useState({ key: 'bedno', direction: 'asc' })
 
-  useEffect(() => {
-    fetchWards()
-  }, [])
+  const refreshTimerRef = useRef(null)
+  const selectedWardRef = useRef(selectedWard)
+  const activeTabRef = useRef(activeTab)
+  const selectedDateRef = useRef(selectedDate)
 
-  useEffect(() => {
-    if (selectedWard) {
-      localStorage.setItem('lastWardCode', selectedWard)
-      fetchPatients()
-    } else {
-      setPatients([])
-    }
-
-    const handleWorkflowUpdate = () => {
-      if (selectedWard) {
-        fetchPatients()
-      }
-    }
-    
-    socket.on('workflow:updated', handleWorkflowUpdate)
-    return () => {
-      socket.off('workflow:updated', handleWorkflowUpdate)
-    }
-  }, [selectedWard, activeTab, selectedDate])
-
-  // Periodic polling for discharged tab to catch HOSxP discharges done in external systems
-  useEffect(() => {
-    if (activeTab !== 'discharged' || !selectedWard) return
-    const interval = setInterval(() => {
-      fetchPatients(true)
-    }, 60000)
-    return () => clearInterval(interval)
-  }, [activeTab, selectedWard, selectedDate])
+  useEffect(() => { selectedWardRef.current = selectedWard }, [selectedWard])
+  useEffect(() => { activeTabRef.current = activeTab }, [activeTab])
+  useEffect(() => { selectedDateRef.current = selectedDate }, [selectedDate])
 
   const fetchWards = async () => {
     try {
@@ -100,20 +76,21 @@ export default function WardPage() {
     }
   }
 
-  const fetchPatients = async (isSilent = false) => {
-    if (!selectedWard) return
+  const fetchPatients = useCallback(async (isSilent = false) => {
+    const ward = selectedWardRef.current
+    if (!ward) return
     if (!isSilent) setLoading(true)
     try {
-      let endpoint = activeTab === 'admitted' 
-        ? `/wards/${selectedWard}/patients` 
-        : `/wards/${selectedWard}/discharged`
-      if (activeTab === 'discharged') endpoint += `?date=${selectedDate}`
+      let endpoint = activeTabRef.current === 'admitted' 
+        ? `/wards/${ward}/patients` 
+        : `/wards/${ward}/discharged`
+      if (activeTabRef.current === 'discharged') endpoint += `?date=${selectedDateRef.current}`
       const res = await api.get(endpoint)
       const data = res.data || []
       setPatients(data)
 
       // Auto-trigger ward-done if any patient waiting for ward confirmation is already discharged in HOSxP
-      if (activeTab === 'discharged' && Array.isArray(data)) {
+      if (activeTabRef.current === 'discharged' && Array.isArray(data)) {
         const needAutoDone = data.filter(p => p.workflow_status === 'ward_waiting' && p.dchdate)
         if (needAutoDone.length > 0) {
           Promise.all(needAutoDone.map(p => api.post(`/workflow/${p.an}/ward-done`)))
@@ -129,7 +106,43 @@ export default function WardPage() {
     } finally {
       if (!isSilent) setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchWards()
+  }, [])
+
+  useEffect(() => {
+    if (selectedWard) {
+      localStorage.setItem('lastWardCode', selectedWard)
+      fetchPatients()
+    } else {
+      setPatients([])
+    }
+
+    const handleWorkflowUpdate = () => {
+      if (!selectedWardRef.current) return
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        fetchPatients(true)
+      }, 1500)
+    }
+    
+    socket.on('workflow:updated', handleWorkflowUpdate)
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      socket.off('workflow:updated', handleWorkflowUpdate)
+    }
+  }, [selectedWard, activeTab, selectedDate, fetchPatients])
+
+  // Periodic polling for discharged tab to catch HOSxP discharges done in external systems
+  useEffect(() => {
+    if (activeTab !== 'discharged' || !selectedWard) return
+    const interval = setInterval(() => {
+      fetchPatients(true)
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [activeTab, selectedWard, selectedDate, fetchPatients])
 
   const formatMoney = (val) => {
     if (val === null || val === undefined) return '0.00'
@@ -379,7 +392,7 @@ export default function WardPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && patients.length === 0 ? (
                 <tr>
                   <td colSpan={activeTab === 'admitted' ? 13 : 12} className="px-4 py-8 text-center text-muted-foreground">
                     กำลังโหลดข้อมูล...

@@ -680,7 +680,7 @@ export default function NhsoRightsCheckTab({ onSelectPatient }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {loading ? (
+              {loading && patients.length === 0 ? (
                 Array.from({ length: 8 }).map((_, idx) => (
                   <tr key={idx} className="animate-pulse">
                     <td className="p-3.5 text-center"><Skeleton className="w-4 h-4 mx-auto rounded" /></td>
