@@ -603,7 +603,6 @@ export default function SocialWorkPage() {
                   <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-lg">
                     {selectedRequest?.round_no > 1 ? `การส่งปรึกษาครั้งที่ ${selectedRequest.round_no}` : 'ข้อมูลการส่งปรึกษา'}
                   </span>
-                  <span className="text-xs text-slate-500">{formatDateTime(selectedRequest.sent_at)}</span>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground font-semibold block mb-0.5">สาเหตุที่ส่งปรึกษา</span>
@@ -789,7 +788,6 @@ export default function SocialWorkPage() {
                   <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-lg">
                     {viewingRequest?.round_no > 1 ? `การส่งปรึกษาครั้งที่ ${viewingRequest.round_no}` : 'ข้อมูลการส่งปรึกษา'}
                   </span>
-                  <span className="text-xs text-slate-500">{formatDateTime(viewingRequest.sent_at)}</span>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground font-semibold block mb-0.5">สาเหตุที่ส่งปรึกษา</span>
