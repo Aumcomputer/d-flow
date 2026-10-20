@@ -50,6 +50,10 @@ export default function SocialWorkPage() {
   const [viewingRequest, setViewingRequest] = useState(null)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
 
+  // Patient All Rounds (for displaying consultation history inside modals)
+  const [patientAllRounds, setPatientAllRounds] = useState([])
+  const [loadingPatientRounds, setLoadingPatientRounds] = useState(false)
+
   // Comment Revision History Modal States
   const [historyLogsTarget, setHistoryLogsTarget] = useState(null)
   const [historyLogs, setHistoryLogs] = useState([])
@@ -107,6 +111,24 @@ export default function SocialWorkPage() {
     }
   }
 
+  const fetchAllRoundsForPatient = async (an) => {
+    if (!an) {
+      setPatientAllRounds([])
+      return
+    }
+    setLoadingPatientRounds(true)
+    setPatientAllRounds([])
+    try {
+      const res = await api.get(`/social-work/requests/patient/${an}`)
+      setPatientAllRounds(res.data?.requests || [])
+    } catch (e) {
+      console.error('Failed to fetch patient rounds:', e)
+      setPatientAllRounds([])
+    } finally {
+      setLoadingPatientRounds(false)
+    }
+  }
+
   // Filter requests by search query
   const filterList = (list) => {
     const q = searchQuery.trim().toLowerCase()
@@ -132,6 +154,7 @@ export default function SocialWorkPage() {
     setSocialWorkerComment(req.social_worker_comment || '')
     setAnswerError('')
     setIsAnswerModalOpen(true)
+    fetchAllRoundsForPatient(req.an)
   }
 
   // Open modal to view history detail
@@ -139,6 +162,7 @@ export default function SocialWorkPage() {
     if (e) e.stopPropagation()
     setViewingRequest(req)
     setIsDetailModalOpen(true)
+    fetchAllRoundsForPatient(req.an)
   }
 
   // Open modal to view comment revision history
@@ -345,7 +369,12 @@ export default function SocialWorkPage() {
                       </td>
 
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <span className="font-bold text-slate-900 block font-mono text-sm">{req.an}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900 font-mono text-sm">{req.an}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            ครั้งที่ {req.round_no || 1}
+                          </span>
+                        </div>
                         <span className="text-xs text-slate-500 font-mono">HN: {req.hn || '-'}</span>
                       </td>
 
@@ -459,7 +488,12 @@ export default function SocialWorkPage() {
                       </td>
 
                       <td className="py-4 px-4 whitespace-nowrap">
-                        <span className="font-bold text-slate-900 block font-mono text-sm">{req.an}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900 font-mono text-sm">{req.an}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            ครั้งที่ {req.round_no || 1}
+                          </span>
+                        </div>
                         <span className="text-xs text-slate-500 font-mono">HN: {req.hn || '-'}</span>
                       </td>
 
@@ -533,8 +567,8 @@ export default function SocialWorkPage() {
               <HeartHandshake className="w-6 h-6 text-rose-600" />
               <span>
                 {selectedRequest?.status === 'answered' || selectedRequest?.social_worker_comment
-                  ? 'แก้ไขความคิดเห็นของนักสังคมสงเคราะห์'
-                  : 'ความคิดเห็นของนักสังคมสงเคราะห์'}
+                  ? `แก้ไขความคิดเห็นของนักสังคมสงเคราะห์ (ครั้งที่ ${selectedRequest?.round_no || 1})`
+                  : `ความคิดเห็นของนักสังคมสงเคราะห์ (ครั้งที่ ${selectedRequest?.round_no || 1})`}
               </span>
             </DialogTitle>
           </DialogHeader>
@@ -561,6 +595,12 @@ export default function SocialWorkPage() {
 
               {/* Consult Request Detail */}
               <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100 space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-2 border-b border-rose-100 pb-1.5 mb-1.5">
+                  <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-lg">
+                    การส่งปรึกษาครั้งที่ {selectedRequest.round_no || 1}
+                  </span>
+                  <span className="text-xs text-slate-500">{formatDateTime(selectedRequest.sent_at)}</span>
+                </div>
                 <div>
                   <span className="text-xs text-muted-foreground font-semibold block mb-0.5">สาเหตุที่ส่งปรึกษา</span>
                   <div className="font-semibold text-rose-950 text-base">
@@ -589,6 +629,48 @@ export default function SocialWorkPage() {
                   <span>{formatDateTime(selectedRequest.sent_at)}</span>
                 </div>
               </div>
+
+              {/* ประวัติการส่งปรึกษารอบอื่นๆ ของ AN นี้ (ถ้ามี) */}
+              {(() => {
+                const otherRounds = patientAllRounds.filter(r => r.id !== selectedRequest.id)
+                if (otherRounds.length === 0) return null
+                return (
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                      <span className="flex items-center gap-1.5">
+                        <History className="w-3.5 h-3.5 text-rose-500" />
+                        ประวัติการส่งปรึกษารอบอื่นๆ ของ AN นี้ ({otherRounds.length} ครั้ง)
+                      </span>
+                    </div>
+                    <div className="space-y-2 text-xs max-h-48 overflow-y-auto pr-1">
+                      {otherRounds.map((r) => (
+                        <div key={r.id} className="p-2.5 bg-white rounded-xl border border-slate-200/90 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1">
+                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">ครั้งที่ {r.round_no || 1}</span>
+                            <span className="text-slate-400 text-[11px]">{formatDateTime(r.sent_at)}</span>
+                          </div>
+                          <div className="text-slate-700">
+                            <strong>สาเหตุ:</strong> {r.reason_name}{r.reason_other ? ` (${r.reason_other})` : ''}
+                          </div>
+                          {r.nurse_comment && (
+                            <div className="text-slate-600 bg-slate-50 p-1.5 rounded">
+                              <strong>ความเห็นพยาบาล:</strong> {r.nurse_comment}
+                            </div>
+                          )}
+                          {r.status === 'answered' && r.social_worker_comment && (
+                            <div className="text-emerald-800 bg-emerald-50/80 p-2 rounded border border-emerald-100">
+                              <div className="font-semibold text-emerald-900 mb-0.5">
+                                คำตอบนักสังคมสงเคราะห์ ({r.social_worker_by_name || r.social_worker_by} - {formatDateTime(r.social_worker_at)}):
+                              </div>
+                              <div className="whitespace-pre-wrap">{r.social_worker_comment}</div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Edit Notice & Revision Hint */}
               {selectedRequest?.edit_count > 0 && (
@@ -671,7 +753,7 @@ export default function SocialWorkPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
               <HeartHandshake className="w-6 h-6 text-rose-600" />
-              <span>รายละเอียดการให้คำปรึกษา</span>
+              <span>รายละเอียดการให้คำปรึกษา (ครั้งที่ {viewingRequest?.round_no || 1})</span>
             </DialogTitle>
           </DialogHeader>
 
@@ -697,6 +779,12 @@ export default function SocialWorkPage() {
 
               {/* Consult Request Detail */}
               <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100 space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-2 border-b border-rose-100 pb-1.5 mb-1.5">
+                  <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-lg">
+                    การส่งปรึกษาครั้งที่ {viewingRequest.round_no || 1}
+                  </span>
+                  <span className="text-xs text-slate-500">{formatDateTime(viewingRequest.sent_at)}</span>
+                </div>
                 <div>
                   <span className="text-xs text-muted-foreground font-semibold block mb-0.5">สาเหตุที่ส่งปรึกษา</span>
                   <div className="font-semibold text-rose-950 text-base">
@@ -731,7 +819,7 @@ export default function SocialWorkPage() {
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
+                    <span>ความคิดเห็นของนักสังคมสงเคราะห์ (ครั้งที่ {viewingRequest.round_no || 1})</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -773,6 +861,48 @@ export default function SocialWorkPage() {
                   </div>
                 )}
               </div>
+
+              {/* ประวัติการส่งปรึกษารอบอื่นๆ ของ AN นี้ (ถ้ามี) */}
+              {(() => {
+                const otherRounds = patientAllRounds.filter(r => r.id !== viewingRequest.id)
+                if (otherRounds.length === 0) return null
+                return (
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                      <span className="flex items-center gap-1.5">
+                        <History className="w-3.5 h-3.5 text-rose-500" />
+                        ประวัติการส่งปรึกษารอบอื่นๆ ของ AN นี้ ({otherRounds.length} ครั้ง)
+                      </span>
+                    </div>
+                    <div className="space-y-2 text-xs max-h-48 overflow-y-auto pr-1">
+                      {otherRounds.map((r) => (
+                        <div key={r.id} className="p-2.5 bg-white rounded-xl border border-slate-200/90 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1">
+                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">ครั้งที่ {r.round_no || 1}</span>
+                            <span className="text-slate-400 text-[11px]">{formatDateTime(r.sent_at)}</span>
+                          </div>
+                          <div className="text-slate-700">
+                            <strong>สาเหตุ:</strong> {r.reason_name}{r.reason_other ? ` (${r.reason_other})` : ''}
+                          </div>
+                          {r.nurse_comment && (
+                            <div className="text-slate-600 bg-slate-50 p-1.5 rounded">
+                              <strong>ความเห็นพยาบาล:</strong> {r.nurse_comment}
+                            </div>
+                          )}
+                          {r.status === 'answered' && r.social_worker_comment && (
+                            <div className="text-emerald-800 bg-emerald-50/80 p-2 rounded border border-emerald-100">
+                              <div className="font-semibold text-emerald-900 mb-0.5">
+                                คำตอบนักสังคมสงเคราะห์ ({r.social_worker_by_name || r.social_worker_by} - {formatDateTime(r.social_worker_at)}):
+                              </div>
+                              <div className="whitespace-pre-wrap">{r.social_worker_comment}</div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
 
               <DialogFooter className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2 gap-2">
                 {isAdmin ? (

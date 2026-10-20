@@ -29,7 +29,8 @@ import {
   Clock,
   HeartHandshake,
   History,
-  RefreshCw
+  RefreshCw,
+  Plus
 } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import api from '../services/api'
@@ -140,7 +141,8 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
 
   // Social work consult state (ส่วนส่งปรึกษานักสังคมสงเคราะห์)
   const [socialWorkReasons, setSocialWorkReasons] = useState([])
-  const [socialWorkRequest, setSocialWorkRequest] = useState(null)
+  const [socialWorkRequests, setSocialWorkRequests] = useState([])
+  const [editingSocialWorkRequest, setEditingSocialWorkRequest] = useState(null)
   const [isSocialWorkModalOpen, setIsSocialWorkModalOpen] = useState(false)
   const [isEditSocialWork, setIsEditSocialWork] = useState(false)
   const [selectedSocialWorkReasonId, setSelectedSocialWorkReasonId] = useState(null)
@@ -151,6 +153,7 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
   const [socialWorkError, setSocialWorkError] = useState('')
 
   // Cancel social work modal state
+  const [cancellingSocialWorkRequest, setCancellingSocialWorkRequest] = useState(null)
   const [isCancelSocialWorkModalOpen, setIsCancelSocialWorkModalOpen] = useState(false)
   const [cancelSocialWorkReason, setCancelSocialWorkReason] = useState('')
   const [submittingCancelSocialWork, setSubmittingCancelSocialWork] = useState(false)
@@ -254,15 +257,16 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
 
   const fetchSocialWorkRequest = useCallback(async () => {
     if (!patient?.an) {
-      setSocialWorkRequest(null)
+      setSocialWorkRequests([])
       return
     }
     try {
       const res = await api.get(`/social-work/requests/patient/${patient.an}`)
-      setSocialWorkRequest(res.data?.request || null)
+      const list = res.data?.requests || (res.data?.request ? [res.data.request] : [])
+      setSocialWorkRequests(list)
     } catch (err) {
       console.error('Fetch social work request error:', err)
-      setSocialWorkRequest(null)
+      setSocialWorkRequests([])
     }
   }, [patient?.an])
 
@@ -526,6 +530,7 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
 
   const handleOpenSocialWorkModal = () => {
     setIsEditSocialWork(false)
+    setEditingSocialWorkRequest(null)
     fetchSocialWorkReasons()
     setSelectedSocialWorkReasonId(socialWorkReasons[0]?.id || null)
     setSelectedSocialWorkReasonName(socialWorkReasons[0]?.name || '')
@@ -535,16 +540,24 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
     setIsSocialWorkModalOpen(true)
   }
 
-  const handleOpenEditSocialWorkModal = () => {
-    if (!socialWorkRequest) return
+  const handleOpenEditSocialWorkModal = (req) => {
+    if (!req) return
     setIsEditSocialWork(true)
+    setEditingSocialWorkRequest(req)
     fetchSocialWorkReasons()
-    setSelectedSocialWorkReasonId(socialWorkRequest.reason_id)
-    setSelectedSocialWorkReasonName(socialWorkRequest.reason_name)
-    setSocialWorkReasonOther(socialWorkRequest.reason_other || '')
-    setNurseSocialWorkComment(socialWorkRequest.nurse_comment || '')
+    setSelectedSocialWorkReasonId(req.reason_id)
+    setSelectedSocialWorkReasonName(req.reason_name)
+    setSocialWorkReasonOther(req.reason_other || '')
+    setNurseSocialWorkComment(req.nurse_comment || '')
     setSocialWorkError('')
     setIsSocialWorkModalOpen(true)
+  }
+
+  const handleOpenCancelSocialWorkModal = (req) => {
+    if (!req) return
+    setCancellingSocialWorkRequest(req)
+    setCancelSocialWorkReason('')
+    setIsCancelSocialWorkModalOpen(true)
   }
 
   const handleSubmitSocialWork = async (e) => {
@@ -567,8 +580,8 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
     setSubmittingSocialWork(true)
     setSocialWorkError('')
     try {
-      if (isEditSocialWork && socialWorkRequest?.id) {
-        await api.put(`/social-work/requests/${socialWorkRequest.id}`, {
+      if (isEditSocialWork && editingSocialWorkRequest?.id) {
+        await api.put(`/social-work/requests/${editingSocialWorkRequest.id}`, {
           reason_id: selectedSocialWorkReasonId,
           reason_name: reasonName,
           reason_other: reasonObj?.is_other ? socialWorkReasonOther.trim() : null,
@@ -584,6 +597,7 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
         })
       }
       setIsSocialWorkModalOpen(false)
+      setEditingSocialWorkRequest(null)
       await fetchSocialWorkRequest()
     } catch (err) {
       console.error('Submit social work error:', err)
@@ -594,14 +608,15 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
   }
 
   const handleConfirmCancelSocialWork = async () => {
-    if (!socialWorkRequest?.id) return
+    if (!cancellingSocialWorkRequest?.id) return
     setSubmittingCancelSocialWork(true)
     try {
-      await api.post(`/social-work/requests/${socialWorkRequest.id}/cancel`, {
+      await api.post(`/social-work/requests/${cancellingSocialWorkRequest.id}/cancel`, {
         cancel_reason: cancelSocialWorkReason.trim()
       })
       setIsCancelSocialWorkModalOpen(false)
       setCancelSocialWorkReason('')
+      setCancellingSocialWorkRequest(null)
       await fetchSocialWorkRequest()
     } catch (err) {
       console.error('Cancel social work error:', err)
@@ -1477,59 +1492,29 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                 <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
                   <HeartHandshake className="w-4 h-4 text-rose-600 shrink-0" />
                   <span className="truncate">ส่งสังคมสงเคราะห์</span>
+                  {socialWorkRequests.length > 0 && (
+                    <Badge variant="outline" className="text-xs text-rose-700 bg-rose-50 border-rose-200 ml-1">
+                      {socialWorkRequests.length} ครั้ง
+                    </Badge>
+                  )}
                 </div>
 
-                {socialWorkRequest && (
-                  socialWorkRequest.status === 'pending' ? (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={handleOpenEditSocialWorkModal}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
-                        title="แก้ไขข้อมูลส่งปรึกษา"
-                      >
-                        <Pencil className="w-3 h-3 text-slate-500" />
-                        <span>แก้ไข</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCancelSocialWorkModalOpen(true)
-                          setCancelSocialWorkReason('')
-                        }}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
-                        title="ยกเลิกการส่งปรึกษา"
-                      >
-                        <RotateCcw className="w-3 h-3 text-rose-500" />
-                        <span>ยกเลิก</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-semibold px-2 py-0.5">
-                        ตอบแล้ว
-                      </Badge>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsCancelSocialWorkModalOpen(true)
-                            setCancelSocialWorkReason('')
-                          }}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
-                          title="ยกเลิกการส่งปรึกษา (สิทธิ์ Admin)"
-                        >
-                          <RotateCcw className="w-3 h-3 text-rose-500" />
-                          <span>ยกเลิก (Admin)</span>
-                        </button>
-                      )}
-                    </div>
-                  )
+                {/* ถ้ามีรายการแล้ว และรายการล่าสุดเป็น answered สามารถกดส่งปรึกษาเพิ่มรอบถัดไปได้ */}
+                {socialWorkRequests.length > 0 && socialWorkRequests[0]?.status === 'answered' && (
+                  <button
+                    type="button"
+                    onClick={handleOpenSocialWorkModal}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-all duration-200 hover:shadow cursor-pointer shrink-0"
+                    title="ส่งปรึกษานักสังคมสงเคราะห์รอบใหม่"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>ส่งปรึกษาเพิ่ม (ครั้งที่ {socialWorkRequests[0].round_no ? socialWorkRequests[0].round_no + 1 : socialWorkRequests.length + 1})</span>
+                  </button>
                 )}
               </div>
 
               <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                {!socialWorkRequest ? (
+                {socialWorkRequests.length === 0 ? (
                   <div className="text-center py-5 text-muted-foreground text-xs space-y-3 my-auto">
                     <p className="leading-relaxed">
                       กรณีผู้ป่วยมีปัญหาด้านค่าใช้จ่ายหรือครอบครัว
@@ -1544,106 +1529,175 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-3 text-xs sm:text-sm flex-1 flex flex-col justify-between">
-                    <div className="space-y-2.5">
-                      {socialWorkRequest.status === 'pending' && (
-                        <div>
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                            รอนักสังคมสงเคราะห์ตอบ
-                          </span>
-                        </div>
-                      )}
+                  <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                    {socialWorkRequests.map((req, idx) => {
+                      const isLatest = idx === 0
+                      const roundLabel = `ครั้งที่ ${req.round_no || (socialWorkRequests.length - idx)}`
+                      return (
+                        <div
+                          key={req.id || idx}
+                          className={`space-y-3 p-3.5 rounded-2xl border transition-all ${
+                            isLatest ? 'bg-white border-rose-200/90 shadow-2xs' : 'bg-slate-50/80 border-slate-200'
+                          }`}
+                        >
+                          {/* Round Header */}
+                          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${
+                                isLatest ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'
+                              }`}>
+                                {roundLabel}
+                              </span>
+                              {isLatest && (
+                                <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200/60">
+                                  ล่าสุด
+                                </span>
+                              )}
+                              {req.status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  รอนักสังคมสงเคราะห์ตอบ
+                                </span>
+                              ) : (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-semibold px-2 py-0.5">
+                                  ตอบแล้ว
+                                </Badge>
+                              )}
+                            </div>
 
-                      <div>
-                        <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
-                        <div className="text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm leading-relaxed font-normal">
-                          {socialWorkRequest.reason_name === 'อื่นๆระบุ' || socialWorkRequest.reason_name?.startsWith('อื่นๆ')
-                            ? (socialWorkRequest.reason_other || socialWorkRequest.reason_name)
-                            : (
-                              <>
-                                {socialWorkRequest.reason_name}
-                                {socialWorkRequest.reason_other ? (
-                                  <span className="block text-slate-600 text-sm mt-1 bg-white p-1.5 rounded border border-slate-200 font-normal">
-                                    {socialWorkRequest.reason_other}
-                                  </span>
-                                ) : null}
-                              </>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {req.status === 'pending' ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditSocialWorkModal(req)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+                                    title="แก้ไขข้อมูลส่งปรึกษา"
+                                  >
+                                    <Pencil className="w-3 h-3 text-slate-500" />
+                                    <span>แก้ไข</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenCancelSocialWorkModal(req)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
+                                    title="ยกเลิกการส่งปรึกษา"
+                                  >
+                                    <RotateCcw className="w-3 h-3 text-rose-500" />
+                                    <span>ยกเลิก</span>
+                                  </button>
+                                </>
+                              ) : (
+                                isAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenCancelSocialWorkModal(req)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer"
+                                    title="ยกเลิกการส่งปรึกษา (สิทธิ์ Admin)"
+                                  >
+                                    <RotateCcw className="w-3 h-3 text-rose-500" />
+                                    <span>ยกเลิก (Admin)</span>
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Round Details */}
+                          <div className="space-y-2 text-xs sm:text-sm">
+                            <div>
+                              <span className="text-muted-foreground text-xs font-medium block mb-1">สาเหตุที่ส่งปรึกษา</span>
+                              <div className="text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200 text-sm leading-relaxed font-normal">
+                                {req.reason_name === 'อื่นๆระบุ' || req.reason_name?.startsWith('อื่นๆ')
+                                  ? (req.reason_other || req.reason_name)
+                                  : (
+                                    <>
+                                      {req.reason_name}
+                                      {req.reason_other ? (
+                                        <span className="block text-slate-600 text-sm mt-1 bg-slate-50 p-1.5 rounded border border-slate-200 font-normal">
+                                          {req.reason_other}
+                                        </span>
+                                      ) : null}
+                                    </>
+                                  )}
+                              </div>
+                            </div>
+
+                            {req.nurse_comment && (
+                              <div>
+                                <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นพยาบาล</span>
+                                <div className="text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
+                                  {req.nurse_comment}
+                                </div>
+                              </div>
                             )}
-                        </div>
-                      </div>
+                          </div>
 
-                      {socialWorkRequest.nurse_comment && (
-                        <div>
-                          <span className="text-muted-foreground text-xs font-medium block mb-1">ความเห็นพยาบาล</span>
-                          <div className="text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
-                            {socialWorkRequest.nurse_comment}
+                          <div className="border-t border-slate-100 pt-2 space-y-1 text-xs text-slate-600">
+                            <div className="flex justify-between items-center gap-2">
+                              <span className="text-muted-foreground shrink-0">ผู้ส่ง:</span>
+                              <span className="font-semibold text-slate-800 truncate">
+                                {req.sent_by_name || req.sent_by || '-'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center gap-2">
+                              <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
+                              <span className="font-semibold text-slate-800">
+                                {formatDateTime(req.sent_at)}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
 
-                    <div className="border-t border-slate-100 pt-2.5 space-y-1 text-xs text-slate-600">
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="text-muted-foreground shrink-0">ผู้ส่ง:</span>
-                        <span className="font-semibold text-slate-800 truncate">
-                          {socialWorkRequest.sent_by_name || socialWorkRequest.sent_by || '-'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
-                        <span className="font-semibold text-slate-800">
-                          {formatDateTime(socialWorkRequest.sent_at)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {socialWorkRequest.status === 'answered' && (
-                      <div className="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>ความคิดเห็นของนักสังคมสงเคราะห์</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenSocialWorkLogs(socialWorkRequest.id)}
-                            className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
-                            title="คลิกเพื่อดูประวัติการแก้ไขความคิดเห็น"
-                          >
-                            <History className="w-3 h-3 text-amber-600" />
-                            <span>
-                              {socialWorkRequest.edit_count > 0 
-                                ? `แก้ไขแล้ว (${socialWorkRequest.edit_count} ครั้ง)` 
-                                : 'ดูประวัติ'}
-                            </span>
-                          </button>
-                        </div>
-                        <div className="text-slate-800 text-sm bg-white p-2.5 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed shadow-2xs">
-                          {socialWorkRequest.social_worker_comment}
-                        </div>
-                        <div className="border-t border-emerald-100 pt-1.5 space-y-1 text-xs text-slate-600">
-                          <div className="flex justify-between items-center gap-2">
-                            <span className="text-muted-foreground shrink-0">ผู้ตอบ:</span>
-                            <span className="font-semibold text-slate-800 truncate">
-                              {socialWorkRequest.social_worker_by_name || socialWorkRequest.social_worker_by || '-'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center gap-2">
-                            <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
-                            <span className="font-semibold text-slate-800">
-                              {formatDateTime(socialWorkRequest.social_worker_at)}
-                            </span>
-                          </div>
-                          {socialWorkRequest.last_edited_at && (
-                            <div className="flex justify-between items-center gap-2 text-[11px] text-amber-700 pt-0.5 border-t border-emerald-100/50">
-                              <span className="shrink-0">แก้ไขล่าสุด:</span>
-                              <span className="truncate">{socialWorkRequest.last_edited_by_name || socialWorkRequest.last_edited_by} ({formatDateTime(socialWorkRequest.last_edited_at)})</span>
+                          {/* Social Worker Answer Box for this round */}
+                          {req.status === 'answered' && (
+                            <div className="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>ความคิดเห็นของนักสังคมสงเคราะห์ ({roundLabel})</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSocialWorkLogs(req.id)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                                  title="คลิกเพื่อดูประวัติการแก้ไขความคิดเห็น"
+                                >
+                                  <History className="w-3 h-3 text-amber-600" />
+                                  <span>
+                                    {req.edit_count > 0 
+                                      ? `แก้ไขแล้ว (${req.edit_count} ครั้ง)` 
+                                      : 'ดูประวัติ'}
+                                  </span>
+                                </button>
+                              </div>
+                              <div className="text-slate-800 text-sm bg-white p-2.5 rounded-lg border border-emerald-100 whitespace-pre-wrap leading-relaxed shadow-2xs">
+                                {req.social_worker_comment}
+                              </div>
+                              <div className="border-t border-emerald-100 pt-1.5 space-y-1 text-xs text-slate-600">
+                                <div className="flex justify-between items-center gap-2">
+                                  <span className="text-muted-foreground shrink-0">ผู้ตอบ:</span>
+                                  <span className="font-semibold text-slate-800 truncate">
+                                    {req.social_worker_by_name || req.social_worker_by || '-'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center gap-2">
+                                  <span className="text-muted-foreground shrink-0">วันที่ เวลา:</span>
+                                  <span className="font-semibold text-slate-800">
+                                    {formatDateTime(req.social_worker_at)}
+                                  </span>
+                                </div>
+                                {req.last_edited_at && (
+                                  <div className="flex justify-between items-center gap-2 text-[11px] text-amber-700 pt-0.5 border-t border-emerald-100/50">
+                                    <span className="shrink-0">แก้ไขล่าสุด:</span>
+                                    <span className="truncate">{req.last_edited_by_name || req.last_edited_by} ({formatDateTime(req.last_edited_at)})</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
-                      </div>
-                    )}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -2145,7 +2199,13 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
               <HeartHandshake className="w-6 h-6 text-rose-600" />
-              <span>{isEditSocialWork ? 'แก้ไขการส่งปรึกษานักสังคมสงเคราะห์' : 'ส่งปรึกษานักสังคมสงเคราะห์'}</span>
+              <span>
+                {isEditSocialWork 
+                  ? `แก้ไขการส่งปรึกษานักสังคมสงเคราะห์ (ครั้งที่ ${editingSocialWorkRequest?.round_no || 1})` 
+                  : (socialWorkRequests.length > 0 
+                      ? `ส่งปรึกษานักสังคมสงเคราะห์ (ครั้งที่ ${socialWorkRequests[0]?.round_no ? socialWorkRequests[0].round_no + 1 : socialWorkRequests.length + 1})` 
+                      : 'ส่งปรึกษานักสังคมสงเคราะห์')}
+              </span>
             </DialogTitle>
           </DialogHeader>
 
@@ -2266,9 +2326,9 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-slate-600">
-              คุณต้องการยกเลิกคำขอส่งปรึกษานักสังคมสงเคราะห์สำหรับผู้ป่วย AN: <strong>{patient?.an}</strong> ใช่หรือไม่?
+              คุณต้องการยกเลิกคำขอส่งปรึกษานักสังคมสงเคราะห์สำหรับผู้ป่วย AN: <strong>{patient?.an}</strong> {cancellingSocialWorkRequest?.round_no ? `(ครั้งที่ ${cancellingSocialWorkRequest.round_no})` : ''} ใช่หรือไม่?
             </p>
-            {socialWorkRequest?.status === 'answered' && (
+            {cancellingSocialWorkRequest?.status === 'answered' && (
               <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
                 รายการนี้ได้รับการตอบแล้ว (สิทธิ์ Admin สามารถยกเลิกได้)
               </div>

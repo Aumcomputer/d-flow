@@ -6,6 +6,7 @@ const { getIO } = require('../lib/socket');
 const {
     getSocialWorkReasons,
     getSocialWorkRequestByAn,
+    getSocialWorkRequestsByAn,
     createSocialWorkRequest,
     updateSocialWorkRequest,
     cancelSocialWorkRequest,
@@ -27,12 +28,12 @@ router.get('/reasons', authMiddleware, async (req, res) => {
     }
 });
 
-// 2. Get social work request for a patient by AN
+// 2. Get social work requests for a patient by AN
 router.get('/requests/patient/:an', authMiddleware, async (req, res) => {
     try {
         const { an } = req.params;
-        const request = await getSocialWorkRequestByAn(an);
-        res.json({ request });
+        const result = await getSocialWorkRequestsByAn(an);
+        res.json(result);
     } catch (err) {
         console.error('Error in GET /requests/patient/:an:', err);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -64,17 +65,18 @@ router.post('/requests', authMiddleware, async (req, res) => {
         });
 
         try {
-            getIO().emit('social_work:updated', { an, id: request.id, status: 'pending' });
+            getIO().emit('social_work:updated', { an, id: request.id, round_no: request.round_no, status: 'pending' });
         } catch (e) {}
 
         res.json({
             success: true,
-            message: 'ส่งปรึกษานักสังคมสงเคราะห์เรียบร้อยแล้ว',
+            message: `ส่งปรึกษานักสังคมสงเคราะห์ (ครั้งที่ ${request.round_no || 1}) เรียบร้อยแล้ว`,
             request
         });
     } catch (err) {
         console.error('Error in POST /requests:', err);
-        res.status(500).json({ error: 'Internal Server Error' });
+        const status = err.statusCode || 500;
+        res.status(status).json({ error: err.message || 'Internal Server Error' });
     }
 });
 

@@ -79,6 +79,27 @@ async function initSocialWorkTables() {
         // Check and add columns to social_work_requests if table already existed
         const reqCols = await conn.query('DESCRIBE social_work_requests');
         const existingColNames = new Set(reqCols.map(c => c.Field));
+        if (!existingColNames.has('round_no')) {
+            await conn.query("ALTER TABLE social_work_requests ADD COLUMN round_no INT NOT NULL DEFAULT 1 COMMENT 'ครั้งที่ส่งปรึกษาของ AN นี้' AFTER an");
+            try {
+                await conn.query("ALTER TABLE social_work_requests ADD INDEX idx_an_round (an, round_no)");
+            } catch (e) {}
+
+            // Backfill round_no for existing requests partitioned by an ordered by id ASC
+            const allRows = await conn.query('SELECT id, an FROM social_work_requests ORDER BY an ASC, id ASC');
+            let lastAn = null;
+            let rNum = 1;
+            for (const row of allRows) {
+                if (row.an !== lastAn) {
+                    lastAn = row.an;
+                    rNum = 1;
+                } else {
+                    rNum++;
+                }
+                await conn.query('UPDATE social_work_requests SET round_no = ? WHERE id = ?', [rNum, row.id]);
+            }
+            console.log('Added round_no column and backfilled social_work_requests');
+        }
         if (!existingColNames.has('edit_count')) {
             await conn.query("ALTER TABLE social_work_requests ADD COLUMN edit_count INT NOT NULL DEFAULT 0 COMMENT 'จำนวนครั้งที่แก้ไขความคิดเห็น'");
         }
@@ -139,32 +160,59 @@ async function getSocialWorkReasons() {
     }
 }
 
-async function getSocialWorkRequestByAn(an) {
-    if (!an) return null;
+async function getSocialWorkRequestsByAn(an) {
+    if (!an) return { requests: [], request: null };
     let conn;
     try {
         conn = await getDflowConnection();
         const rows = await conn.query(
             `SELECT * FROM social_work_requests 
              WHERE an = ? AND status != 'cancelled'
-             ORDER BY id DESC LIMIT 1`,
+             ORDER BY round_no DESC, id DESC`,
             [an]
         );
-        return rows[0] || null;
+        return {
+            requests: rows || [],
+            request: rows && rows.length > 0 ? rows[0] : null
+        };
     } finally {
         if (conn) conn.release();
     }
+}
+
+async function getSocialWorkRequestByAn(an) {
+    const res = await getSocialWorkRequestsByAn(an);
+    return res.request;
 }
 
 async function createSocialWorkRequest({ an, reason_id, reason_name, reason_other, nurse_comment, sent_by, sent_by_name }) {
     let conn;
     try {
         conn = await getDflowConnection();
+
+        // 1. Rule: Cannot create a new round if there is already a 'pending' request
+        const pendingRows = await conn.query(
+            "SELECT id, round_no FROM social_work_requests WHERE an = ? AND status = 'pending' LIMIT 1",
+            [an]
+        );
+        if (pendingRows.length > 0) {
+            const err = new Error(`มีรายการส่งปรึกษาครั้งที่ ${pendingRows[0].round_no || 1} ที่ยังรอนักสังคมสงเคราะห์ตอบ กรุณาแก้ไขหรือยกเลิกรายการเดิมก่อน`);
+            err.statusCode = 400;
+            throw err;
+        }
+
+        // 2. Calculate next round_no for this AN
+        const roundRes = await conn.query(
+            "SELECT COALESCE(MAX(round_no), 0) + 1 AS next_round FROM social_work_requests WHERE an = ? AND status != 'cancelled'",
+            [an]
+        );
+        const nextRound = Number(roundRes[0]?.next_round || 1);
+
         const result = await conn.query(
             `INSERT INTO social_work_requests 
-             (an, reason_id, reason_name, reason_other, nurse_comment, sent_by, sent_by_name, sent_at, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'pending')`,
-            [an, reason_id || null, reason_name, reason_other || null, nurse_comment || null, sent_by, sent_by_name]
+             (an, round_no, reason_id, reason_name, reason_other, nurse_comment, sent_by, sent_by_name, sent_at, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'pending')`,
+            [an, nextRound, reason_id || null, reason_name, reason_other || null, nurse_comment || null, sent_by, sent_by_name]
         );
         const insertId = result.insertId;
         const rows = await conn.query('SELECT * FROM social_work_requests WHERE id = ?', [insertId]);
@@ -348,6 +396,7 @@ module.exports = {
     initSocialWorkTables,
     getSocialWorkReasons,
     getSocialWorkRequestByAn,
+    getSocialWorkRequestsByAn,
     createSocialWorkRequest,
     updateSocialWorkRequest,
     cancelSocialWorkRequest,
