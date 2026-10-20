@@ -371,9 +371,11 @@ export default function SocialWorkPage() {
                       <td className="py-4 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-slate-900 font-mono text-sm">{req.an}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            ครั้งที่ {req.round_no || 1}
-                          </span>
+                          {req.round_no > 1 && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              ครั้งที่ {req.round_no}
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-slate-500 font-mono">HN: {req.hn || '-'}</span>
                       </td>
@@ -490,9 +492,11 @@ export default function SocialWorkPage() {
                       <td className="py-4 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-slate-900 font-mono text-sm">{req.an}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            ครั้งที่ {req.round_no || 1}
-                          </span>
+                          {req.round_no > 1 && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              ครั้งที่ {req.round_no}
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-slate-500 font-mono">HN: {req.hn || '-'}</span>
                       </td>
@@ -567,8 +571,8 @@ export default function SocialWorkPage() {
               <HeartHandshake className="w-6 h-6 text-rose-600" />
               <span>
                 {selectedRequest?.status === 'answered' || selectedRequest?.social_worker_comment
-                  ? `แก้ไขความคิดเห็นของนักสังคมสงเคราะห์ (ครั้งที่ ${selectedRequest?.round_no || 1})`
-                  : `ความคิดเห็นของนักสังคมสงเคราะห์ (ครั้งที่ ${selectedRequest?.round_no || 1})`}
+                  ? `แก้ไขความคิดเห็นของนักสังคมสงเคราะห์${selectedRequest?.round_no > 1 ? ` (ครั้งที่ ${selectedRequest.round_no})` : ''}`
+                  : `ความคิดเห็นของนักสังคมสงเคราะห์${selectedRequest?.round_no > 1 ? ` (ครั้งที่ ${selectedRequest.round_no})` : ''}`}
               </span>
             </DialogTitle>
           </DialogHeader>
@@ -597,7 +601,7 @@ export default function SocialWorkPage() {
               <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100 space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-2 border-b border-rose-100 pb-1.5 mb-1.5">
                   <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-lg">
-                    การส่งปรึกษาครั้งที่ {selectedRequest.round_no || 1}
+                    {selectedRequest?.round_no > 1 ? `การส่งปรึกษาครั้งที่ ${selectedRequest.round_no}` : 'ข้อมูลการส่งปรึกษา'}
                   </span>
                   <span className="text-xs text-slate-500">{formatDateTime(selectedRequest.sent_at)}</span>
                 </div>
@@ -646,7 +650,9 @@ export default function SocialWorkPage() {
                       {otherRounds.map((r) => (
                         <div key={r.id} className="p-2.5 bg-white rounded-xl border border-slate-200/90 space-y-1.5">
                           <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1">
-                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">ครั้งที่ {r.round_no || 1}</span>
+                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                              {r.round_no > 1 ? `ครั้งที่ ${r.round_no}` : 'รอบแรก'}
+                            </span>
                             <span className="text-slate-400 text-[11px]">{formatDateTime(r.sent_at)}</span>
                           </div>
                           <div className="text-slate-700">
@@ -753,7 +759,7 @@ export default function SocialWorkPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-slate-900">
               <HeartHandshake className="w-6 h-6 text-rose-600" />
-              <span>รายละเอียดการให้คำปรึกษา (ครั้งที่ {viewingRequest?.round_no || 1})</span>
+              <span>รายละเอียดการให้คำปรึกษา{viewingRequest?.round_no > 1 ? ` (ครั้งที่ ${viewingRequest.round_no})` : ''}</span>
             </DialogTitle>
           </DialogHeader>
 
@@ -781,7 +787,7 @@ export default function SocialWorkPage() {
               <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-100 space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-2 border-b border-rose-100 pb-1.5 mb-1.5">
                   <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-lg">
-                    การส่งปรึกษาครั้งที่ {viewingRequest.round_no || 1}
+                    {viewingRequest?.round_no > 1 ? `การส่งปรึกษาครั้งที่ ${viewingRequest.round_no}` : 'ข้อมูลการส่งปรึกษา'}
                   </span>
                   <span className="text-xs text-slate-500">{formatDateTime(viewingRequest.sent_at)}</span>
                 </div>
@@ -819,7 +825,7 @@ export default function SocialWorkPage() {
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>ความคิดเห็นของนักสังคมสงเคราะห์ (ครั้งที่ {viewingRequest.round_no || 1})</span>
+                    <span>ความคิดเห็นของนักสังคมสงเคราะห์{viewingRequest?.round_no > 1 ? ` (ครั้งที่ ${viewingRequest.round_no})` : ''}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -878,7 +884,9 @@ export default function SocialWorkPage() {
                       {otherRounds.map((r) => (
                         <div key={r.id} className="p-2.5 bg-white rounded-xl border border-slate-200/90 space-y-1.5">
                           <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1">
-                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">ครั้งที่ {r.round_no || 1}</span>
+                            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                              {r.round_no > 1 ? `ครั้งที่ ${r.round_no}` : 'รอบแรก'}
+                            </span>
                             <span className="text-slate-400 text-[11px]">{formatDateTime(r.sent_at)}</span>
                           </div>
                           <div className="text-slate-700">

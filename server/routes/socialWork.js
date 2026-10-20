@@ -70,7 +70,9 @@ router.post('/requests', authMiddleware, async (req, res) => {
 
         res.json({
             success: true,
-            message: `ส่งปรึกษานักสังคมสงเคราะห์ (ครั้งที่ ${request.round_no || 1}) เรียบร้อยแล้ว`,
+            message: request.round_no > 1 
+                ? `ส่งปรึกษานักสังคมสงเคราะห์ (ครั้งที่ ${request.round_no}) เรียบร้อยแล้ว`
+                : 'ส่งปรึกษานักสังคมสงเคราะห์เรียบร้อยแล้ว',
             request
         });
     } catch (err) {

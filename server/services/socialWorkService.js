@@ -196,7 +196,8 @@ async function createSocialWorkRequest({ an, reason_id, reason_name, reason_othe
             [an]
         );
         if (pendingRows.length > 0) {
-            const err = new Error(`มีรายการส่งปรึกษาครั้งที่ ${pendingRows[0].round_no || 1} ที่ยังรอนักสังคมสงเคราะห์ตอบ กรุณาแก้ไขหรือยกเลิกรายการเดิมก่อน`);
+            const roundTxt = pendingRows[0].round_no > 1 ? `ครั้งที่ ${pendingRows[0].round_no} ` : '';
+            const err = new Error(`มีรายการส่งปรึกษา${roundTxt}ที่ยังรอนักสังคมสงเคราะห์ตอบ กรุณาแก้ไขหรือยกเลิกรายการเดิมก่อน`);
             err.statusCode = 400;
             throw err;
         }

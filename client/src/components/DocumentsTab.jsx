@@ -1492,7 +1492,7 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                 <div className="flex items-center gap-2 font-bold text-slate-900 text-sm sm:text-base">
                   <HeartHandshake className="w-4 h-4 text-rose-600 shrink-0" />
                   <span className="truncate">ส่งสังคมสงเคราะห์</span>
-                  {socialWorkRequests.length > 0 && (
+                  {socialWorkRequests.length > 1 && (
                     <Badge variant="outline" className="text-xs text-rose-700 bg-rose-50 border-rose-200 ml-1">
                       {socialWorkRequests.length} ครั้ง
                     </Badge>
@@ -1532,7 +1532,7 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                   <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
                     {socialWorkRequests.map((req, idx) => {
                       const isLatest = idx === 0
-                      const roundLabel = `ครั้งที่ ${req.round_no || (socialWorkRequests.length - idx)}`
+                      const roundNum = req.round_no || (socialWorkRequests.length - idx)
                       return (
                         <div
                           key={req.id || idx}
@@ -1543,12 +1543,14 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                           {/* Round Header */}
                           <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 flex-wrap">
                             <div className="flex items-center gap-2">
-                              <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${
-                                isLatest ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'
-                              }`}>
-                                {roundLabel}
-                              </span>
-                              {isLatest && (
+                              {roundNum > 1 && (
+                                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${
+                                  isLatest ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'
+                                }`}>
+                                  ครั้งที่ {roundNum}
+                                </span>
+                              )}
+                              {isLatest && socialWorkRequests.length > 1 && (
                                 <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200/60">
                                   ล่าสุด
                                 </span>
@@ -1654,7 +1656,7 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
                               <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>ความคิดเห็นของนักสังคมสงเคราะห์ ({roundLabel})</span>
+                                  <span>ความคิดเห็นของนักสังคมสงเคราะห์{roundNum > 1 ? ` (ครั้งที่ ${roundNum})` : ''}</span>
                                 </div>
                                 <button
                                   type="button"
@@ -2201,7 +2203,7 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
               <HeartHandshake className="w-6 h-6 text-rose-600" />
               <span>
                 {isEditSocialWork 
-                  ? `แก้ไขการส่งปรึกษานักสังคมสงเคราะห์ (ครั้งที่ ${editingSocialWorkRequest?.round_no || 1})` 
+                  ? `แก้ไขการส่งปรึกษานักสังคมสงเคราะห์${editingSocialWorkRequest?.round_no > 1 ? ` (ครั้งที่ ${editingSocialWorkRequest.round_no})` : ''}` 
                   : (socialWorkRequests.length > 0 
                       ? `ส่งปรึกษานักสังคมสงเคราะห์ (ครั้งที่ ${socialWorkRequests[0]?.round_no ? socialWorkRequests[0].round_no + 1 : socialWorkRequests.length + 1})` 
                       : 'ส่งปรึกษานักสังคมสงเคราะห์')}
@@ -2326,7 +2328,7 @@ export default function DocumentsTab({ patient, details, fetchDetails, isMedical
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-slate-600">
-              คุณต้องการยกเลิกคำขอส่งปรึกษานักสังคมสงเคราะห์สำหรับผู้ป่วย AN: <strong>{patient?.an}</strong> {cancellingSocialWorkRequest?.round_no ? `(ครั้งที่ ${cancellingSocialWorkRequest.round_no})` : ''} ใช่หรือไม่?
+              คุณต้องการยกเลิกคำขอส่งปรึกษานักสังคมสงเคราะห์สำหรับผู้ป่วย AN: <strong>{patient?.an}</strong> {cancellingSocialWorkRequest?.round_no > 1 ? `(ครั้งที่ ${cancellingSocialWorkRequest.round_no})` : ''} ใช่หรือไม่?
             </p>
             {cancellingSocialWorkRequest?.status === 'answered' && (
               <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
