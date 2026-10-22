@@ -81,13 +81,16 @@ export default function DischargeDetailPage() {
   }, [an])
 
   useEffect(() => {
+    // ไม่ล็อคเคสเมื่อเข้าดูจากหน้าหอผู้ป่วย
+    if (location.state?.fromWard) return
+
     if (an && user?.name) {
       socket.emit('case:join', { an, userName: user.name })
       return () => {
         socket.emit('case:leave', { an })
       }
     }
-  }, [an, user])
+  }, [an, user, location.state])
 
   const fetchData = async (showLoading = false) => {
     if (showLoading) setLoading(true)
